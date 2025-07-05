@@ -5,28 +5,28 @@
  */
 
 // Core exports
-export { SceneManager } from './core/SceneManager.js';
-export { AssetLoader } from './core/AssetLoader.js';
-export { CameraController } from './core/CameraController.js';
+export { SceneManager } from './client/src/core/SceneManager.js';
+export { AssetLoader } from './client/src/core/AssetLoader.js';
+export { CameraController } from './client/src/core/CameraController.js';
 
 // Component exports
-export { EntryVehicle } from './components/spacecraft/EntryVehicle.js';
-export { Parachute } from './components/spacecraft/Parachute.js';
-export { Mars } from './components/environment/Mars.js';
-export { Stars } from './components/environment/Stars.js';
+export { EntryVehicle } from './client/src/components/spacecraft/EntryVehicle.js';
+export { Parachute } from './client/src/components/spacecraft/Parachute.js';
+export { Mars } from './client/src/components/environment/Mars.js';
+export { Stars } from './client/src/components/environment/Stars.js';
 
 // Simulation exports
-export { SimulationManager } from './simulation/SimulationManager.js';
-export { TrajectoryManager } from './simulation/TrajectoryManager.js';
-export { PhaseController } from './simulation/PhaseController.js';
+export { SimulationManager } from './client/src/simulation/SimulationManager.js';
+export { TrajectoryManager } from './client/src/simulation/TrajectoryManager.js';
+export { PhaseController } from './client/src/simulation/PhaseController.js';
 
 // UI exports
-export { Timeline } from './ui/Timeline.js';
-export { PhaseInfo } from './ui/PhaseInfo.js';
-export { Controls } from './ui/Controls.js';
+export { Timeline } from './client/src/ui/Timeline.js';
+export { PhaseInfo } from './client/src/ui/PhaseInfo.js';
+export { Controls } from './client/src/ui/Controls.js';
 
 // Data exports
-export { DataManager } from './data/DataManager.js';
+export { DataManager } from './client/src/data/DataManager.js';
 
 // Main initialization function
 export function createMarsEDLSimulation(options = {}) {
