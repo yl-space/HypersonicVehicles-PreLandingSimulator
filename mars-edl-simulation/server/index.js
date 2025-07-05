@@ -101,6 +101,7 @@ class SimulationServer {
         this.app.use('/api/missions', missionsRouter);
         this.app.use('/api/telemetry', telemetryRouter);
         this.app.use('/api/trajectories', trajectoriesRouter);
+        this.app.use('/api/data', dataRouter);
         
         // Health check
         this.app.get('/health', (req, res) => {
