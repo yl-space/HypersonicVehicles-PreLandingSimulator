@@ -1,369 +1,249 @@
 /**
- * CameraController.js
- * Advanced camera control system with multiple modes
+ * CameraController.js - Camera management and controls
  */
 
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 export class CameraController {
-    constructor(camera, domElement) {
-        this.camera = camera;
-        this.domElement = domElement;
+    constructor(container) {
+        this.container = container;
+        this.camera = new THREE.PerspectiveCamera(
+            75, 
+            container.clientWidth / container.clientHeight, 
+            0.1, 
+            10000000
+        );
         
-        // Camera modes
-        this.modes = {
-            FREE: 'FREE',
-            FOLLOW: 'FOLLOW',
-            CINEMATIC: 'CINEMATIC',
-            FIRST_PERSON: 'FIRST_PERSON',
-            FIXED: 'FIXED'
-        };
+        this.mode = 'FREE'; // FREE, FOLLOW, CINEMATIC
+        this.target = new THREE.Vector3(0, 0, 0);
+        this.targetObject = null;
+        this.smoothingFactor = 0.05;
         
-        this.currentMode = this.modes.FREE;
+        // Mouse controls
+        this.mouseDown = false;
+        this.mouseX = 0;
+        this.mouseY = 0;
+        this.cameraRotationX = 0;
+        this.cameraRotationY = 0;
         
-        // Orbit controls for free camera
-        this.orbitControls = new OrbitControls(camera, domElement);
-        this.setupOrbitControls();
+        // Cinematic sequence
+        this.cinematicTime = 0;
+        this.cinematicDuration = 10;
         
-        // Follow mode properties
-        this.followTarget = null;
-        this.followOffset = new THREE.Vector3(0, 200, 500);
-        this.followLookOffset = new THREE.Vector3(0, 0, 0);
-        this.followSmoothing = 0.1;
-        
-        // Cinematic mode properties
-        this.cinematicPath = null;
-        this.cinematicProgress = 0;
-        this.cinematicSpeed = 0.001;
-        this.cinematicPaused = false;
-        
-        // Camera shake
-        this.shakeIntensity = 0;
-        this.shakeDecay = 0.95;
-        this.originalPosition = new THREE.Vector3();
-        
-        // Smooth transitions
-        this.isTransitioning = false;
-        this.transitionStart = {
-            position: new THREE.Vector3(),
-            rotation: new THREE.Euler(),
-            target: new THREE.Vector3()
-        };
-        this.transitionEnd = {
-            position: new THREE.Vector3(),
-            rotation: new THREE.Euler(),
-            target: new THREE.Vector3()
-        };
-        this.transitionProgress = 0;
-        this.transitionDuration = 2000; // ms
-        
-        // Predefined camera positions
-        this.presetViews = [
-            {
-                name: 'Overview',
-                position: new THREE.Vector3(0, 2000, 5000),
-                target: new THREE.Vector3(0, 0, 0)
-            },
-            {
-                name: 'Entry View',
-                position: new THREE.Vector3(2000, 3000, 4000),
-                target: new THREE.Vector3(0, 1000, 0)
-            },
-            {
-                name: 'Surface View',
-                position: new THREE.Vector3(-3000, 500, -2000),
-                target: new THREE.Vector3(0, 0, 0)
-            },
-            {
-                name: 'Close Follow',
-                position: new THREE.Vector3(100, 50, 200),
-                target: new THREE.Vector3(0, 0, 0)
-            }
-        ];
+        this.setupControls();
+        this.setInitialPosition();
     }
     
-    setupOrbitControls() {
-        this.orbitControls.enableDamping = true;
-        this.orbitControls.dampingFactor = 0.05;
-        this.orbitControls.screenSpacePanning = false;
-        this.orbitControls.minDistance = 10;
-        this.orbitControls.maxDistance = 100000;
-        this.orbitControls.maxPolarAngle = Math.PI * 0.495;
+    setupControls() {
+        // Mouse controls
+        this.container.addEventListener('mousedown', (e) => {
+            if (this.mode !== 'FREE') return;
+            this.mouseDown = true;
+            this.mouseX = e.clientX;
+            this.mouseY = e.clientY;
+        });
         
-        // Mouse settings
-        this.orbitControls.rotateSpeed = 0.5;
-        this.orbitControls.zoomSpeed = 1.0;
-        this.orbitControls.panSpeed = 0.8;
+        this.container.addEventListener('mouseup', () => {
+            this.mouseDown = false;
+        });
         
-        // Touch settings
-        this.orbitControls.touches = {
-            ONE: THREE.TOUCH.ROTATE,
-            TWO: THREE.TOUCH.DOLLY_PAN
-        };
-    }
-    
-    setMode(mode) {
-        if (this.currentMode === mode) return;
+        this.container.addEventListener('mousemove', (e) => {
+            if (!this.mouseDown || this.mode !== 'FREE') return;
+            
+            const deltaX = e.clientX - this.mouseX;
+            const deltaY = e.clientY - this.mouseY;
+            
+            this.cameraRotationY -= deltaX * 0.005;
+            this.cameraRotationX -= deltaY * 0.005;
+            this.cameraRotationX = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.cameraRotationX));
+            
+            this.mouseX = e.clientX;
+            this.mouseY = e.clientY;
+        });
         
-        const previousMode = this.currentMode;
-        this.currentMode = mode;
-        
-        switch (mode) {
-            case this.modes.FREE:
-                this.orbitControls.enabled = true;
-                this.followTarget = null;
-                break;
-                
-            case this.modes.FOLLOW:
-                this.orbitControls.enabled = false;
-                break;
-                
-            case this.modes.CINEMATIC:
-                this.orbitControls.enabled = false;
-                this.cinematicProgress = 0;
-                break;
-                
-            case this.modes.FIRST_PERSON:
-                this.orbitControls.enabled = false;
-                break;
-                
-            case this.modes.FIXED:
-                this.orbitControls.enabled = false;
-                break;
-        }
-        
-        // Dispatch mode change event
-        window.dispatchEvent(new CustomEvent('camera-mode-changed', {
-            detail: { mode, previousMode }
-        }));
-    }
-    
-    // Follow mode methods
-    setFollowTarget(target, offset = null, lookOffset = null) {
-        this.followTarget = target;
-        if (offset) this.followOffset.copy(offset);
-        if (lookOffset) this.followLookOffset.copy(lookOffset);
-        this.setMode(this.modes.FOLLOW);
-    }
-    
-    updateFollowMode() {
-        if (!this.followTarget) return;
-        
-        // Calculate desired camera position
-        const targetPosition = this.followTarget.position.clone();
-        const desiredPosition = targetPosition.clone().add(this.followOffset);
-        
-        // Smooth camera movement
-        this.camera.position.lerp(desiredPosition, this.followSmoothing);
-        
-        // Look at target with offset
-        const lookTarget = targetPosition.clone().add(this.followLookOffset);
-        this.camera.lookAt(lookTarget);
-    }
-    
-    // Cinematic mode methods
-    createCinematicPath(points, loop = false) {
-        const curve = new THREE.CatmullRomCurve3(points, loop);
-        this.cinematicPath = curve;
-        this.cinematicProgress = 0;
-    }
-    
-    updateCinematicMode(deltaTime) {
-        if (!this.cinematicPath || this.cinematicPaused) return;
-        
-        // Update progress
-        this.cinematicProgress += this.cinematicSpeed * deltaTime;
-        
-        if (this.cinematicProgress > 1) {
-            if (this.cinematicPath.closed) {
-                this.cinematicProgress = this.cinematicProgress % 1;
+        // Wheel zoom
+        this.container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const distance = this.camera.position.distanceTo(this.target);
+            const zoomSpeed = distance * 0.0002;
+            const direction = new THREE.Vector3();
+            this.camera.getWorldDirection(direction);
+            
+            if (e.deltaY > 0) {
+                this.camera.position.add(direction.multiplyScalar(-zoomSpeed));
             } else {
-                this.cinematicProgress = 1;
-                this.cinematicPaused = true;
+                this.camera.position.add(direction.multiplyScalar(zoomSpeed));
             }
-        }
+        });
         
-        // Get position and look-ahead point on path
-        const position = this.cinematicPath.getPointAt(this.cinematicProgress);
-        const lookAhead = Math.min(this.cinematicProgress + 0.05, 1);
-        const lookTarget = this.cinematicPath.getPointAt(lookAhead);
-        
-        this.camera.position.copy(position);
-        this.camera.lookAt(lookTarget);
+        // Touch controls for mobile
+        this.setupTouchControls();
     }
     
-    // Transition methods
-    transitionTo(position, target, duration = 2000) {
-        this.isTransitioning = true;
-        this.transitionProgress = 0;
-        this.transitionDuration = duration;
+    setupTouchControls() {
+        let lastTouchDistance = 0;
         
-        // Store start state
-        this.transitionStart.position.copy(this.camera.position);
-        this.transitionStart.rotation.copy(this.camera.rotation);
-        this.transitionStart.target.copy(this.orbitControls.target);
+        this.container.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                lastTouchDistance = this.getTouchDistance(e.touches[0], e.touches[1]);
+            }
+        });
         
-        // Store end state
-        this.transitionEnd.position.copy(position);
-        this.transitionEnd.target.copy(target);
-        
-        // Calculate end rotation
-        const tempCamera = this.camera.clone();
-        tempCamera.position.copy(position);
-        tempCamera.lookAt(target);
-        this.transitionEnd.rotation.copy(tempCamera.rotation);
-        
-        return new Promise((resolve) => {
-            this.transitionResolve = resolve;
+        this.container.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            
+            if (e.touches.length === 2) {
+                const currentDistance = this.getTouchDistance(e.touches[0], e.touches[1]);
+                const delta = currentDistance - lastTouchDistance;
+                
+                const distance = this.camera.position.distanceTo(this.target);
+                const zoomSpeed = distance * 0.001;
+                const direction = new THREE.Vector3();
+                this.camera.getWorldDirection(direction);
+                
+                this.camera.position.add(direction.multiplyScalar(delta * zoomSpeed));
+                lastTouchDistance = currentDistance;
+            }
         });
     }
     
-    updateTransition(deltaTime) {
-        if (!this.isTransitioning) return;
+    getTouchDistance(touch1, touch2) {
+        const dx = touch1.clientX - touch2.clientX;
+        const dy = touch1.clientY - touch2.clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    
+    setInitialPosition() {
+        this.camera.position.set(500000, 200000, 300000);
+        this.camera.lookAt(0, 0, 0);
+    }
+    
+    setMode(mode) {
+        this.mode = mode;
+        this.cinematicTime = 0;
         
-        this.transitionProgress += deltaTime / this.transitionDuration;
-        
-        if (this.transitionProgress >= 1) {
-            this.transitionProgress = 1;
-            this.isTransitioning = false;
-        }
-        
-        // Smooth easing
-        const t = this.easeInOutCubic(this.transitionProgress);
-        
-        // Interpolate position
-        this.camera.position.lerpVectors(
-            this.transitionStart.position,
-            this.transitionEnd.position,
-            t
-        );
-        
-        // Interpolate rotation using quaternions
-        const startQuat = new THREE.Quaternion().setFromEuler(this.transitionStart.rotation);
-        const endQuat = new THREE.Quaternion().setFromEuler(this.transitionEnd.rotation);
-        const currentQuat = new THREE.Quaternion().slerpQuaternions(startQuat, endQuat, t);
-        this.camera.quaternion.copy(currentQuat);
-        
-        // Update orbit controls target
-        this.orbitControls.target.lerpVectors(
-            this.transitionStart.target,
-            this.transitionEnd.target,
-            t
-        );
-        
-        if (this.transitionProgress >= 1 && this.transitionResolve) {
-            this.transitionResolve();
-            this.transitionResolve = null;
+        switch (mode) {
+            case 'FREE':
+                break;
+            case 'FOLLOW':
+                if (this.targetObject) {
+                    this.followTarget();
+                }
+                break;
+            case 'CINEMATIC':
+                this.startCinematicSequence();
+                break;
         }
     }
     
-    // Camera shake
-    shake(intensity) {
-        this.shakeIntensity = intensity;
-        this.originalPosition.copy(this.camera.position);
-    }
-    
-    updateShake() {
-        if (this.shakeIntensity > 0.001) {
-            const shakeX = (Math.random() - 0.5) * this.shakeIntensity * 10;
-            const shakeY = (Math.random() - 0.5) * this.shakeIntensity * 10;
-            const shakeZ = (Math.random() - 0.5) * this.shakeIntensity * 10;
-            
-            this.camera.position.x = this.originalPosition.x + shakeX;
-            this.camera.position.y = this.originalPosition.y + shakeY;
-            this.camera.position.z = this.originalPosition.z + shakeZ;
-            
-            this.shakeIntensity *= this.shakeDecay;
+    setTarget(object) {
+        this.targetObject = object;
+        if (object && object.position) {
+            this.target.copy(object.position);
         }
     }
     
-    // Preset views
-    setPresetView(index) {
-        if (index < 0 || index >= this.presetViews.length) return;
-        
-        const view = this.presetViews[index];
-        this.transitionTo(view.position, view.target);
-    }
-    
-    // First person mode
-    attachToObject(object, offset = new THREE.Vector3(0, 10, 0)) {
-        this.followTarget = object;
-        this.followOffset = offset;
-        this.followLookOffset.set(0, 0, -100); // Look forward
-        this.setMode(this.modes.FIRST_PERSON);
-    }
-    
-    updateFirstPersonMode() {
-        if (!this.followTarget) return;
-        
-        // Position camera at object position plus offset
-        const position = this.followTarget.position.clone().add(this.followOffset);
-        this.camera.position.copy(position);
-        
-        // Look in the direction the object is facing
-        const direction = new THREE.Vector3(0, 0, -1);
-        direction.applyQuaternion(this.followTarget.quaternion);
-        const lookTarget = position.clone().add(direction.multiplyScalar(100));
-        this.camera.lookAt(lookTarget);
-    }
-    
-    // Main update method
     update(deltaTime) {
-        switch (this.currentMode) {
-            case this.modes.FREE:
-                this.orbitControls.update();
+        switch (this.mode) {
+            case 'FREE':
+                this.updateFreeCamera();
                 break;
-                
-            case this.modes.FOLLOW:
-                this.updateFollowMode();
+            case 'FOLLOW':
+                this.updateFollowCamera(deltaTime);
                 break;
-                
-            case this.modes.CINEMATIC:
-                this.updateCinematicMode(deltaTime);
-                break;
-                
-            case this.modes.FIRST_PERSON:
-                this.updateFirstPersonMode();
+            case 'CINEMATIC':
+                this.updateCinematicCamera(deltaTime);
                 break;
         }
+    }
+    
+    updateFreeCamera() {
+        // Apply rotation
+        const spherical = new THREE.Spherical();
+        spherical.setFromVector3(this.camera.position.clone().sub(this.target));
+        spherical.theta = this.cameraRotationY;
+        spherical.phi = Math.PI/2 + this.cameraRotationX;
         
-        // Update transitions
-        if (this.isTransitioning) {
-            this.updateTransition(deltaTime);
+        this.camera.position.setFromSpherical(spherical).add(this.target);
+        this.camera.lookAt(this.target);
+    }
+    
+    updateFollowCamera(deltaTime) {
+        if (!this.targetObject) return;
+        
+        // Update target position
+        if (this.targetObject.position) {
+            this.target.lerp(this.targetObject.position, this.smoothingFactor);
         }
         
-        // Update camera shake
-        this.updateShake();
+        // Position camera behind and above target
+        const offset = new THREE.Vector3(0, 50000, 100000);
+        const desiredPosition = this.target.clone().add(offset);
+        
+        this.camera.position.lerp(desiredPosition, this.smoothingFactor);
+        this.camera.lookAt(this.target);
     }
     
-    // Utility methods
-    easeInOutCubic(t) {
-        return t < 0.5 
-            ? 4 * t * t * t 
-            : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    updateCinematicCamera(deltaTime) {
+        this.cinematicTime += deltaTime;
+        const progress = (this.cinematicTime % this.cinematicDuration) / this.cinematicDuration;
+        
+        // Circular motion around target
+        const radius = 200000;
+        const angle = progress * Math.PI * 2;
+        const height = Math.sin(progress * Math.PI) * 100000 + 50000;
+        
+        this.camera.position.set(
+            Math.cos(angle) * radius,
+            height,
+            Math.sin(angle) * radius
+        );
+        
+        this.camera.lookAt(this.target);
     }
     
-    getState() {
-        return {
-            mode: this.currentMode,
-            position: this.camera.position.clone(),
-            rotation: this.camera.rotation.clone(),
-            target: this.orbitControls.target.clone()
+    startCinematicSequence() {
+        this.cinematicTime = 0;
+    }
+    
+    focusOn(position, distance = 100000) {
+        this.target.copy(position);
+        
+        const direction = new THREE.Vector3();
+        this.camera.getWorldDirection(direction);
+        direction.multiplyScalar(-distance);
+        
+        this.camera.position.copy(position).add(direction);
+        this.camera.lookAt(position);
+    }
+    
+    panTo(position, duration = 2) {
+        // Smooth camera transition
+        const startPosition = this.camera.position.clone();
+        const startTime = performance.now();
+        
+        const animate = () => {
+            const elapsed = (performance.now() - startTime) / 1000;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Ease out function
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+            
+            this.camera.position.lerpVectors(startPosition, position, easeOut);
+            
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            }
         };
+        
+        animate();
     }
     
-    setState(state) {
-        this.camera.position.copy(state.position);
-        this.camera.rotation.copy(state.rotation);
-        this.orbitControls.target.copy(state.target);
-        this.setMode(state.mode);
-    }
-    
-    // Cleanup
     dispose() {
-        this.orbitControls.dispose();
+        // Remove event listeners
+        this.container.removeEventListener('mousedown', this.onMouseDown);
+        this.container.removeEventListener('mouseup', this.onMouseUp);
+        this.container.removeEventListener('mousemove', this.onMouseMove);
+        this.container.removeEventListener('wheel', this.onWheel);
     }
 }
-
-export default CameraController;
