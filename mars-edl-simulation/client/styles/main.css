@@ -1,0 +1,612 @@
+/* Main Styles for Hypersonic Vehicle Simulation */
+
+/* Reset and Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background: #000;
+    color: #fff;
+    overflow: hidden;
+    user-select: none;
+}
+
+/* Loading Screen */
+.loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.loading-content {
+    text-align: center;
+    color: #fff;
+}
+
+.loading-logo h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: 3rem;
+    font-weight: 900;
+    background: linear-gradient(45deg, #00d4ff, #ff6b6b, #4ecdc4);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: gradientShift 3s ease-in-out infinite;
+    margin-bottom: 2rem;
+}
+
+.loading-spinner {
+    width: 60px;
+    height: 60px;
+    border: 4px solid rgba(255, 255, 255, 0.1);
+    border-top: 4px solid #00d4ff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 2rem;
+}
+
+.progress-bar {
+    width: 300px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 1rem auto;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00d4ff, #4ecdc4);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+@keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Error Screen */
+.error-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9998;
+}
+
+.error-content {
+    text-align: center;
+    background: rgba(255, 0, 0, 0.1);
+    border: 1px solid #ff0000;
+    border-radius: 8px;
+    padding: 2rem;
+    max-width: 400px;
+}
+
+.error-content button {
+    background: #ff0000;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 1rem;
+}
+
+/* Main Application Container */
+.app-container {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+}
+
+.scene-container {
+    width: 100%;
+    height: 100%;
+    background: #000;
+}
+
+/* UI Overlay */
+.ui-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 100;
+}
+
+.ui-overlay > * {
+    pointer-events: auto;
+}
+
+/* Top HUD */
+.top-hud {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 8px;
+    padding: 15px 20px;
+    backdrop-filter: blur(10px);
+}
+
+.mission-info h3 {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.2rem;
+    color: #00d4ff;
+    margin-bottom: 5px;
+}
+
+.mission-info p {
+    color: #4ecdc4;
+    font-size: 0.9rem;
+}
+
+.time-display {
+    display: flex;
+    gap: 20px;
+}
+
+.mission-time, .simulation-time {
+    text-align: center;
+}
+
+.mission-time span:first-child,
+.simulation-time span:first-child {
+    display: block;
+    font-size: 0.8rem;
+    color: #888;
+    margin-bottom: 5px;
+}
+
+.mission-time span:last-child,
+.simulation-time span:last-child {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.1rem;
+    color: #fff;
+}
+
+/* Left Panel - Vehicle Controls */
+.left-panel {
+    position: absolute;
+    left: 20px;
+    top: 100px;
+    width: 320px;
+    background: rgba(0, 0, 0, 0.9);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 8px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.panel-header h3 {
+    font-family: 'Orbitron', monospace;
+    color: #00d4ff;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.control-section {
+    margin-bottom: 25px;
+}
+
+.control-section h4 {
+    color: #4ecdc4;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Thrust Controls */
+.thrust-slider {
+    margin-bottom: 15px;
+}
+
+.thrust-slider label {
+    display: block;
+    margin-bottom: 8px;
+    color: #fff;
+    font-size: 0.9rem;
+}
+
+.thrust-slider input[type="range"] {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.thrust-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: linear-gradient(45deg, #00d4ff, #4ecdc4);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+}
+
+/* Attitude Controls */
+.attitude-controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+.control-group {
+    text-align: center;
+}
+
+.control-group label {
+    display: block;
+    margin-bottom: 10px;
+    color: #fff;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.joystick-container {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto;
+    position: relative;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    border: 2px solid rgba(0, 212, 255, 0.3);
+}
+
+.joystick {
+    width: 20px;
+    height: 20px;
+    background: linear-gradient(45deg, #00d4ff, #4ecdc4);
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    transition: all 0.1s ease;
+}
+
+.joystick:hover {
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.8);
+}
+
+/* System Controls */
+.system-controls {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+
+.system-btn {
+    background: rgba(0, 212, 255, 0.1);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    color: #00d4ff;
+    padding: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.system-btn:hover {
+    background: rgba(0, 212, 255, 0.2);
+    border-color: #00d4ff;
+    box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+}
+
+.system-btn:active {
+    background: rgba(0, 212, 255, 0.3);
+}
+
+/* Right Panel - Telemetry */
+.right-panel {
+    position: absolute;
+    right: 20px;
+    top: 100px;
+    width: 320px;
+    background: rgba(0, 0, 0, 0.9);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 8px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.telemetry-section {
+    margin-bottom: 25px;
+}
+
+.telemetry-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.telemetry-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.telemetry-item:last-child {
+    border-bottom: none;
+}
+
+.telemetry-item .label {
+    color: #888;
+    font-size: 0.9rem;
+}
+
+.telemetry-item .value {
+    font-family: 'Orbitron', monospace;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* Bottom Panel - Timeline */
+.bottom-panel {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.9);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 8px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.timeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.timeline-header h4 {
+    font-family: 'Orbitron', monospace;
+    color: #00d4ff;
+}
+
+.timeline-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.timeline-btn {
+    background: rgba(0, 212, 255, 0.1);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    color: #00d4ff;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+}
+
+.timeline-btn:hover {
+    background: rgba(0, 212, 255, 0.2);
+    border-color: #00d4ff;
+}
+
+#speed-selector {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    color: #fff;
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.timeline-track {
+    position: relative;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    margin-bottom: 15px;
+    overflow: hidden;
+}
+
+.timeline-progress {
+    height: 100%;
+    background: linear-gradient(90deg, #00d4ff, #4ecdc4);
+    width: 0%;
+    transition: width 0.1s ease;
+}
+
+.timeline-markers {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.phase-indicators {
+    display: flex;
+    justify-content: space-between;
+}
+
+.phase {
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: #888;
+    transition: all 0.3s ease;
+}
+
+.phase.active {
+    background: rgba(0, 212, 255, 0.2);
+    color: #00d4ff;
+    border: 1px solid rgba(0, 212, 255, 0.5);
+}
+
+/* Camera Controls */
+.camera-controls {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+.camera-btn {
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    color: #00d4ff;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.camera-btn.active,
+.camera-btn:hover {
+    background: rgba(0, 212, 255, 0.2);
+    border-color: #00d4ff;
+}
+
+/* Planet Selector */
+.planet-selector {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+}
+
+#planet-select {
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .left-panel,
+    .right-panel {
+        width: 280px;
+    }
+    
+    .top-hud {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+}
+
+@media (max-width: 768px) {
+    .left-panel,
+    .right-panel {
+        width: 250px;
+        padding: 15px;
+    }
+    
+    .attitude-controls {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .joystick-container {
+        width: 50px;
+        height: 50px;
+    }
+    
+    .joystick {
+        width: 16px;
+        height: 16px;
+    }
+}
+
+/* Animation Classes */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+.fade-out {
+    animation: fadeOut 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(20px); }
+}
+
+/* Alert Styles */
+.alert {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: 4px;
+    color: white;
+    font-weight: 500;
+    z-index: 1000;
+    animation: slideIn 0.3s ease;
+}
+
+.alert.success {
+    background: rgba(0, 255, 0, 0.2);
+    border: 1px solid #00ff00;
+}
+
+.alert.warning {
+    background: rgba(255, 165, 0, 0.2);
+    border: 1px solid #ffa500;
+}
+
+.alert.error {
+    background: rgba(255, 0, 0, 0.2);
+    border: 1px solid #ff0000;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+} 
