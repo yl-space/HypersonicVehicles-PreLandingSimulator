@@ -1,15 +1,47 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Mars 2020 EDL Simulation</title>
-  <link rel="stylesheet" href="styles/eyes-ui.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mars Entry, Descent & Landing Simulation</title>
+    <meta name="description" content="Interactive 3D simulation of Mars Entry, Descent and Landing sequence">
+    <link rel="stylesheet" href="/src/styles/main.css">
 </head>
 <body>
-  <div id="scene-container"></div>
-  <div id="overlay-root"></div>
-  <script type="module" src="src/eyes-main.js"></script>
+    <div id="app-container">
+        <div id="canvas-container"></div>
+        <div id="ui-overlay"></div>
+    </div>
+    
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="loading-content">
+            <div class="loading-logo">
+                <svg viewBox="0 0 120 120" aria-hidden="true">
+                    <circle cx="60" cy="60" r="50" fill="none" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+                    <circle cx="60" cy="60" r="50" fill="none" stroke="currentColor" stroke-width="2" 
+                            stroke-dasharray="314" stroke-dashoffset="314" class="loading-spinner"/>
+                    <text x="60" y="65" text-anchor="middle" font-size="24" font-weight="300" fill="currentColor">EDL</text>
+                </svg>
+            </div>
+            <h1 class="loading-title">INITIALIZING SIMULATION</h1>
+            <div class="loading-progress-container">
+                <div id="loading-progress"></div>
+            </div>
+            <p class="loading-status" id="loading-status">Loading assets...</p>
+        </div>
+    </div>
+    
+    <!-- Error Screen -->
+    <div id="error-screen" role="alert" aria-live="assertive">
+        <div class="error-content">
+            <div class="error-icon">⚠️</div>
+            <h2>Simulation Error</h2>
+            <p id="error-message"></p>
+            <button class="error-button" onclick="location.reload()">Reload Application</button>
+        </div>
+    </div>
+    
+    <script type="module" src="/src/main.js"></script>
 </body>
 </html>
