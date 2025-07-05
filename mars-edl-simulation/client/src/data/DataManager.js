@@ -1,185 +1,175 @@
-
-// client/src/data/DataManager.js
-
 /**
- * DataManager handles all data operations including:
- * - Fetching trajectory data from server
- * - Caching for performance
- * - Real-time updates via WebSocket
+ * DataManager.js
+ * Handles loading and caching of mission data
  */
+
 export class DataManager {
-    constructor(apiEndpoint) {
-        this.apiEndpoint = apiEndpoint;
+    constructor() {
         this.cache = new Map();
-        this.websocket = null;
-        
-        // IndexedDB for offline support
-        this.dbName = 'MarsEDLSimulation';
-        this.dbVersion = 1;
-        this.initDatabase();
+        this.apiBaseUrl = '/api';
     }
     
-    async initDatabase() {
-        // Open IndexedDB for local storage
-        const request = indexedDB.open(this.dbName, this.dbVersion);
+    async loadMissionConfig(missionId) {
+        const cacheKey = `mission-config-${missionId}`;
         
-        request.onerror = () => {
-            console.error('Failed to open IndexedDB');
-        };
-        
-        request.onsuccess = (event) => {
-            this.db = event.target.result;
-        };
-        
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            
-            // Create object stores
-            if (!db.objectStoreNames.contains('trajectories')) {
-                const trajectoryStore = db.createObjectStore('trajectories', { 
-                    keyPath: 'id' 
-                });
-                trajectoryStore.createIndex('missionId', 'missionId', { unique: false });
-            }
-            
-            if (!db.objectStoreNames.contains('missions')) {
-                db.createObjectStore('missions', { keyPath: 'id' });
-            }
-        };
-    }
-    
-    async fetchMissionData(missionId) {
-        // Check cache first
-        const cacheKey = `mission_${missionId}`;
         if (this.cache.has(cacheKey)) {
             return this.cache.get(cacheKey);
         }
         
         try {
-            // Try to fetch from server
-            const response = await fetch(`${this.apiEndpoint}/missions/${missionId}`);
-            if (!response.ok) throw new Error('Network response was not ok');
+            const response = await fetch(`${this.apiBaseUrl}/missions/${missionId}/config`);
+            if (!response.ok) throw new Error(`Failed to load mission config: ${response.statusText}`);
             
-            const data = await response.json();
+            const config = await response.json();
+            this.cache.set(cacheKey, config);
+            return config;
             
-            // Cache the result
-            this.cache.set(cacheKey, data);
-            
-            // Store in IndexedDB for offline use
-            await this.storeInDB('missions', data);
-            
-            return data;
         } catch (error) {
-            // Fall back to IndexedDB if offline
-            console.warn('Fetching from network failed, trying local storage:', error);
-            return await this.getFromDB('missions', missionId);
+            console.error('Error loading mission config:', error);
+            // Return default config
+            return this.getDefaultMissionConfig(missionId);
         }
     }
     
-    async fetchTrajectoryData(missionId, options = {}) {
-        const { 
-            startTime = 0, 
-            endTime = Infinity, 
-            resolution = 1 
-        } = options;
+    async loadTrajectoryData(missionId) {
+        const cacheKey = `trajectory-${missionId}`;
+        
+        if (this.cache.has(cacheKey)) {
+            return this.cache.get(cacheKey);
+        }
         
         try {
-            const params = new URLSearchParams({
-                missionId,
-                startTime,
-                endTime,
-                resolution
-            });
+            const response = await fetch(`${this.apiBaseUrl}/trajectories/${missionId}`);
+            if (!response.ok) throw new Error(`Failed to load trajectory: ${response.statusText}`);
             
-            const response = await fetch(
-                `${this.apiEndpoint}/trajectories?${params}`
-            );
+            const csvData = await response.text();
+            this.cache.set(cacheKey, csvData);
+            return csvData;
             
-            if (!response.ok) throw new Error('Network response was not ok');
-            
-            const data = await response.json();
-            
-            // Process trajectory data
-            const processed = this.processTrajectoryData(data);
-            
-            // Store for offline use
-            await this.storeInDB('trajectories', {
-                id: `${missionId}_${startTime}_${endTime}`,
-                missionId,
-                data: processed
-            });
-            
-            return processed;
         } catch (error) {
-            console.error('Failed to fetch trajectory data:', error);
+            console.error('Error loading trajectory data:', error);
             throw error;
         }
     }
     
-    processTrajectoryData(rawData) {
-        // Convert raw data to Three.js friendly format
-        return rawData.map(point => ({
-            position: new THREE.Vector3(
-                point.x * 0.0001,  // Scale to scene units
-                point.y * 0.0001,
-                point.z * 0.0001
-            ),
-            velocity: point.velocity,
-            altitude: point.altitude,
-            time: point.time,
-            phase: point.phase
-        }));
-    }
-    
-    setupWebSocket(url) {
-        // Real-time updates for live missions
-        this.websocket = new WebSocket(url);
+    async loadVehicleModel(vehicleType) {
+        const cacheKey = `model-${vehicleType}`;
         
-        this.websocket.onopen = () => {
-            console.log('WebSocket connected');
-        };
+        if (this.cache.has(cacheKey)) {
+            return this.cache.get(cacheKey);
+        }
         
-        this.websocket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            this.handleRealtimeUpdate(data);
-        };
-        
-        this.websocket.onerror = (error) => {
-            console.error('WebSocket error:', error);
-        };
-        
-        this.websocket.onclose = () => {
-            console.log('WebSocket disconnected');
-            // Implement reconnection logic
-            setTimeout(() => this.setupWebSocket(url), 5000);
-        };
-    }
-    
-    handleRealtimeUpdate(data) {
-        // Emit event for components to react
-        window.dispatchEvent(new CustomEvent('telemetryUpdate', { 
-            detail: data 
-        }));
-    }
-    
-    async storeInDB(storeName, data) {
-        if (!this.db) return;
-        
-        const transaction = this.db.transaction([storeName], 'readwrite');
-        const store = transaction.objectStore(storeName);
-        store.put(data);
-    }
-    
-    async getFromDB(storeName, key) {
-        if (!this.db) return null;
-        
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction([storeName], 'readonly');
-            const store = transaction.objectStore(storeName);
-            const request = store.get(key);
+        try {
+            const response = await fetch(`/assets/models/${vehicleType}.glb`);
+            if (!response.ok) throw new Error(`Failed to load model: ${response.statusText}`);
             
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            this.cache.set(cacheKey, url);
+            return url;
+            
+        } catch (error) {
+            console.error('Error loading vehicle model:', error);
+            return null;
+        }
+    }
+    
+    async loadTexture(textureName) {
+        const cacheKey = `texture-${textureName}`;
+        
+        if (this.cache.has(cacheKey)) {
+            return this.cache.get(cacheKey);
+        }
+        
+        try {
+            const response = await fetch(`/assets/textures/${textureName}`);
+            if (!response.ok) throw new Error(`Failed to load texture: ${response.statusText}`);
+            
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            this.cache.set(cacheKey, url);
+            return url;
+            
+        } catch (error) {
+            console.error('Error loading texture:', error);
+            return null;
+        }
+    }
+    
+    getDefaultMissionConfig(missionId) {
+        const configs = {
+            msl: {
+                name: "Mars Science Laboratory",
+                vehicle: "msl_aeroshell",
+                planet: "mars",
+                entryInterface: {
+                    altitude: 132000,
+                    velocity: 5800,
+                    angle: -15.5
+                },
+                phases: [
+                    { name: "Entry Interface", startTime: 0, altitude: 132000 },
+                    { name: "Peak Heating", startTime: 80, altitude: 60000 },
+                    { name: "Peak Deceleration", startTime: 150, altitude: 25000 },
+                    { name: "Parachute Deploy", startTime: 260.65, altitude: 13462.9 }
+                ],
+                landingSite: {
+                    name: "Gale Crater",
+                    latitude: -5.4,
+                    longitude: 137.8
+                }
+            },
+            perseverance: {
+                name: "Mars 2020 Perseverance",
+                vehicle: "m2020_aeroshell",
+                planet: "mars",
+                entryInterface: {
+                    altitude: 132000,
+                    velocity: 5400,
+                    angle: -15.0
+                },
+                phases: [
+                    { name: "Entry Interface", startTime: 0, altitude: 132000 },
+                    { name: "Peak Heating", startTime: 75, altitude: 65000 },
+                    { name: "Peak Deceleration", startTime: 145, altitude: 28000 },
+                    { name: "Parachute Deploy", startTime: 255, altitude: 11000 }
+                ],
+                landingSite: {
+                    name: "Jezero Crater",
+                    latitude: 18.38,
+                    longitude: 77.58
+                }
+            }
+        };
+        
+        return configs[missionId] || configs.msl;
+    }
+    
+    clearCache() {
+        // Clean up blob URLs
+        this.cache.forEach((value, key) => {
+            if (typeof value === 'string' && value.startsWith('blob:')) {
+                URL.revokeObjectURL(value);
+            }
         });
+        
+        this.cache.clear();
+    }
+    
+    preloadAssets(missionId) {
+        const promises = [];
+        
+        // Preload mission config
+        promises.push(this.loadMissionConfig(missionId));
+        
+        // Preload common textures
+        const textures = ['mars_surface.jpg', 'stars_milkyway.jpg', 'heat_gradient.png'];
+        textures.forEach(texture => {
+            promises.push(this.loadTexture(texture).catch(() => null));
+        });
+        
+        return Promise.all(promises);
     }
 }
+
+export default DataManager;
