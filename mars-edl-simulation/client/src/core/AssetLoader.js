@@ -1,385 +1,303 @@
-// client/src/core/AssetLoader.js
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-
 /**
- * AssetLoader - Centralized resource management
- * 
- * This class teaches several important concepts:
- * 1. Asynchronous resource loading with progress tracking
- * 2. Memory management and caching
- * 3. Error handling and fallbacks
- * 4. Different loader types for various assets
+ * AssetLoader.js
+ * Handles loading of models, textures, and other assets
  */
+
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
 export class AssetLoader {
     constructor() {
-        // Cache loaded assets to avoid duplicate loading
+        this.loadingManager = new THREE.LoadingManager();
+        this.textureLoader = new THREE.TextureLoader(this.loadingManager);
+        this.gltfLoader = new GLTFLoader(this.loadingManager);
+        
+        // Setup Draco loader for compressed models
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+        this.gltfLoader.setDRACOLoader(dracoLoader);
+        
+        // Cache for loaded assets
         this.cache = new Map();
         
-        // Track loading progress
-        this.loadingManager = new THREE.LoadingManager();
+        // Loading progress tracking
+        this.totalItems = 0;
+        this.loadedItems = 0;
         
-        // Configure loading manager callbacks
+        this.setupLoadingManager();
+    }
+    
+    setupLoadingManager() {
         this.loadingManager.onStart = (url, itemsLoaded, itemsTotal) => {
+            this.totalItems = itemsTotal;
+            this.loadedItems = itemsLoaded;
             console.log(`Started loading: ${url}`);
-            this.onLoadStart?.(url, itemsLoaded, itemsTotal);
         };
         
         this.loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+            this.loadedItems = itemsLoaded;
             const progress = (itemsLoaded / itemsTotal) * 100;
-            console.log(`Loading progress: ${progress.toFixed(2)}%`);
-            this.onLoadProgress?.(url, itemsLoaded, itemsTotal);
-        };
-        
-        this.loadingManager.onLoad = () => {
-            console.log('All assets loaded');
-            this.onLoadComplete?.();
+            
+            window.dispatchEvent(new CustomEvent('asset-loading-progress', {
+                detail: { progress, loaded: itemsLoaded, total: itemsTotal }
+            }));
         };
         
         this.loadingManager.onError = (url) => {
             console.error(`Error loading: ${url}`);
-            this.onLoadError?.(url);
+            window.dispatchEvent(new CustomEvent('asset-loading-error', {
+                detail: { url }
+            }));
         };
         
-        // Initialize different loaders
-        this.initializeLoaders();
+        this.loadingManager.onLoad = () => {
+            console.log('All assets loaded');
+            window.dispatchEvent(new CustomEvent('assets-loaded'));
+        };
     }
     
-    initializeLoaders() {
-        // Texture loader for images
-        this.textureLoader = new THREE.TextureLoader(this.loadingManager);
-        
-        // GLTF loader for 3D models
-        this.gltfLoader = new GLTFLoader(this.loadingManager);
-        
-        // Initialize Draco loader for compressed geometry
-        // Draco significantly reduces file size for complex models
-        const dracoLoader = new DRACOLoader();
-        dracoLoader.setDecoderPath('/libs/draco/'); // Path to Draco decoder
-        this.gltfLoader.setDRACOLoader(dracoLoader);
-        
-        // Cube texture loader for environment maps
-        this.cubeTextureLoader = new THREE.CubeTextureLoader(this.loadingManager);
-        
-        // Audio loader for sound effects
-        this.audioLoader = new THREE.AudioLoader(this.loadingManager);
-    }
-    
-    /**
-     * Load an asset with caching and error handling
-     * @param {Object} assetConfig - Configuration object for the asset
-     * @returns {Promise} Resolves with the loaded asset
-     */
-    async load(assetConfig) {
-        const { type, name, url, options = {} } = assetConfig;
-        
-        // Check cache first
-        const cacheKey = `${type}:${name}`;
-        if (this.cache.has(cacheKey)) {
-            console.log(`Returning cached asset: ${name}`);
-            return this.cache.get(cacheKey);
+    async loadTexture(path, options = {}) {
+        // Check cache
+        if (this.cache.has(path)) {
+            return this.cache.get(path);
         }
         
-        try {
-            let asset;
-            
-            switch (type) {
-                case 'texture':
-                    asset = await this.loadTexture(url, options);
-                    break;
-                    
-                case 'model':
-                    asset = await this.loadModel(url, options);
-                    break;
-                    
-                case 'cubeTexture':
-                    asset = await this.loadCubeTexture(url, options);
-                    break;
-                    
-                case 'audio':
-                    asset = await this.loadAudio(url, options);
-                    break;
-                    
-                default:
-                    throw new Error(`Unknown asset type: ${type}`);
-            }
-            
-            // Cache the loaded asset
-            this.cache.set(cacheKey, asset);
-            
-            return asset;
-            
-        } catch (error) {
-            console.error(`Failed to load ${name}:`, error);
-            
-            // Return fallback asset if available
-            if (options.fallback) {
-                console.warn(`Using fallback for ${name}`);
-                return this.createFallbackAsset(type, options.fallback);
-            }
-            
-            throw error;
-        }
-    }
-    
-    /**
-     * Load a texture with proper configuration
-     * Teaching point: Texture optimization is crucial for performance
-     */
-    async loadTexture(url, options = {}) {
         return new Promise((resolve, reject) => {
             this.textureLoader.load(
-                url,
+                path,
                 (texture) => {
-                    // Configure texture properties
-                    texture.wrapS = options.wrapS || THREE.RepeatWrapping;
-                    texture.wrapT = options.wrapT || THREE.RepeatWrapping;
+                    // Apply options
+                    if (options.repeat) {
+                        texture.wrapS = THREE.RepeatWrapping;
+                        texture.wrapT = THREE.RepeatWrapping;
+                        texture.repeat.set(options.repeat[0], options.repeat[1]);
+                    }
                     
-                    // Anisotropic filtering improves texture quality at angles
-                    // Higher values = better quality but more GPU cost
-                    texture.anisotropy = options.anisotropy || 16;
-                    
-                    // Set texture filtering
-                    texture.minFilter = options.minFilter || THREE.LinearMipMapLinearFilter;
-                    texture.magFilter = options.magFilter || THREE.LinearFilter;
-                    
-                    // Color space configuration
                     if (options.encoding) {
                         texture.encoding = options.encoding;
                     }
                     
-                    // Generate mipmaps for better performance
-                    texture.generateMipmaps = options.generateMipmaps !== false;
+                    if (options.generateMipmaps !== undefined) {
+                        texture.generateMipmaps = options.generateMipmaps;
+                    }
                     
+                    // Cache the texture
+                    this.cache.set(path, texture);
                     resolve(texture);
                 },
-                undefined, // Progress callback handled by LoadingManager
-                reject
+                (progress) => {
+                    // Progress callback
+                },
+                (error) => {
+                    console.error(`Failed to load texture: ${path}`, error);
+                    reject(error);
+                }
             );
         });
     }
     
-    /**
-     * Load a 3D model (GLTF/GLB format)
-     * Teaching point: GLTF is the "JPEG of 3D" - efficient and feature-rich
-     */
-    async loadModel(url, options = {}) {
+    async loadModel(path, options = {}) {
+        // Check cache
+        if (this.cache.has(path)) {
+            return this.cache.get(path).clone();
+        }
+        
         return new Promise((resolve, reject) => {
             this.gltfLoader.load(
-                url,
+                path,
                 (gltf) => {
-                    // Process the loaded model
                     const model = gltf.scene;
                     
-                    // Apply shadows to all meshes if specified
-                    if (options.castShadow || options.receiveShadow) {
+                    // Apply options
+                    if (options.scale) {
+                        model.scale.set(options.scale, options.scale, options.scale);
+                    }
+                    
+                    if (options.castShadow) {
                         model.traverse((child) => {
                             if (child.isMesh) {
-                                child.castShadow = options.castShadow || false;
-                                child.receiveShadow = options.receiveShadow || false;
+                                child.castShadow = true;
+                                child.receiveShadow = true;
                             }
                         });
                     }
                     
                     // Store animations if present
                     if (gltf.animations && gltf.animations.length > 0) {
-                        model.animations = gltf.animations;
+                        model.userData.animations = gltf.animations;
+                        model.userData.mixer = new THREE.AnimationMixer(model);
                     }
                     
-                    // Apply custom material if specified
-                    if (options.materialOverride) {
-                        model.traverse((child) => {
-                            if (child.isMesh) {
-                                child.material = options.materialOverride.clone();
-                            }
-                        });
-                    }
-                    
-                    resolve(model);
+                    // Cache the model
+                    this.cache.set(path, model);
+                    resolve(model.clone());
                 },
-                // Progress callback
-                (xhr) => {
-                    const percentComplete = (xhr.loaded / xhr.total) * 100;
-                    console.log(`Model ${url} ${percentComplete.toFixed(2)}% loaded`);
+                (progress) => {
+                    // Progress callback
                 },
-                reject
+                (error) => {
+                    console.error(`Failed to load model: ${path}`, error);
+                    reject(error);
+                }
             );
         });
     }
     
-    /**
-     * Load a cube texture for environment mapping
-     * Teaching point: Cube maps create realistic reflections and skyboxes
-     */
-    async loadCubeTexture(urls, options = {}) {
+    async loadCubeTexture(paths) {
+        const key = paths.join(',');
+        
+        if (this.cache.has(key)) {
+            return this.cache.get(key);
+        }
+        
         return new Promise((resolve, reject) => {
-            this.cubeTextureLoader.load(
-                urls, // Array of 6 URLs [+X, -X, +Y, -Y, +Z, -Z]
-                (cubeTexture) => {
-                    if (options.encoding) {
-                        cubeTexture.encoding = options.encoding;
-                    }
-                    resolve(cubeTexture);
+            const loader = new THREE.CubeTextureLoader(this.loadingManager);
+            loader.load(
+                paths,
+                (texture) => {
+                    this.cache.set(key, texture);
+                    resolve(texture);
                 },
                 undefined,
-                reject
+                (error) => {
+                    console.error('Failed to load cube texture', error);
+                    reject(error);
+                }
             );
         });
     }
     
-    /**
-     * Load audio for sound effects
-     */
-    async loadAudio(url, options = {}) {
+    async loadHDRI(path) {
+        // For HDR environment maps
+        if (this.cache.has(path)) {
+            return this.cache.get(path);
+        }
+        
+        const { RGBELoader } = await import('three/addons/loaders/RGBELoader.js');
+        const loader = new RGBELoader(this.loadingManager);
+        
         return new Promise((resolve, reject) => {
-            this.audioLoader.load(
-                url,
-                (audioBuffer) => {
-                    resolve(audioBuffer);
+            loader.load(
+                path,
+                (texture) => {
+                    texture.mapping = THREE.EquirectangularReflectionMapping;
+                    this.cache.set(path, texture);
+                    resolve(texture);
                 },
                 undefined,
-                reject
+                (error) => {
+                    console.error(`Failed to load HDRI: ${path}`, error);
+                    reject(error);
+                }
             );
         });
     }
     
-    /**
-     * Create fallback assets when loading fails
-     * Teaching point: Always have graceful degradation
-     */
-    createFallbackAsset(type, fallbackOptions) {
+    // Preload common assets
+    async preloadAssets() {
+        const assetsToLoad = [
+            // Textures
+            { type: 'texture', path: '/assets/textures/mars_surface.jpg' },
+            { type: 'texture', path: '/assets/textures/stars_milkyway.jpg' },
+            { type: 'texture', path: '/assets/textures/heat_gradient.png' },
+            
+            // Models (if you have them)
+            // { type: 'model', path: '/assets/models/msl_aeroshell.glb' },
+            // { type: 'model', path: '/assets/models/parachute.glb' }
+        ];
+        
+        const promises = assetsToLoad.map(async (asset) => {
+            try {
+                switch (asset.type) {
+                    case 'texture':
+                        await this.loadTexture(asset.path, asset.options);
+                        break;
+                    case 'model':
+                        await this.loadModel(asset.path, asset.options);
+                        break;
+                }
+            } catch (error) {
+                console.warn(`Failed to preload ${asset.path}, using fallback`);
+            }
+        });
+        
+        await Promise.all(promises);
+    }
+    
+    // Create placeholder textures for missing assets
+    createPlaceholderTexture(type = 'default') {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        
         switch (type) {
-            case 'texture':
-                // Create a simple colored texture as fallback
-                const canvas = document.createElement('canvas');
-                canvas.width = 256;
-                canvas.height = 256;
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = fallbackOptions.color || '#808080';
-                ctx.fillRect(0, 0, 256, 256);
-                return new THREE.CanvasTexture(canvas);
+            case 'mars':
+                // Mars surface placeholder
+                const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+                gradient.addColorStop(0, '#CD853F');
+                gradient.addColorStop(0.5, '#D2691E');
+                gradient.addColorStop(1, '#8B4513');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 512, 512);
+                break;
                 
-            case 'model':
-                // Create a simple box as fallback geometry
-                const geometry = new THREE.BoxGeometry(1, 1, 1);
-                const material = new THREE.MeshStandardMaterial({
-                    color: fallbackOptions.color || 0x808080
-                });
-                return new THREE.Mesh(geometry, material);
+            case 'stars':
+                // Starfield placeholder
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, 512, 512);
+                ctx.fillStyle = '#FFFFFF';
+                for (let i = 0; i < 100; i++) {
+                    const x = Math.random() * 512;
+                    const y = Math.random() * 512;
+                    const size = Math.random() * 2;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                break;
                 
             default:
-                return null;
-        }
-    }
-    
-    /**
-     * Preload multiple assets with progress tracking
-     */
-    async preloadAssets(assetList) {
-        const total = assetList.length;
-        let loaded = 0;
-        
-        const results = {};
-        
-        for (const asset of assetList) {
-            try {
-                results[asset.name] = await this.load(asset);
-                loaded++;
-                
-                // Emit progress event
-                const progress = (loaded / total) * 100;
-                this.onPreloadProgress?.(progress, loaded, total);
-                
-            } catch (error) {
-                console.error(`Failed to preload ${asset.name}:`, error);
-                results[asset.name] = null;
-            }
+                // Checkerboard pattern
+                const size = 64;
+                for (let y = 0; y < 8; y++) {
+                    for (let x = 0; x < 8; x++) {
+                        ctx.fillStyle = (x + y) % 2 === 0 ? '#808080' : '#404040';
+                        ctx.fillRect(x * size, y * size, size, size);
+                    }
+                }
         }
         
-        return results;
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+        return texture;
     }
     
-    /**
-     * Dispose of cached assets to free memory
-     * Teaching point: Memory management is crucial in 3D applications
-     */
-    dispose() {
+    // Get loading progress
+    getLoadingProgress() {
+        if (this.totalItems === 0) return 1;
+        return this.loadedItems / this.totalItems;
+    }
+    
+    // Clear cache
+    clearCache() {
         this.cache.forEach((asset, key) => {
             if (asset.dispose) {
                 asset.dispose();
-            } else if (asset.traverse) {
-                // For models, traverse and dispose all geometries and materials
-                asset.traverse((child) => {
-                    if (child.geometry) child.geometry.dispose();
-                    if (child.material) {
-                        if (Array.isArray(child.material)) {
-                            child.material.forEach(mat => mat.dispose());
-                        } else {
-                            child.material.dispose();
-                        }
-                    }
-                });
             }
         });
-        
         this.cache.clear();
     }
     
-    /**
-     * Get memory usage statistics
-     * Useful for monitoring performance
-     */
-    getMemoryStats() {
-        const stats = {
-            textureCount: 0,
-            textureMemory: 0,
-            geometryCount: 0,
-            geometryMemory: 0
-        };
+    // Dispose of all resources
+    dispose() {
+        this.clearCache();
         
-        this.cache.forEach((asset) => {
-            if (asset.isTexture) {
-                stats.textureCount++;
-                // Estimate texture memory (width * height * 4 bytes per pixel)
-                if (asset.image) {
-                    stats.textureMemory += asset.image.width * asset.image.height * 4;
-                }
-            } else if (asset.isBufferGeometry) {
-                stats.geometryCount++;
-                // Calculate geometry memory from attributes
-                for (const attribute of Object.values(asset.attributes)) {
-                    stats.geometryMemory += attribute.array.byteLength;
-                }
-            }
-        });
-        
-        return stats;
+        if (this.gltfLoader.dracoLoader) {
+            this.gltfLoader.dracoLoader.dispose();
+        }
     }
 }
 
-// Usage example:
-/*
-const assetLoader = new AssetLoader();
-
-// Set up callbacks
-assetLoader.onLoadProgress = (url, loaded, total) => {
-    updateProgressBar(loaded / total);
-};
-
-// Load assets
-const assets = await assetLoader.preloadAssets([
-    {
-        type: 'model',
-        name: 'rover',
-        url: '/assets/models/rover.glb',
-        options: { castShadow: true, receiveShadow: true }
-    },
-    {
-        type: 'texture',
-        name: 'marsTexture',
-        url: '/assets/textures/mars_surface.jpg',
-        options: { anisotropy: 16 }
-    }
-]);
-*/
+export default AssetLoader;
