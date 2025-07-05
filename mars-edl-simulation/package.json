@@ -20,7 +20,8 @@
     "sqlite3": "^5.1.6",
     "uuid": "^9.0.0",
     "three": "^0.157.0",
-    "cannon-es": "^0.20.0"
+    "cannon-es": "^0.20.0",
+    "sequelize": "^6.35.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
