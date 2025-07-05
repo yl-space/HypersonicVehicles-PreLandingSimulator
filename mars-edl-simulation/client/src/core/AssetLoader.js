@@ -1,303 +1,224 @@
 /**
- * AssetLoader.js
- * Handles loading of models, textures, and other assets
+ * AssetLoader.js - Asset loading and management
  */
 
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 export class AssetLoader {
     constructor() {
+        this.textureLoader = new THREE.TextureLoader();
         this.loadingManager = new THREE.LoadingManager();
-        this.textureLoader = new THREE.TextureLoader(this.loadingManager);
-        this.gltfLoader = new GLTFLoader(this.loadingManager);
-        
-        // Setup Draco loader for compressed models
-        const dracoLoader = new DRACOLoader();
-        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
-        this.gltfLoader.setDRACOLoader(dracoLoader);
-        
-        // Cache for loaded assets
-        this.cache = new Map();
-        
-        // Loading progress tracking
-        this.totalItems = 0;
-        this.loadedItems = 0;
+        this.loadedAssets = new Map();
         
         this.setupLoadingManager();
     }
     
     setupLoadingManager() {
-        this.loadingManager.onStart = (url, itemsLoaded, itemsTotal) => {
-            this.totalItems = itemsTotal;
-            this.loadedItems = itemsLoaded;
-            console.log(`Started loading: ${url}`);
+        this.loadingManager.onLoad = () => {
+            console.log('All assets loaded');
         };
         
-        this.loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
-            this.loadedItems = itemsLoaded;
-            const progress = (itemsLoaded / itemsTotal) * 100;
-            
-            window.dispatchEvent(new CustomEvent('asset-loading-progress', {
-                detail: { progress, loaded: itemsLoaded, total: itemsTotal }
-            }));
+        this.loadingManager.onProgress = (url, loaded, total) => {
+            const progress = (loaded / total) * 100;
+            this.updateLoadingProgress(progress, `Loading ${url.split('/').pop()}`);
         };
         
         this.loadingManager.onError = (url) => {
-            console.error(`Error loading: ${url}`);
-            window.dispatchEvent(new CustomEvent('asset-loading-error', {
-                detail: { url }
-            }));
-        };
-        
-        this.loadingManager.onLoad = () => {
-            console.log('All assets loaded');
-            window.dispatchEvent(new CustomEvent('assets-loaded'));
+            console.error(`Failed to load: ${url}`);
         };
     }
     
-    async loadTexture(path, options = {}) {
-        // Check cache
-        if (this.cache.has(path)) {
-            return this.cache.get(path);
+    updateLoadingProgress(progress, message) {
+        const progressBar = document.getElementById('loading-progress');
+        const loadingText = document.getElementById('loading-text');
+        
+        if (progressBar) {
+            progressBar.style.width = `${progress}%`;
+        }
+        
+        if (loadingText) {
+            loadingText.textContent = message;
+        }
+    }
+    
+    async loadTexture(url, options = {}) {
+        const cacheKey = `texture_${url}`;
+        
+        if (this.loadedAssets.has(cacheKey)) {
+            return this.loadedAssets.get(cacheKey);
         }
         
         return new Promise((resolve, reject) => {
             this.textureLoader.load(
-                path,
+                url,
                 (texture) => {
                     // Apply options
-                    if (options.repeat) {
-                        texture.wrapS = THREE.RepeatWrapping;
-                        texture.wrapT = THREE.RepeatWrapping;
-                        texture.repeat.set(options.repeat[0], options.repeat[1]);
-                    }
+                    if (options.wrapS) texture.wrapS = options.wrapS;
+                    if (options.wrapT) texture.wrapT = options.wrapT;
+                    if (options.repeat) texture.repeat.set(options.repeat.x, options.repeat.y);
+                    if (options.flipY !== undefined) texture.flipY = options.flipY;
                     
-                    if (options.encoding) {
-                        texture.encoding = options.encoding;
-                    }
-                    
-                    if (options.generateMipmaps !== undefined) {
-                        texture.generateMipmaps = options.generateMipmaps;
-                    }
-                    
-                    // Cache the texture
-                    this.cache.set(path, texture);
-                    resolve(texture);
-                },
-                (progress) => {
-                    // Progress callback
-                },
-                (error) => {
-                    console.error(`Failed to load texture: ${path}`, error);
-                    reject(error);
-                }
-            );
-        });
-    }
-    
-    async loadModel(path, options = {}) {
-        // Check cache
-        if (this.cache.has(path)) {
-            return this.cache.get(path).clone();
-        }
-        
-        return new Promise((resolve, reject) => {
-            this.gltfLoader.load(
-                path,
-                (gltf) => {
-                    const model = gltf.scene;
-                    
-                    // Apply options
-                    if (options.scale) {
-                        model.scale.set(options.scale, options.scale, options.scale);
-                    }
-                    
-                    if (options.castShadow) {
-                        model.traverse((child) => {
-                            if (child.isMesh) {
-                                child.castShadow = true;
-                                child.receiveShadow = true;
-                            }
-                        });
-                    }
-                    
-                    // Store animations if present
-                    if (gltf.animations && gltf.animations.length > 0) {
-                        model.userData.animations = gltf.animations;
-                        model.userData.mixer = new THREE.AnimationMixer(model);
-                    }
-                    
-                    // Cache the model
-                    this.cache.set(path, model);
-                    resolve(model.clone());
-                },
-                (progress) => {
-                    // Progress callback
-                },
-                (error) => {
-                    console.error(`Failed to load model: ${path}`, error);
-                    reject(error);
-                }
-            );
-        });
-    }
-    
-    async loadCubeTexture(paths) {
-        const key = paths.join(',');
-        
-        if (this.cache.has(key)) {
-            return this.cache.get(key);
-        }
-        
-        return new Promise((resolve, reject) => {
-            const loader = new THREE.CubeTextureLoader(this.loadingManager);
-            loader.load(
-                paths,
-                (texture) => {
-                    this.cache.set(key, texture);
+                    this.loadedAssets.set(cacheKey, texture);
                     resolve(texture);
                 },
                 undefined,
-                (error) => {
-                    console.error('Failed to load cube texture', error);
-                    reject(error);
-                }
+                reject
             );
         });
     }
     
-    async loadHDRI(path) {
-        // For HDR environment maps
-        if (this.cache.has(path)) {
-            return this.cache.get(path);
+    createMarsTexture() {
+        // Create procedural Mars texture if image not available
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        
+        // Base Mars color
+        const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+        gradient.addColorStop(0, '#CD5C5C');
+        gradient.addColorStop(0.5, '#A0522D');
+        gradient.addColorStop(1, '#8B4513');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 1024, 512);
+        
+        // Add noise for surface details
+        const imageData = ctx.getImageData(0, 0, 1024, 512);
+        const data = imageData.data;
+        
+        for (let i = 0; i < data.length; i += 4) {
+            const noise = (Math.random() - 0.5) * 30;
+            data[i] = Math.max(0, Math.min(255, data[i] + noise));
+            data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise));
+            data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise));
         }
         
-        const { RGBELoader } = await import('three/addons/loaders/RGBELoader.js');
-        const loader = new RGBELoader(this.loadingManager);
+        ctx.putImageData(imageData, 0, 0);
         
-        return new Promise((resolve, reject) => {
-            loader.load(
-                path,
-                (texture) => {
-                    texture.mapping = THREE.EquirectangularReflectionMapping;
-                    this.cache.set(path, texture);
-                    resolve(texture);
-                },
-                undefined,
-                (error) => {
-                    console.error(`Failed to load HDRI: ${path}`, error);
-                    reject(error);
-                }
-            );
-        });
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        return texture;
     }
     
-    // Preload common assets
-    async preloadAssets() {
-        const assetsToLoad = [
-            // Textures
-            { type: 'texture', path: '/assets/textures/mars_surface.jpg' },
-            { type: 'texture', path: '/assets/textures/stars_milkyway.jpg' },
-            { type: 'texture', path: '/assets/textures/heat_gradient.png' },
+    createStarField() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 2048;
+        canvas.height = 1024;
+        const ctx = canvas.getContext('2d');
+        
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, 2048, 1024);
+        
+        // Generate stars
+        for (let i = 0; i < 3000; i++) {
+            const x = Math.random() * 2048;
+            const y = Math.random() * 1024;
+            const brightness = Math.random();
+            const size = Math.random() * 2 + 0.5;
             
-            // Models (if you have them)
-            // { type: 'model', path: '/assets/models/msl_aeroshell.glb' },
-            // { type: 'model', path: '/assets/models/parachute.glb' }
-        ];
+            ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.fill();
+        }
         
-        const promises = assetsToLoad.map(async (asset) => {
-            try {
-                switch (asset.type) {
-                    case 'texture':
-                        await this.loadTexture(asset.path, asset.options);
-                        break;
-                    case 'model':
-                        await this.loadModel(asset.path, asset.options);
-                        break;
-                }
-            } catch (error) {
-                console.warn(`Failed to preload ${asset.path}, using fallback`);
-            }
-        });
-        
-        await Promise.all(promises);
+        return new THREE.CanvasTexture(canvas);
     }
     
-    // Create placeholder textures for missing assets
-    createPlaceholderTexture(type = 'default') {
+    createParticleTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        
+        const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        gradient.addColorStop(0.2, 'rgba(255, 255, 255, 0.8)');
+        gradient.addColorStop(0.4, 'rgba(255, 255, 255, 0.4)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 64, 64);
+        
+        return new THREE.CanvasTexture(canvas);
+    }
+    
+    createHeatShieldTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 512;
         canvas.height = 512;
         const ctx = canvas.getContext('2d');
         
-        switch (type) {
-            case 'mars':
-                // Mars surface placeholder
-                const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
-                gradient.addColorStop(0, '#CD853F');
-                gradient.addColorStop(0.5, '#D2691E');
-                gradient.addColorStop(1, '#8B4513');
-                ctx.fillStyle = gradient;
-                ctx.fillRect(0, 0, 512, 512);
-                break;
-                
-            case 'stars':
-                // Starfield placeholder
-                ctx.fillStyle = '#000000';
-                ctx.fillRect(0, 0, 512, 512);
-                ctx.fillStyle = '#FFFFFF';
-                for (let i = 0; i < 100; i++) {
-                    const x = Math.random() * 512;
-                    const y = Math.random() * 512;
-                    const size = Math.random() * 2;
-                    ctx.beginPath();
-                    ctx.arc(x, y, size, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-                break;
-                
-            default:
-                // Checkerboard pattern
-                const size = 64;
-                for (let y = 0; y < 8; y++) {
-                    for (let x = 0; x < 8; x++) {
-                        ctx.fillStyle = (x + y) % 2 === 0 ? '#808080' : '#404040';
-                        ctx.fillRect(x * size, y * size, size, size);
-                    }
-                }
+        // Create heat shield pattern
+        const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+        gradient.addColorStop(0, '#FF4500');
+        gradient.addColorStop(0.5, '#FF6347');
+        gradient.addColorStop(1, '#8B0000');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 512, 512);
+        
+        // Add hexagonal pattern
+        for (let x = 0; x < 512; x += 40) {
+            for (let y = 0; y < 512; y += 40) {
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.lineWidth = 2;
+                this.drawHexagon(ctx, x + 20, y + 20, 15);
+            }
         }
         
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.needsUpdate = true;
-        return texture;
+        return new THREE.CanvasTexture(canvas);
     }
     
-    // Get loading progress
-    getLoadingProgress() {
-        if (this.totalItems === 0) return 1;
-        return this.loadedItems / this.totalItems;
+    drawHexagon(ctx, x, y, radius) {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (i * Math.PI) / 3;
+            const px = x + radius * Math.cos(angle);
+            const py = y + radius * Math.sin(angle);
+            
+            if (i === 0) {
+                ctx.moveTo(px, py);
+            } else {
+                ctx.lineTo(px, py);
+            }
+        }
+        ctx.closePath();
+        ctx.stroke();
     }
     
-    // Clear cache
-    clearCache() {
-        this.cache.forEach((asset, key) => {
+    async loadDefaultAssets() {
+        try {
+            // Load default textures
+            const marsTexture = this.createMarsTexture();
+            const starTexture = this.createStarField();
+            const particleTexture = this.createParticleTexture();
+            const heatShieldTexture = this.createHeatShieldTexture();
+            
+            this.loadedAssets.set('mars_surface', marsTexture);
+            this.loadedAssets.set('star_field', starTexture);
+            this.loadedAssets.set('particle', particleTexture);
+            this.loadedAssets.set('heat_shield', heatShieldTexture);
+            
+            return true;
+        } catch (error) {
+            console.error('Failed to load default assets:', error);
+            return false;
+        }
+    }
+    
+    getAsset(key) {
+        return this.loadedAssets.get(key);
+    }
+    
+    dispose() {
+        this.loadedAssets.forEach(asset => {
             if (asset.dispose) {
                 asset.dispose();
             }
         });
-        this.cache.clear();
-    }
-    
-    // Dispose of all resources
-    dispose() {
-        this.clearCache();
-        
-        if (this.gltfLoader.dracoLoader) {
-            this.gltfLoader.dracoLoader.dispose();
-        }
+        this.loadedAssets.clear();
     }
 }
-
-export default AssetLoader;
