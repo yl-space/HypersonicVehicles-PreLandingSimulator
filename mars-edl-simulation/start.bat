@@ -23,4 +23,4 @@ start http://localhost:3000
 echo.
 echo Mars 2020 EDL Simulation is starting up!
 echo Press any key to exit this launcher...
-pause > nul 
+pause > nul

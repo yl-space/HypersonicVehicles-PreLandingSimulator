@@ -26,4 +26,4 @@ export default defineConfig({
       '@': resolve(__dirname, 'client/src')
     }
   }
-}); 
+});
