@@ -1,25 +1,21 @@
-
 // client/src/main.js
-import { SceneManager } from './core/SceneManager.js';
-import { AssetLoader } from './core/AssetLoader.js';
-import { CameraController } from './core/CameraController.js';
-import { SimulationManager } from './simulation/SimulationManager.js';
-import { DataManager } from './data/DataManager.js';
-import { UI } from './ui/UI.js';
+import * as THREE from 'three';
+import { Mars2020EDLSimulation } from './simulation/Mars2020EDLSimulation.js';
+import { Mars2020EDLUI } from './ui/Mars2020EDLUI.js';
 
 /**
- * Main application class that orchestrates all components
+ * Main application class for Mars 2020 EDL Simulation
+ * Uses real MSL trajectory data from CSV files
  */
-class MarsEDLApplication {
+class Mars2020EDLApplication {
     constructor() {
-        this.container = document.getElementById('app-container');
+        this.container = document.getElementById('scene-container');
         this.isRunning = false;
         
-        // Configuration from environment
+        // Configuration
         this.config = {
-            apiEndpoint: process.env.REACT_APP_API_ENDPOINT || 'http://localhost:3001/api',
-            wsEndpoint: process.env.REACT_APP_WS_ENDPOINT || 'ws://localhost:3001',
-            defaultMission: 'perseverance-2021'
+            dataFile: '/api/data/msl-trajectory',
+            defaultPlaybackSpeed: 1.0
         };
         
         this.init();
@@ -30,34 +26,21 @@ class MarsEDLApplication {
             // Show loading screen
             this.showLoading();
             
-            // Initialize core systems
-            this.sceneManager = new SceneManager(this.container);
-            this.assetLoader = new AssetLoader();
-            this.dataManager = new DataManager(this.config.apiEndpoint);
+            // Initialize Three.js scene
+            this.setupScene();
             
-            // Load assets
-            await this.loadAssets();
-            
-            // Initialize simulation
-            this.simulation = new SimulationManager(
-                this.sceneManager,
-                this.dataManager
-            );
-            
-            // Setup camera controls
-            this.cameraController = new CameraController(
-                this.sceneManager.camera,
-                this.sceneManager.renderer.domElement
+            // Initialize Mars 2020 EDL simulation
+            this.simulation = new Mars2020EDLSimulation(
+                this.scene,
+                this.camera,
+                this.renderer
             );
             
             // Initialize UI
-            this.ui = new UI(this.simulation, this.dataManager);
+            this.ui = new Mars2020EDLUI(this.simulation);
             
-            // Load default mission
-            await this.loadMission(this.config.defaultMission);
-            
-            // Setup WebSocket for real-time updates
-            this.setupRealtimeConnection();
+            // Load MSL trajectory data
+            await this.loadMSLData();
             
             // Hide loading screen
             this.hideLoading();
@@ -71,48 +54,94 @@ class MarsEDLApplication {
         }
     }
     
-    async loadAssets() {
-        // Define all assets to preload
-        const assets = [
-            { type: 'model', name: 'cruiseStage', url: '/assets/models/cruise_stage.glb' },
-            { type: 'model', name: 'rover', url: '/assets/models/rover.glb' },
-            { type: 'texture', name: 'marsColor', url: '/assets/textures/mars_color.jpg' },
-            { type: 'texture', name: 'marsNormal', url: '/assets/textures/mars_normal.jpg' },
-            // ... more assets
-        ];
+    setupScene() {
+        // Create scene
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x000011);
         
-        // Load with progress tracking
-        let loaded = 0;
-        for (const asset of assets) {
-            await this.assetLoader.load(asset);
-            loaded++;
-            this.updateLoadingProgress(loaded / assets.length);
+        // Create camera
+        this.camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            1000,
+            100000000
+        );
+        
+        // Create renderer
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.container.appendChild(this.renderer.domElement);
+        
+        // Handle window resize
+        window.addEventListener('resize', () => this.onWindowResize());
+    }
+    
+    async loadMSLData() {
+        try {
+            // Load MSL trajectory data from server
+            const response = await fetch(this.config.dataFile);
+            if (!response.ok) {
+                throw new Error(`Failed to load trajectory data: ${response.status}`);
+            }
+            
+            const csvData = await response.text();
+            const success = await this.simulation.loadTrajectoryData(csvData);
+            
+            if (!success) {
+                throw new Error('Failed to parse trajectory data');
+            }
+            
+            console.log('MSL trajectory data loaded successfully');
+            
+        } catch (error) {
+            console.error('Error loading MSL data:', error);
+            // Fallback to sample data if server data fails
+            await this.loadSampleData();
         }
     }
     
-    async loadMission(missionId) {
-        // Fetch mission data from server/database
-        const missionData = await this.dataManager.fetchMissionData(missionId);
+    async loadSampleData() {
+        console.log('Loading sample trajectory data...');
         
-        // Fetch trajectory data
-        const trajectoryData = await this.dataManager.fetchTrajectoryData(missionId);
-        
-        // Initialize simulation with data
-        this.simulation.loadMission(missionData, trajectoryData);
-        
-        // Update UI
-        this.ui.updateMissionInfo(missionData);
+        // Generate sample MSL-like trajectory data
+        const sampleData = this.generateSampleMSLData();
+        await this.simulation.loadTrajectoryData(sampleData);
     }
     
-    setupRealtimeConnection() {
-        // Connect to WebSocket for live telemetry
-        this.dataManager.setupWebSocket(this.config.wsEndpoint);
+    generateSampleMSLData() {
+        // Generate realistic MSL trajectory data based on the format we saw
+        const data = [];
+        const timeStep = 0.05; // 50ms intervals for smooth animation
         
-        // Listen for updates
-        window.addEventListener('telemetryUpdate', (event) => {
-            this.simulation.updateTelemetry(event.detail);
-            this.ui.updateTelemetry(event.detail);
-        });
+        // MSL entry parameters (approximate)
+        const entryAltitude = 132000; // meters
+        const entryVelocity = 5500; // m/s
+        const parachuteDeploymentAltitude = 13462.9; // meters
+        const parachuteDeploymentTime = 260.65; // seconds
+        
+        for (let time = 0; time <= parachuteDeploymentTime; time += timeStep) {
+            // Simplified trajectory model based on MSL parameters
+            const altitude = entryAltitude * Math.exp(-time / 100) + parachuteDeploymentAltitude;
+            const velocity = entryVelocity * Math.exp(-time / 80) + 100;
+            
+            // Convert to J2000 coordinates (simplified model)
+            // This is a basic approximation - real data would be more complex
+            const x = -600000 - time * 1000; // Approximate x position
+            const y = altitude; // Altitude as y coordinate
+            const z = time * 600; // Approximate z position
+            
+            data.push(`${time.toFixed(2)},${x.toFixed(6)},${y.toFixed(6)},${z.toFixed(6)}`);
+        }
+        
+        return 'Time,x,y,z\n' + data.join('\n');
+    }
+    
+    onWindowResize() {
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
     
     start() {
@@ -135,77 +164,63 @@ class MarsEDLApplication {
         const deltaTime = (currentTime - this.lastTime) / 1000;
         this.lastTime = currentTime;
         
-        // Update all systems
+        // Update simulation
         this.simulation.update(deltaTime);
-        this.cameraController.update(deltaTime);
+        
+        // Update UI
         this.ui.update(deltaTime);
         
         // Render scene
-        this.sceneManager.render();
+        this.renderer.render(this.scene, this.camera);
     }
     
     // UI Helper methods
     showLoading() {
         const loadingScreen = document.getElementById('loading-screen');
-        loadingScreen.style.display = 'flex';
+        if (loadingScreen) {
+            loadingScreen.style.display = 'flex';
+        }
     }
     
     hideLoading() {
         const loadingScreen = document.getElementById('loading-screen');
-        loadingScreen.style.display = 'none';
-    }
-    
-    updateLoadingProgress(progress) {
-        const progressBar = document.getElementById('loading-progress');
-        progressBar.style.width = `${progress * 100}%`;
+        if (loadingScreen) {
+            loadingScreen.style.display = 'none';
+        }
     }
     
     showError(message) {
         const errorScreen = document.getElementById('error-screen');
         const errorMessage = document.getElementById('error-message');
-        errorMessage.textContent = message;
-        errorScreen.style.display = 'flex';
-    }
-    
-    // Public API for external control
-    play() {
-        this.simulation.play();
-    }
-    
-    pause() {
-        this.simulation.pause();
-    }
-    
-    seekTo(time) {
-        this.simulation.seekTo(time);
-    }
-    
-    setPlaybackSpeed(speed) {
-        this.simulation.setPlaybackSpeed(speed);
+        if (errorScreen && errorMessage) {
+            errorMessage.textContent = message;
+            errorScreen.style.display = 'flex';
+        }
     }
     
     // Cleanup
     dispose() {
         this.stop();
-        this.simulation.dispose();
-        this.sceneManager.dispose();
-        this.ui.dispose();
-        
-        // Close WebSocket
-        if (this.dataManager.websocket) {
-            this.dataManager.websocket.close();
+        if (this.simulation) {
+            this.simulation.dispose();
+        }
+        if (this.ui) {
+            this.ui.dispose();
+        }
+        if (this.renderer) {
+            this.renderer.dispose();
         }
     }
 }
 
-// Initialize application when DOM is ready
+// Initialize application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    window.marsEDL = new MarsEDLApplication();
+    window.mars2020App = new Mars2020EDLApplication();
 });
 
-// Handle cleanup on page unload
+// Handle page unload
 window.addEventListener('beforeunload', () => {
-    if (window.marsEDL) {
-        window.marsEDL.dispose();
+    if (window.mars2020App) {
+        window.mars2020App.dispose();
     }
 });
