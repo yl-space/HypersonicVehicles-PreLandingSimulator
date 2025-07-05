@@ -1,122 +1,163 @@
-
-// client/src/core/SceneManager.js
-import * as THREE from 'three';
-
 /**
- * SceneManager handles the core Three.js setup and rendering loop
- * This is our foundation - everything 3D starts here
+ * SceneManager.js - Core Three.js scene management
  */
+
+import * as THREE from 'three';
+import { CameraController } from './CameraController.js';
+
 export class SceneManager {
     constructor(container) {
         this.container = container;
-        
-        // Step 1: Create the Scene
-        // The scene is like a 3D stage where we place all our objects
         this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.FogExp2(0x000000, 0.00001);
+        this.renderer = null;
+        this.cameraController = null;
+        this.clock = new THREE.Clock();
+        this.isRendering = false;
         
-        // Step 2: Create the Camera
-        // The camera is our "eye" into the 3D world
-        // FOV: Field of View (in degrees) - how wide we can see
-        // Aspect: width/height ratio
-        // Near/Far: rendering distance limits
-        this.camera = new THREE.PerspectiveCamera(
-            60,                                     // FOV
-            window.innerWidth / window.innerHeight, // Aspect ratio
-            0.1,                                   // Near clipping plane
-            100000                                 // Far clipping plane
-        );
-        
-        // Position camera in 3D space (x, y, z)
-        this.camera.position.set(0, 50, 100);
-        
-        // Step 3: Create the Renderer
-        // The renderer draws our 3D scene onto a 2D canvas
+        this.init();
+    }
+    
+    init() {
+        // Setup renderer
         this.renderer = new THREE.WebGLRenderer({ 
-            antialias: true,      // Smooth edges
-            alpha: true,          // Transparent background
+            antialias: true,
+            alpha: true,
             powerPreference: "high-performance"
         });
-        
-        // Configure renderer for best quality
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.0;
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         
-        // Add canvas to DOM
         this.container.appendChild(this.renderer.domElement);
         
-        // Step 4: Add Lighting
+        // Setup camera controller
+        this.cameraController = new CameraController(this.container);
+        
+        // Setup scene
+        this.scene.background = new THREE.Color(0x000005);
+        this.scene.fog = new THREE.FogExp2(0x000005, 0.00001);
+        
+        // Lighting
         this.setupLighting();
         
-        // Step 5: Handle window resizing
-        this.setupEventListeners();
-        
-        // Performance monitoring
-        this.stats = this.setupStats();
+        // Start render loop
+        this.startRenderLoop();
     }
     
     setupLighting() {
-        // Ambient light: general illumination (no shadows)
-        // Think of it as the general brightness in a room
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
-        this.scene.add(ambientLight);
-        
-        // Directional light: simulates sunlight
-        // Parallel rays from a specific direction
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1);
-        sunLight.position.set(100, 100, 50);
+        // Sun light (directional)
+        const sunLight = new THREE.DirectionalLight(0xffeaa7, 2.5);
+        sunLight.position.set(-1000000, 500000, 1000000);
         sunLight.castShadow = true;
-        
-        // Shadow configuration for performance
         sunLight.shadow.mapSize.width = 2048;
         sunLight.shadow.mapSize.height = 2048;
-        sunLight.shadow.camera.near = 0.5;
-        sunLight.shadow.camera.far = 500;
-        sunLight.shadow.camera.left = -100;
-        sunLight.shadow.camera.right = 100;
-        sunLight.shadow.camera.top = 100;
-        sunLight.shadow.camera.bottom = -100;
-        
+        sunLight.shadow.camera.near = 500;
+        sunLight.shadow.camera.far = 4000;
+        sunLight.shadow.camera.left = -1000;
+        sunLight.shadow.camera.right = 1000;
+        sunLight.shadow.camera.top = 1000;
+        sunLight.shadow.camera.bottom = -1000;
         this.scene.add(sunLight);
-        this.sunLight = sunLight;
+        
+        // Ambient light
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+        this.scene.add(ambientLight);
+        
+        // Mars atmosphere glow
+        const atmosphereLight = new THREE.PointLight(0xff6b35, 0.8, 200000);
+        atmosphereLight.position.set(0, 0, 0);
+        this.scene.add(atmosphereLight);
     }
     
-    setupEventListeners() {
-        window.addEventListener('resize', () => {
-            // Update camera aspect ratio
-            this.camera.aspect = window.innerWidth / window.innerHeight;
-            this.camera.updateProjectionMatrix();
-            
-            // Update renderer size
-            this.renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    }
-    
-    setupStats() {
-        // Performance monitoring in development
-        if (process.env.NODE_ENV === 'development') {
-            const stats = new Stats();
-            stats.showPanel(0); // 0: fps, 1: ms, 2: mb
-            document.body.appendChild(stats.dom);
-            return stats;
-        }
-        return null;
+    startRenderLoop() {
+        this.isRendering = true;
+        this.render();
     }
     
     render() {
-        if (this.stats) this.stats.begin();
+        if (!this.isRendering) return;
         
-        // The actual rendering happens here
-        this.renderer.render(this.scene, this.camera);
+        requestAnimationFrame(() => this.render());
         
-        if (this.stats) this.stats.end();
+        const deltaTime = this.clock.getDelta();
+        
+        // Update camera
+        this.cameraController.update(deltaTime);
+        
+        // Render scene
+        this.renderer.render(this.scene, this.cameraController.camera);
+    }
+    
+    stopRenderLoop() {
+        this.isRendering = false;
+    }
+    
+    addToScene(object) {
+        if (object.mesh) {
+            this.scene.add(object.mesh);
+        } else if (object.isObject3D || object.type) {
+            this.scene.add(object);
+        }
+    }
+    
+    removeFromScene(object) {
+        if (object.mesh) {
+            this.scene.remove(object.mesh);
+        } else if (object.isObject3D || object.type) {
+            this.scene.remove(object);
+        }
+    }
+    
+    handleResize() {
+        const width = this.container.clientWidth;
+        const height = this.container.clientHeight;
+        
+        this.cameraController.camera.aspect = width / height;
+        this.cameraController.camera.updateProjectionMatrix();
+        
+        this.renderer.setSize(width, height);
+    }
+    
+    toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            this.container.requestFullscreen().catch(err => {
+                console.warn('Could not enter fullscreen:', err);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    }
+    
+    setBackgroundColor(color) {
+        this.scene.background = new THREE.Color(color);
+    }
+    
+    getCamera() {
+        return this.cameraController.camera;
+    }
+    
+    getRenderer() {
+        return this.renderer;
+    }
+    
+    getScene() {
+        return this.scene;
     }
     
     dispose() {
-        // Clean up resources (important for production)
-        this.renderer.dispose();
-        this.container.removeChild(this.renderer.domElement);
+        this.stopRenderLoop();
+        
+        if (this.renderer) {
+            this.renderer.dispose();
+            this.container.removeChild(this.renderer.domElement);
+        }
+        
+        if (this.cameraController) {
+            this.cameraController.dispose();
+        }
     }
 }
