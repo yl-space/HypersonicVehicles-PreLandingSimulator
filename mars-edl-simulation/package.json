@@ -1,32 +1,49 @@
 {
   "name": "mars-edl-simulation",
   "version": "1.0.0",
-  "description": "Mars Entry, Descent & Landing Simulation",
+  "description": "Interactive Mars Entry, Descent, and Landing Simulation using Three.js",
+  "main": "server/index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "vite",
-    "build": "vite build",
+    "start": "node server/index.js",
+    "dev": "node server/index.js --development",
+    "prod": "node server/index.js --production",
+    "build": "npm run build:client",
+    "build:client": "vite build client",
     "preview": "vite preview",
-    "server": "node server/server.js",
-    "server:dev": "nodemon server/server.js",
-    "start:dev": "concurrently \"npm run server\" \"npm run dev\"",
-    "start:prod": "NODE_ENV=production node index.js",
-    "generate-data": "node scripts/generateDemoData.js",
-    "test-setup": "node scripts/test-setup.js"
+    "lint": "eslint . --ext js --report-unused-disable-directives --max-warnings 0",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [
+    "mars",
+    "simulation",
+    "threejs",
+    "space",
+    "edl",
+    "aerospace"
+  ],
+  "author": "Mars EDL Simulation Team",
+  "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
+    "helmet": "^7.0.0",
+    "compression": "^1.7.4",
     "multer": "^1.4.5-lts.1",
-    "pg": "^8.11.3",
-    "dotenv": "^16.3.1",
-    "three": "^0.160.0"
+    "sqlite3": "^5.1.6",
+    "uuid": "^9.0.1",
+    "winston": "^3.10.0",
+    "three": "^0.158.0",
+    "csvtojson": "^2.0.10"
   },
   "devDependencies": {
-    "vite": "^5.0.0",
-    "concurrently": "^8.2.0",
-    "@vitejs/plugin-legacy": "^5.0.0",
-    "nodemon": "^3.0.2"
+    "vite": "^4.4.9",
+    "eslint": "^8.57.0",
+    "nodemon": "^3.0.1",
+    "concurrently": "^8.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }
