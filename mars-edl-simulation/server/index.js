@@ -11,6 +11,7 @@ const path = require('path');
 const missionsRouter = require('./api/missions');
 const telemetryRouter = require('./api/telemetry');
 const trajectoriesRouter = require('./api/trajectories');
+const dataRouter = require('./api/data');
 
 // Import database
 const { initDatabase } = require('./database/models');
