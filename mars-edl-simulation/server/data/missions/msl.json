@@ -1,0 +1,52 @@
+{
+  "name": "Mars Science Laboratory",
+  "vehicle": "msl_aeroshell",
+  "planet": "mars",
+  "launchDate": "2011-11-26",
+  "landingDate": "2012-08-06",
+  "entryInterface": {
+    "altitude": 132000,
+    "velocity": 5800,
+    "angle": -15.5,
+    "latitude": -4.6,
+    "longitude": 137.4
+  },
+  "phases": [
+    {
+      "name": "Entry Interface",
+      "startTime": 0,
+      "altitude": 132000,
+      "description": "Atmospheric entry begins"
+    },
+    {
+      "name": "Peak Heating",
+      "startTime": 80,
+      "altitude": 60000,
+      "description": "Maximum thermal stress on heat shield"
+    },
+    {
+      "name": "Peak Deceleration",
+      "startTime": 150,
+      "altitude": 25000,
+      "description": "Maximum g-forces experienced"
+    },
+    {
+      "name": "Parachute Deploy",
+      "startTime": 260.65,
+      "altitude": 13462.9,
+      "description": "Supersonic parachute deployment"
+    }
+  ],
+  "landingSite": {
+    "name": "Gale Crater",
+    "latitude": -5.4,
+    "longitude": 137.8,
+    "elevation": -4500
+  },
+  "vehicle_specs": {
+    "mass": 3893,
+    "diameter": 4.5,
+    "heatShieldMaterial": "PICA",
+    "parachuteDiameter": 21.5
+  }
+}
