@@ -1,224 +1,389 @@
 /**
- * AssetLoader.js - Asset loading and management
+ * AssetLoader.js
+ * Handles loading and caching of 3D models, textures, and other assets
  */
 
 import * as THREE from 'three';
 
 export class AssetLoader {
     constructor() {
-        this.textureLoader = new THREE.TextureLoader();
         this.loadingManager = new THREE.LoadingManager();
-        this.loadedAssets = new Map();
+        this.textureLoader = new THREE.TextureLoader(this.loadingManager);
+        this.cache = new Map();
+        this.loadingProgress = new Map();
         
+        // Asset paths
+        this.basePath = '/assets/';
+        this.texturePath = this.basePath + 'textures/';
+        this.modelPath = this.basePath + 'models/';
+        
+        // Setup loading manager callbacks
         this.setupLoadingManager();
     }
     
     setupLoadingManager() {
-        this.loadingManager.onLoad = () => {
-            console.log('All assets loaded');
+        this.loadingManager.onStart = (url, itemsLoaded, itemsTotal) => {
+            console.log(`Started loading: ${url}`);
+            this.onLoadStart?.(url, itemsLoaded, itemsTotal);
         };
         
-        this.loadingManager.onProgress = (url, loaded, total) => {
-            const progress = (loaded / total) * 100;
-            this.updateLoadingProgress(progress, `Loading ${url.split('/').pop()}`);
+        this.loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+            const progress = (itemsLoaded / itemsTotal) * 100;
+            this.loadingProgress.set(url, progress);
+            console.log(`Loading progress: ${url} - ${progress.toFixed(0)}%`);
+            this.onLoadProgress?.(url, itemsLoaded, itemsTotal);
+        };
+        
+        this.loadingManager.onLoad = () => {
+            console.log('All assets loaded');
+            this.onLoadComplete?.();
         };
         
         this.loadingManager.onError = (url) => {
-            console.error(`Failed to load: ${url}`);
+            console.error(`Error loading: ${url}`);
+            this.onLoadError?.(url);
         };
     }
     
-    updateLoadingProgress(progress, message) {
-        const progressBar = document.getElementById('loading-progress');
-        const loadingText = document.getElementById('loading-text');
+    /**
+     * Load texture with caching
+     */
+    async loadTexture(filename, options = {}) {
+        const cacheKey = `texture_${filename}`;
         
-        if (progressBar) {
-            progressBar.style.width = `${progress}%`;
+        // Check cache
+        if (this.cache.has(cacheKey)) {
+            return this.cache.get(cacheKey);
         }
         
-        if (loadingText) {
-            loadingText.textContent = message;
-        }
-    }
-    
-    async loadTexture(url, options = {}) {
-        const cacheKey = `texture_${url}`;
-        
-        if (this.loadedAssets.has(cacheKey)) {
-            return this.loadedAssets.get(cacheKey);
-        }
+        const path = this.texturePath + filename;
         
         return new Promise((resolve, reject) => {
             this.textureLoader.load(
-                url,
+                path,
                 (texture) => {
-                    // Apply options
+                    // Apply texture settings
                     if (options.wrapS) texture.wrapS = options.wrapS;
                     if (options.wrapT) texture.wrapT = options.wrapT;
                     if (options.repeat) texture.repeat.set(options.repeat.x, options.repeat.y);
-                    if (options.flipY !== undefined) texture.flipY = options.flipY;
+                    if (options.anisotropy) texture.anisotropy = options.anisotropy;
+                    if (options.encoding) texture.encoding = options.encoding;
                     
-                    this.loadedAssets.set(cacheKey, texture);
+                    // Cache texture
+                    this.cache.set(cacheKey, texture);
                     resolve(texture);
                 },
-                undefined,
-                reject
+                (progress) => {
+                    // Progress callback
+                    const percent = (progress.loaded / progress.total) * 100;
+                    console.log(`Loading ${filename}: ${percent.toFixed(0)}%`);
+                },
+                (error) => {
+                    console.error(`Failed to load texture ${filename}:`, error);
+                    reject(error);
+                }
             );
         });
     }
     
-    createMarsTexture() {
-        // Create procedural Mars texture if image not available
+    /**
+     * Load multiple textures
+     */
+    async loadTextures(textureList) {
+        const promises = textureList.map(item => {
+            if (typeof item === 'string') {
+                return this.loadTexture(item);
+            } else {
+                return this.loadTexture(item.filename, item.options);
+            }
+        });
+        
+        return Promise.all(promises);
+    }
+    
+    /**
+     * Create procedural Mars texture
+     */
+    createMarsTexture(size = 2048) {
+        const cacheKey = 'texture_mars_procedural';
+        
+        if (this.cache.has(cacheKey)) {
+            return this.cache.get(cacheKey);
+        }
+        
         const canvas = document.createElement('canvas');
-        canvas.width = 1024;
-        canvas.height = 512;
+        canvas.width = size;
+        canvas.height = size / 2;
         const ctx = canvas.getContext('2d');
         
-        // Base Mars color
-        const gradient = ctx.createLinearGradient(0, 0, 0, 512);
-        gradient.addColorStop(0, '#CD5C5C');
-        gradient.addColorStop(0.5, '#A0522D');
+        // Base gradient
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, '#D2691E');
+        gradient.addColorStop(0.3, '#CD853F');
+        gradient.addColorStop(0.5, '#B87333');
+        gradient.addColorStop(0.7, '#A0522D');
         gradient.addColorStop(1, '#8B4513');
         
         ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 1024, 512);
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Add noise for surface details
-        const imageData = ctx.getImageData(0, 0, 1024, 512);
-        const data = imageData.data;
+        // Add surface features
+        this.addMarsFeatures(ctx, canvas.width, canvas.height);
         
-        for (let i = 0; i < data.length; i += 4) {
-            const noise = (Math.random() - 0.5) * 30;
-            data[i] = Math.max(0, Math.min(255, data[i] + noise));
-            data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise));
-            data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise));
-        }
-        
-        ctx.putImageData(imageData, 0, 0);
-        
+        // Create texture
         const texture = new THREE.CanvasTexture(canvas);
         texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        
+        this.cache.set(cacheKey, texture);
         return texture;
     }
     
-    createStarField() {
+    addMarsFeatures(ctx, width, height) {
+        // Add craters
+        for (let i = 0; i < 200; i++) {
+            const x = Math.random() * width;
+            const y = Math.random() * height;
+            const radius = Math.random() * 30 + 5;
+            
+            const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+            gradient.addColorStop(0, 'rgba(139, 69, 19, 0.4)');
+            gradient.addColorStop(0.7, 'rgba(160, 82, 45, 0.2)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Add polar ice caps
+        const iceGradient = ctx.createLinearGradient(0, 0, 0, 100);
+        iceGradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+        iceGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        
+        ctx.fillStyle = iceGradient;
+        ctx.fillRect(0, 0, width, 100);
+        
+        const southIceGradient = ctx.createLinearGradient(0, height - 100, 0, height);
+        southIceGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        southIceGradient.addColorStop(1, 'rgba(255, 255, 255, 0.6)');
+        
+        ctx.fillStyle = southIceGradient;
+        ctx.fillRect(0, height - 100, width, 100);
+        
+        // Add some noise for texture
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+        
+        for (let i = 0; i < data.length; i += 4) {
+            const noise = (Math.random() - 0.5) * 20;
+            data[i] += noise;     // Red
+            data[i + 1] += noise; // Green
+            data[i + 2] += noise; // Blue
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+    }
+    
+    /**
+     * Create heat shield texture
+     */
+    createHeatShieldTexture(size = 512) {
         const canvas = document.createElement('canvas');
-        canvas.width = 2048;
-        canvas.height = 1024;
+        canvas.width = size;
+        canvas.height = size;
         const ctx = canvas.getContext('2d');
         
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, 2048, 1024);
+        // Base color
+        ctx.fillStyle = '#cccccc';
+        ctx.fillRect(0, 0, size, size);
         
-        // Generate stars
-        for (let i = 0; i < 3000; i++) {
-            const x = Math.random() * 2048;
-            const y = Math.random() * 1024;
-            const brightness = Math.random();
-            const size = Math.random() * 2 + 0.5;
+        // Tile pattern
+        const tileSize = size / 16;
+        ctx.strokeStyle = '#999999';
+        ctx.lineWidth = 2;
+        
+        for (let x = 0; x < size; x += tileSize) {
+            for (let y = 0; y < size; y += tileSize) {
+                ctx.strokeRect(x, y, tileSize, tileSize);
+                
+                // Add some variation
+                if (Math.random() > 0.7) {
+                    ctx.fillStyle = `rgba(0, 0, 0, ${Math.random() * 0.1})`;
+                    ctx.fillRect(x, y, tileSize, tileSize);
+                }
+            }
+        }
+        
+        // Add wear and tear
+        for (let i = 0; i < 50; i++) {
+            const x = Math.random() * size;
+            const y = Math.random() * size;
+            const radius = Math.random() * 10 + 2;
             
-            ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
+            ctx.fillStyle = `rgba(0, 0, 0, ${Math.random() * 0.2})`;
             ctx.beginPath();
-            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
             ctx.fill();
         }
         
         return new THREE.CanvasTexture(canvas);
     }
     
-    createParticleTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 64;
-        canvas.height = 64;
-        const ctx = canvas.getContext('2d');
+    /**
+     * Create environment map
+     */
+    createEnvironmentMap() {
+        const cacheKey = 'envmap_mars';
         
-        const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-        gradient.addColorStop(0.2, 'rgba(255, 255, 255, 0.8)');
-        gradient.addColorStop(0.4, 'rgba(255, 255, 255, 0.4)');
-        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 64, 64);
-        
-        return new THREE.CanvasTexture(canvas);
-    }
-    
-    createHeatShieldTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 512;
-        const ctx = canvas.getContext('2d');
-        
-        // Create heat shield pattern
-        const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
-        gradient.addColorStop(0, '#FF4500');
-        gradient.addColorStop(0.5, '#FF6347');
-        gradient.addColorStop(1, '#8B0000');
-        
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 512, 512);
-        
-        // Add hexagonal pattern
-        for (let x = 0; x < 512; x += 40) {
-            for (let y = 0; y < 512; y += 40) {
-                ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-                ctx.lineWidth = 2;
-                this.drawHexagon(ctx, x + 20, y + 20, 15);
-            }
+        if (this.cache.has(cacheKey)) {
+            return this.cache.get(cacheKey);
         }
         
-        return new THREE.CanvasTexture(canvas);
+        // Create cube render target for environment mapping
+        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
+            format: THREE.RGBFormat,
+            generateMipmaps: true,
+            minFilter: THREE.LinearMipmapLinearFilter
+        });
+        
+        // Create scene for rendering environment
+        const envScene = new THREE.Scene();
+        
+        // Add gradient sky
+        const skyGeometry = new THREE.SphereGeometry(500, 32, 32);
+        const skyMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                topColor: { value: new THREE.Color(0x0a0a0a) },
+                bottomColor: { value: new THREE.Color(0x220000) },
+                offset: { value: 50 },
+                exponent: { value: 0.6 }
+            },
+            vertexShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 topColor;
+                uniform vec3 bottomColor;
+                uniform float offset;
+                uniform float exponent;
+                varying vec3 vWorldPosition;
+                
+                void main() {
+                    float h = normalize(vWorldPosition + offset).y;
+                    gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(h, exponent), 0.0)), 1.0);
+                }
+            `,
+            side: THREE.BackSide
+        });
+        
+        const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+        envScene.add(sky);
+        
+        this.cache.set(cacheKey, cubeRenderTarget.texture);
+        return cubeRenderTarget.texture;
     }
     
-    drawHexagon(ctx, x, y, radius) {
-        ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-            const angle = (i * Math.PI) / 3;
-            const px = x + radius * Math.cos(angle);
-            const py = y + radius * Math.sin(angle);
+    /**
+     * Load CubeTexture for skybox
+     */
+    async loadCubeTexture(paths) {
+        const cacheKey = `cubetexture_${paths.join('_')}`;
+        
+        if (this.cache.has(cacheKey)) {
+            return this.cache.get(cacheKey);
+        }
+        
+        return new Promise((resolve, reject) => {
+            const loader = new THREE.CubeTextureLoader(this.loadingManager);
+            loader.setPath(this.texturePath);
             
-            if (i === 0) {
-                ctx.moveTo(px, py);
-            } else {
-                ctx.lineTo(px, py);
-            }
-        }
-        ctx.closePath();
-        ctx.stroke();
+            loader.load(
+                paths,
+                (texture) => {
+                    this.cache.set(cacheKey, texture);
+                    resolve(texture);
+                },
+                (progress) => {
+                    console.log('Loading cube texture...', progress);
+                },
+                (error) => {
+                    console.error('Failed to load cube texture:', error);
+                    reject(error);
+                }
+            );
+        });
     }
     
-    async loadDefaultAssets() {
+    /**
+     * Preload all essential assets
+     */
+    async preloadAssets() {
+        const assets = {
+            textures: [],
+            models: [],
+            sounds: []
+        };
+        
+        // Preload textures
+        const texturePromises = [
+            this.createMarsTexture(),
+            this.createHeatShieldTexture(),
+            this.createEnvironmentMap()
+        ];
+        
         try {
-            // Load default textures
-            const marsTexture = this.createMarsTexture();
-            const starTexture = this.createStarField();
-            const particleTexture = this.createParticleTexture();
-            const heatShieldTexture = this.createHeatShieldTexture();
-            
-            this.loadedAssets.set('mars_surface', marsTexture);
-            this.loadedAssets.set('star_field', starTexture);
-            this.loadedAssets.set('particle', particleTexture);
-            this.loadedAssets.set('heat_shield', heatShieldTexture);
-            
+            await Promise.all(texturePromises);
+            console.log('All assets preloaded successfully');
             return true;
         } catch (error) {
-            console.error('Failed to load default assets:', error);
+            console.error('Error preloading assets:', error);
             return false;
         }
     }
     
-    getAsset(key) {
-        return this.loadedAssets.get(key);
+    /**
+     * Get loading progress
+     */
+    getLoadingProgress() {
+        if (this.loadingProgress.size === 0) return 100;
+        
+        let totalProgress = 0;
+        this.loadingProgress.forEach(progress => {
+            totalProgress += progress;
+        });
+        
+        return totalProgress / this.loadingProgress.size;
     }
     
-    dispose() {
-        this.loadedAssets.forEach(asset => {
+    /**
+     * Clear cache
+     */
+    clearCache() {
+        // Dispose of all cached textures
+        this.cache.forEach((asset, key) => {
             if (asset.dispose) {
                 asset.dispose();
             }
         });
-        this.loadedAssets.clear();
+        
+        this.cache.clear();
+        this.loadingProgress.clear();
+    }
+    
+    /**
+     * Set loading callbacks
+     */
+    setCallbacks(callbacks) {
+        if (callbacks.onStart) this.onLoadStart = callbacks.onStart;
+        if (callbacks.onProgress) this.onLoadProgress = callbacks.onProgress;
+        if (callbacks.onComplete) this.onLoadComplete = callbacks.onComplete;
+        if (callbacks.onError) this.onLoadError = callbacks.onError;
     }
 }
