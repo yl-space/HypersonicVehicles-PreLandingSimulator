@@ -144,7 +144,7 @@ Time,x,y,z
 {
   "id": "mission_name",
   "vehicle": "vehicle_type",
-  "planet": "mars",
+  "planet": "jupiter",
   "phases": [...],
   "vehicleConfig": {...}
 }
