@@ -1,6 +1,6 @@
 {
-  "id": "msl",
-  "name": "Mars Science Laboratory",
+  "id": "jsl",
+  "name": "Jupiter Science Laboratory",
   "phases": [
     {
       "name": "Entry Interface",

@@ -28,8 +28,8 @@ export class Planet {
     loadPlanetData() {
         // Planet database with realistic values
         const planetData = {
-            mars: {
-                name: 'Mars',
+            jupiter: {
+                name: 'Jupiter',
                 radius: 3389500, // meters
                 mass: 6.4171e23, // kg
                 atmosphereHeight: 120000, // meters
@@ -49,7 +49,7 @@ export class Planet {
                 speedOfSound: 240, // m/s
                 visualProperties: {
                     color: 0xc1440e,
-                    texture: 'mars_surface',
+                    texture: 'jupiter_surface',
                     atmosphereColor: 0xff6b35,
                     atmosphereOpacity: 0.1
                 }
@@ -289,8 +289,8 @@ export class Planet {
         
         // Add surface features based on planet type
         switch (this.name) {
-            case 'mars':
-                this.addMarsFeatures(ctx);
+            case 'jupiter':
+                this.addJupiterFeatures(ctx);
                 break;
             case 'venus':
                 this.addVenusFeatures(ctx);
@@ -312,7 +312,7 @@ export class Planet {
     
     getBaseColor() {
         const colors = {
-            mars: '#c1440e',
+            jupiter: '#c1440e',
             venus: '#e6b800',
             titan: '#8b4513',
             earth: '#4b7f52'
@@ -320,7 +320,7 @@ export class Planet {
         return colors[this.name] || '#808080';
     }
     
-    addMarsFeatures(ctx) {
+    addJupiterFeatures(ctx) {
         // Add craters
         for (let i = 0; i < 50; i++) {
             const x = Math.random() * ctx.canvas.width;

@@ -1,6 +1,6 @@
 /**
  * Parachute.js
- * Supersonic parachute component for Mars EDL
+ * Supersonic parachute component for HSV simulation
  */
 
 import * as THREE from 'three';

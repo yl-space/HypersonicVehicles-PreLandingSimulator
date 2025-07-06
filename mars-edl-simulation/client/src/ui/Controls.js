@@ -144,7 +144,7 @@ export class Controls {
                 <div class="setting-item">
                     <label>
                         <input type="checkbox" id="auto-rotate" unchecked>
-                        Auto-rotate Mars
+                        Auto-rotate Jupiter
                     </label>
                 </div>
                 

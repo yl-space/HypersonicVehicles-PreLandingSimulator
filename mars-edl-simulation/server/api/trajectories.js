@@ -302,8 +302,8 @@ function lerp(a, b, t) {
 }
 
 function calculateAltitude(x, y, z) {
-    const marsRadius = 3389500; // meters
-    return Math.sqrt(x*x + y*y + z*z) - marsRadius;
+    const jupiterRadius = 3389500; // meters
+    return Math.sqrt(x*x + y*y + z*z) - jupiterRadius;
 }
 
 export default router;

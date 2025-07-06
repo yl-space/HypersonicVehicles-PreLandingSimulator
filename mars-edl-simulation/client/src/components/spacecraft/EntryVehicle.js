@@ -1,6 +1,6 @@
 /**
  * EntryVehicle.js
- * Mars Entry Vehicle with heat shield, backshell, and parachute
+ * Jupiter Entry Vehicle with heat shield, backshell, and parachute
  */
 
 import * as THREE from 'three';

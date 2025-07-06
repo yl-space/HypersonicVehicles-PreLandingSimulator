@@ -86,18 +86,18 @@ router.get('/msl-trajectory/metadata', async (req, res) => {
         };
         
         // Calculate altitude range (approximate)
-        const marsRadius = 3389500; // meters
+        const jupiterRadius = 3389500; // meters
         const startAltitude = Math.sqrt(
             firstDataPoint[1] * firstDataPoint[1] + 
             firstDataPoint[2] * firstDataPoint[2] + 
             firstDataPoint[3] * firstDataPoint[3]
-        ) - marsRadius;
+        ) - jupiterRadius;
         
         const endAltitude = Math.sqrt(
             lastDataPoint[1] * lastDataPoint[1] + 
             lastDataPoint[2] * lastDataPoint[2] + 
             lastDataPoint[3] * lastDataPoint[3]
-        ) - marsRadius;
+        ) - jupiterRadius;
         
         const metadata = {
             filename: 'MSL_position_J2000.csv',
@@ -111,8 +111,8 @@ router.get('/msl-trajectory/metadata', async (req, res) => {
                 end: endAltitude
             },
             coordinateSystem: 'J2000',
-            mission: 'Mars Science Laboratory (MSL)',
-            description: 'MSL trajectory data from Entry Interface to Parachute Deployment'
+            mission: 'Jupiter Science Laboratory (JSL)',
+            description: 'JSL trajectory data from Entry Interface to Parachute Deployment'
         };
         
         res.json(metadata);

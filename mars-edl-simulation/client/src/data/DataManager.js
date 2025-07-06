@@ -105,7 +105,7 @@ export class DataManager {
     getDefaultMissionConfig() {
         return {
             id: 'msl',
-            name: 'Mars Science Laboratory',
+            name: 'Jupiter Science Laboratory',
             vehicle: 'Curiosity Rover',
             launchDate: '2011-11-26',
             landingDate: '2012-08-06',
@@ -208,7 +208,7 @@ export class DataManager {
      * Store telemetry locally
      */
     storeLocalTelemetry(telemetryData) {
-        const key = 'mars_edl_telemetry';
+        const key = 'jupiter_edl_telemetry';
         const existing = this.getLocalTelemetry();
         existing.push({
             ...telemetryData,
@@ -231,7 +231,7 @@ export class DataManager {
      * Get local telemetry
      */
     getLocalTelemetry() {
-        const key = 'mars_edl_telemetry';
+        const key = 'jupiter_edl_telemetry';
         try {
             const data = localStorage.getItem(key);
             return data ? JSON.parse(data) : [];

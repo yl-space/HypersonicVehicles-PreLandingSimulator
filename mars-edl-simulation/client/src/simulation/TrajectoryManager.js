@@ -11,7 +11,7 @@ export class TrajectoryManager {
         this.trajectoryLine = null;
         this.currentIndex = 0;
         this.totalTime = 260.65;
-        this.marsRadius = 3389.5; // km
+        this.jupiterRadius = 3389.5; // km
         
         // Landing site coordinates (Jezero Crater)
         this.landingSite = {
@@ -29,9 +29,9 @@ export class TrajectoryManager {
         const theta = this.landingSite.lon * Math.PI / 180;
         
         this.landingSite.position = new THREE.Vector3(
-            this.marsRadius * Math.sin(phi) * Math.cos(theta),
-            this.marsRadius * Math.cos(phi),
-            this.marsRadius * Math.sin(phi) * Math.sin(theta)
+            this.jupiterRadius * Math.sin(phi) * Math.cos(theta),
+            this.jupiterRadius * Math.cos(phi),
+            this.jupiterRadius * Math.sin(phi) * Math.sin(theta)
         );
         
         // Create trajectory line
@@ -72,7 +72,7 @@ export class TrajectoryManager {
                     
                     // Calculate altitude and velocity
                     const position = new THREE.Vector3(x, y, z);
-                    const altitude = position.length() - this.marsRadius;
+                    const altitude = position.length() - this.jupiterRadius;
                     
                     // Calculate velocity (approximate from position changes)
                     let velocity = 0;
@@ -84,14 +84,14 @@ export class TrajectoryManager {
                     }
                     
                     // Transform from J2000 to Mars-centered coordinates
-                    const marsPosition = this.transformJ2000ToMars(position, time);
+                    const jupiterPosition = this.transformJ2000ToMars(position, time);
                     
                     this.trajectoryData.push({
                         time,
-                        position: marsPosition,
+                        position: jupiterPosition,
                         altitude,
                         velocity,
-                        distanceToLanding: marsPosition.distanceTo(this.landingSite.position)
+                        distanceToLanding: jupiterPosition.distanceTo(this.landingSite.position)
                     });
                 }
             }
@@ -127,7 +127,7 @@ export class TrajectoryManager {
             
             // Position on curved path
             const pathAngle = entryAngle * (1 - progress);
-            const radius = this.marsRadius + actualAltitude;
+            const radius = this.jupiterRadius + actualAltitude;
             
             const x = Math.cos(pathAngle) * radius;
             const y = actualAltitude * 0.1 * Math.sin(progress * Math.PI);
@@ -154,15 +154,15 @@ export class TrajectoryManager {
     transformJ2000ToMars(j2000Position, time) {
         // Simplified transformation - in production, use proper SPICE kernels
         // For now, apply a rotation based on Mars orientation
-        const marsRotation = time * 0.001; // Simplified Mars rotation
+        const jupiterRotation = time * 0.001; // Simplified Mars rotation
         
         const rotationMatrix = new THREE.Matrix4();
-        rotationMatrix.makeRotationY(marsRotation);
+        rotationMatrix.makeRotationY(jupiterRotation);
         
-        const marsPosition = j2000Position.clone();
-        marsPosition.applyMatrix4(rotationMatrix);
+        const jupiterPosition = j2000Position.clone();
+        jupiterPosition.applyMatrix4(rotationMatrix);
         
-        return marsPosition;
+        return jupiterPosition;
     }
     
     updateTrajectoryLine() {

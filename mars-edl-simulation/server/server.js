@@ -1,6 +1,6 @@
 /**
  * server.js
- * Express server for Mars EDL Simulation
+ * Express server for HSLV Simulation
  */
 
 import express from 'express';
@@ -198,7 +198,7 @@ app.use((req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-    logger.info(`Mars EDL Simulation server running on port ${PORT}`);
+    logger.info(`HSLV Simulation server running on port ${PORT}`);
     logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
     logger.info(`Client files served from: ${clientPath}`);
     
