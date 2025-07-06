@@ -396,13 +396,7 @@
         });
     </script>
 
-    <!-- Analytics (optional) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'GA_MEASUREMENT_ID');
-    </script>
+    <!-- Analytics (optional) - Disabled due to CSP -->
+    <!-- To enable analytics, configure CSP in server.js to allow Google Analytics -->
 </body>
 </html>
