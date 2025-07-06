@@ -27,15 +27,16 @@ export class PhaseController {
     }
     
     onPhaseChange(phase) {
-        console.log(`Phase changed to: ${phase.name}`);
+        const elements = {
+            'phase-title': phase.name,
+            'phase-description': phase.description,
+            'current-phase': phase.name
+        };
         
-        const phaseTitle = document.getElementById('phase-title');
-        const phaseDescription = document.getElementById('phase-description');
-        const currentPhaseSpan = document.getElementById('current-phase');
-        
-        if (phaseTitle) phaseTitle.textContent = phase.name;
-        if (phaseDescription) phaseDescription.textContent = phase.description;
-        if (currentPhaseSpan) currentPhaseSpan.textContent = phase.name;
+        Object.entries(elements).forEach(([id, value]) => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = value;
+        });
     }
     
     getCurrentPhase() {
