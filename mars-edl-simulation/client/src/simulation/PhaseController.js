@@ -12,53 +12,67 @@ export class PhaseController {
                 altitude: 132, // km
                 velocity: 19300, // km/h
                 description: "The spacecraft enters the Martian atmosphere, drastically slowing it down while also heating it up.",
-                keyEvents: ["Atmospheric entry begins", "Peak heating expected"],
-                color: "#ff6600"
+                nextPhase: "Guidance Start",
+                nextPhaseTime: 26
             },
             {
-                name: "Guidance Start",
+                name: "Guidance Start", 
                 time: 26,
                 altitude: 90,
                 velocity: 19200,
                 description: "As it begins to descend through the atmosphere, the spacecraft encounters pockets of air that are more or less dense, which can nudge it off course. To compensate, it fires small thrusters on its backshell that adjust its angle and direction of lift.",
-                keyEvents: ["Guidance system activated", "Thruster corrections begin"],
-                color: "#ff8800"
+                nextPhase: "Heading Alignment",
+                nextPhaseTime: 87
             },
             {
                 name: "Heading Alignment",
                 time: 87,
-                altitude: 30,
-                velocity: 3200,
+                altitude: 55,
+                velocity: 8500,
                 description: "The guided entry algorithm corrects any remaining cross-range error.",
-                keyEvents: ["Cross-range correction", "Final trajectory adjustments"],
-                color: "#ffaa00"
+                nextPhase: "Begin SUFR",
+                nextPhaseTime: 174
             },
             {
                 name: "Begin SUFR",
                 time: 174,
                 altitude: 21,
                 velocity: 1900,
-                description: "The spacecraft executes the 'Straighten Up and Fly Right' maneuver, ejecting six more balance masses and setting the angle of attack to zero.",
-                keyEvents: ["SUFR maneuver initiated", "Balance masses ejected"],
-                color: "#ffcc00"
+                description: "The spacecraft executes the \"Straighten Up and Fly Right\" maneuver, ejecting six more balance masses and setting the angle of attack to zero.",
+                nextPhase: "Parachute Deploy",
+                nextPhaseTime: 240
             },
             {
                 name: "Parachute Deploy",
                 time: 240,
                 altitude: 13.463,
-                velocity: 1512,
-                description: "The parachute is triggered by calculating the distance to the landing site, and opening at the optimum time to hit a smaller target area. This is called a 'Range Trigger.'",
-                keyEvents: ["Parachute deployment", "Velocity reduction begins"],
-                color: "#00ff00"
+                velocity: 1450,
+                description: "The parachute is triggered by calculating the distance to the landing site, and opening at the optimum time to hit a smaller target area. This is called a \"Range Trigger.\"",
+                nextPhase: "Heat Shield Separation",
+                nextPhaseTime: 260
+            },
+            {
+                name: "Heat Shield Separation",
+                time: 260,
+                altitude: 10,
+                velocity: 580,
+                description: "The heat shield separates to expose the rover and landing system.",
+                nextPhase: null,
+                nextPhaseTime: null
             }
         ];
         
         this.currentPhaseIndex = 0;
-        this.nextPhaseCallbacks = [];
+        this.phaseListeners = [];
+    }
+    
+    setPhases(customPhases) {
+        if (customPhases && Array.isArray(customPhases)) {
+            this.phases = customPhases;
+        }
     }
     
     getCurrentPhase(time) {
-        // Find the current phase based on time
         let phaseIndex = 0;
         
         for (let i = this.phases.length - 1; i >= 0; i--) {
@@ -68,132 +82,169 @@ export class PhaseController {
             }
         }
         
-        // Check if phase has changed
+        // Check if phase changed
         if (phaseIndex !== this.currentPhaseIndex) {
-            const previousPhase = this.currentPhaseIndex;
+            const oldPhase = this.phases[this.currentPhaseIndex];
+            const newPhase = this.phases[phaseIndex];
             this.currentPhaseIndex = phaseIndex;
-            this.onPhaseChange(previousPhase, phaseIndex);
+            
+            // Notify listeners
+            this.notifyPhaseChange(oldPhase, newPhase);
         }
         
         return phaseIndex;
     }
     
-    getPhase(index) {
+    getPhaseByIndex(index) {
         return this.phases[index] || null;
     }
     
-    getCurrentPhaseData(time) {
-        const phaseIndex = this.getCurrentPhase(time);
-        const phase = this.phases[phaseIndex];
-        const nextPhase = this.phases[phaseIndex + 1];
-        
-        // Calculate progress within current phase
-        let phaseProgress = 0;
-        if (nextPhase) {
-            const phaseDuration = nextPhase.time - phase.time;
-            const timeInPhase = time - phase.time;
-            phaseProgress = Math.min(timeInPhase / phaseDuration, 1);
+    getPhaseByName(name) {
+        return this.phases.find(phase => phase.name === name) || null;
+    }
+    
+    getNextPhase(currentTime) {
+        const currentPhase = this.getCurrentPhase(currentTime);
+        if (currentPhase < this.phases.length - 1) {
+            return this.phases[currentPhase + 1];
         }
-        
-        return {
-            current: phase,
-            next: nextPhase,
-            progress: phaseProgress,
-            index: phaseIndex,
-            totalPhases: this.phases.length
-        };
-    }
-    
-    onPhaseChange(fromIndex, toIndex) {
-        const fromPhase = this.phases[fromIndex];
-        const toPhase = this.phases[toIndex];
-        
-        console.log(`Phase transition: ${fromPhase.name} → ${toPhase.name}`);
-        
-        // Execute phase change callbacks
-        this.nextPhaseCallbacks.forEach(callback => {
-            callback(fromPhase, toPhase, toIndex);
-        });
-    }
-    
-    onNextPhase(callback) {
-        this.nextPhaseCallbacks.push(callback);
-    }
-    
-    getTimeToNextPhase(currentTime) {
-        const currentPhaseIndex = this.getCurrentPhase(currentTime);
-        const nextPhase = this.phases[currentPhaseIndex + 1];
-        
-        if (nextPhase) {
-            return nextPhase.time - currentTime;
-        }
-        
         return null;
     }
     
-    getPhaseAtTime(time) {
-        for (let i = this.phases.length - 1; i >= 0; i--) {
-            if (time >= this.phases[i].time) {
-                return this.phases[i];
-            }
+    getTimeToNextPhase(currentTime) {
+        const nextPhase = this.getNextPhase(currentTime);
+        if (nextPhase) {
+            return nextPhase.time - currentTime;
         }
-        return this.phases[0];
+        return null;
     }
     
-    // Get interpolated values between phases
-    getInterpolatedData(time) {
-        const currentPhaseIndex = this.getCurrentPhase(time);
-        const currentPhase = this.phases[currentPhaseIndex];
-        const nextPhase = this.phases[currentPhaseIndex + 1];
+    getPhaseProgress(currentTime) {
+        const phaseIndex = this.getCurrentPhase(currentTime);
+        const currentPhase = this.phases[phaseIndex];
+        const nextPhase = this.phases[phaseIndex + 1];
         
         if (!nextPhase) {
-            return {
-                altitude: currentPhase.altitude,
-                velocity: currentPhase.velocity
-            };
+            return 1; // Last phase
         }
         
-        // Interpolate between phases
         const phaseDuration = nextPhase.time - currentPhase.time;
-        const timeInPhase = time - currentPhase.time;
-        const t = timeInPhase / phaseDuration;
+        const timeInPhase = currentTime - currentPhase.time;
         
-        return {
-            altitude: currentPhase.altitude + (nextPhase.altitude - currentPhase.altitude) * t,
-            velocity: currentPhase.velocity + (nextPhase.velocity - currentPhase.velocity) * t
+        return Math.min(timeInPhase / phaseDuration, 1);
+    }
+    
+    // Event handling
+    addPhaseChangeListener(callback) {
+        this.phaseListeners.push(callback);
+    }
+    
+    removePhaseChangeListener(callback) {
+        const index = this.phaseListeners.indexOf(callback);
+        if (index > -1) {
+            this.phaseListeners.splice(index, 1);
+        }
+    }
+    
+    notifyPhaseChange(oldPhase, newPhase) {
+        this.phaseListeners.forEach(listener => {
+            listener({
+                oldPhase,
+                newPhase,
+                phaseIndex: this.currentPhaseIndex,
+                timestamp: Date.now()
+            });
+        });
+    }
+    
+    // Phase-specific configurations
+    getPhaseConfig(phaseName) {
+        const configs = {
+            "Entry Interface Point": {
+                cameraDistance: 200,
+                heatShieldGlow: 0.8,
+                atmosphericDrag: 0.1,
+                thrusterActivity: false
+            },
+            "Guidance Start": {
+                cameraDistance: 150,
+                heatShieldGlow: 1.0,
+                atmosphericDrag: 0.3,
+                thrusterActivity: true
+            },
+            "Heading Alignment": {
+                cameraDistance: 120,
+                heatShieldGlow: 0.7,
+                atmosphericDrag: 0.5,
+                thrusterActivity: true
+            },
+            "Begin SUFR": {
+                cameraDistance: 100,
+                heatShieldGlow: 0.4,
+                atmosphericDrag: 0.7,
+                thrusterActivity: true
+            },
+            "Parachute Deploy": {
+                cameraDistance: 150,
+                heatShieldGlow: 0.1,
+                atmosphericDrag: 0.9,
+                thrusterActivity: false
+            },
+            "Heat Shield Separation": {
+                cameraDistance: 100,
+                heatShieldGlow: 0,
+                atmosphericDrag: 0.95,
+                thrusterActivity: false
+            }
         };
+        
+        return configs[phaseName] || {};
     }
     
-    // Set custom phases (for different missions)
-    setPhases(phases) {
-        this.phases = phases;
-        this.currentPhaseIndex = 0;
+    // Telemetry calculations
+    calculateTelemetry(phaseData, interpolatedData) {
+        const telemetry = {
+            ...phaseData,
+            distanceToLanding: interpolatedData?.distanceToLanding || 0,
+            actualAltitude: interpolatedData?.altitude || phaseData.altitude,
+            actualVelocity: interpolatedData?.velocity || phaseData.velocity,
+            timeInPhase: 0,
+            phaseProgress: 0
+        };
+        
+        // Convert units
+        telemetry.altitudeMiles = telemetry.actualAltitude * 0.621371;
+        telemetry.velocityMph = telemetry.actualVelocity * 0.621371;
+        telemetry.distanceMiles = telemetry.distanceToLanding * 0.621371;
+        
+        return telemetry;
     }
     
-    // Get all phase times for timeline markers
-    getPhaseTimes() {
+    // Export phase data for timeline markers
+    getPhaseMarkers() {
         return this.phases.map(phase => ({
             time: phase.time,
             name: phase.name,
-            color: phase.color
+            color: this.getPhaseColor(phase.name)
         }));
     }
     
-    // Check if a specific event should trigger
-    shouldTriggerEvent(time, eventName) {
-        const phase = this.getPhaseAtTime(time);
-        return phase.keyEvents && phase.keyEvents.includes(eventName);
+    getPhaseColor(phaseName) {
+        const colors = {
+            "Entry Interface Point": "#ff6600",
+            "Guidance Start": "#ff8800",
+            "Heading Alignment": "#ffaa00",
+            "Begin SUFR": "#ffcc00",
+            "Parachute Deploy": "#00ccff",
+            "Heat Shield Separation": "#00ffcc"
+        };
+        
+        return colors[phaseName] || "#ffffff";
     }
     
-    // Get mission statistics
-    getMissionStats() {
-        return {
-            totalDuration: this.phases[this.phases.length - 1].time,
-            entryVelocity: this.phases[0].velocity,
-            deployVelocity: this.phases[this.phases.length - 1].velocity,
-            entryAltitude: this.phases[0].altitude,
-            deployAltitude: this.phases[this.phases.length - 1].altitude,
-            totalPhases: this.phases.length
-        };
+    // Reset controller
+    reset() {
+        this.currentPhaseIndex = 0;
+        this.notifyPhaseChange(null, this.phases[0]);
     }
 }
