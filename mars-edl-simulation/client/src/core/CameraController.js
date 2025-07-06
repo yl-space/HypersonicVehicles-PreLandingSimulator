@@ -1,12 +1,7 @@
-class CameraController {
+export class CameraController {
     constructor(container) {
         this.container = container;
-        this.camera = new THREE.PerspectiveCamera(
-            75, 
-            container.clientWidth / container.clientHeight, 
-            0.1, 
-            10000000
-        );
+        this.camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 10000000);
         
         this.mode = 'FREE';
         this.target = new THREE.Vector3(0, 0, 0);
@@ -43,7 +38,7 @@ class CameraController {
             
             this.cameraRotationY -= deltaX * 0.005;
             this.cameraRotationX -= deltaY * 0.005;
-            this.cameraRotationX = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.cameraRotationX));
+            this.cameraRotationX = THREE.MathUtils.clamp(this.cameraRotationX, -Math.PI/2, Math.PI/2);
             
             this.mouseX = e.clientX;
             this.mouseY = e.clientY;
@@ -71,6 +66,7 @@ class CameraController {
     
     setMode(mode) {
         this.mode = mode;
+        console.log('Camera mode:', mode);
     }
     
     setTarget(object) {
