@@ -67,7 +67,7 @@ export class SceneManager {
         
         this.scene.add(this.lights.sun);
         
-        // Mars surface reflection light (subtle orange)
+        // Jupiter surface reflection light (subtle orange)
         this.lights.marsReflection = new THREE.DirectionalLight(0xB87333, 0.2);
         this.lights.marsReflection.position.set(-2000, -5000, -2000);
         this.scene.add(this.lights.marsReflection);
@@ -98,7 +98,7 @@ export class SceneManager {
         // Adjust sun intensity based on atmosphere
         this.lights.sun.intensity = 1.2 - atmosphereEffect * 0.2;
         
-        // Increase Mars reflection when closer to surface
+        // Increase Jupiter reflection when closer to surface
         this.lights.marsReflection.intensity = 0.2 + (1 - atmosphereEffect) * 0.3;
     }
     
