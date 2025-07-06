@@ -11,12 +11,13 @@ export class SceneManager {
     }
     
     init() {
-        // Setup renderer
+        // WebGL renderer setup
         this.renderer = new THREE.WebGLRenderer({ 
             antialias: true,
             alpha: true,
             powerPreference: "high-performance"
         });
+        
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
@@ -27,22 +28,21 @@ export class SceneManager {
         
         this.container.appendChild(this.renderer.domElement);
         
-        // Setup camera controller
+        // Camera setup
         this.cameraController = new CameraController(this.container);
         
-        // Setup scene
+        // Scene setup
         this.scene.background = new THREE.Color(0x000005);
         this.scene.fog = new THREE.FogExp2(0x000005, 0.000001);
         
-        // Lighting
         this.setupLighting();
-        
-        // Start render loop
         this.startRenderLoop();
+        
+        console.log('✅ Three.js scene initialized');
     }
     
     setupLighting() {
-        // Sun light (directional)
+        // Sun light
         const sunLight = new THREE.DirectionalLight(0xffeaa7, 2.5);
         sunLight.position.set(-1000000, 500000, 1000000);
         sunLight.castShadow = true;
@@ -54,10 +54,10 @@ export class SceneManager {
         const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
         this.scene.add(ambientLight);
         
-        // Mars atmosphere glow
-        const atmosphereLight = new THREE.PointLight(0xff6b35, 0.8, 200000);
-        atmosphereLight.position.set(0, 0, 0);
-        this.scene.add(atmosphereLight);
+        // Mars glow
+        const marsLight = new THREE.PointLight(0xff6b35, 0.8, 200000);
+        marsLight.position.set(0, 0, 0);
+        this.scene.add(marsLight);
     }
     
     startRenderLoop() {
@@ -71,11 +71,7 @@ export class SceneManager {
         requestAnimationFrame(() => this.render());
         
         const deltaTime = this.clock.getDelta();
-        
-        // Update camera
         this.cameraController.update(deltaTime);
-        
-        // Render scene
         this.renderer.render(this.scene, this.cameraController.camera);
     }
     
@@ -93,15 +89,12 @@ export class SceneManager {
         
         this.cameraController.camera.aspect = width / height;
         this.cameraController.camera.updateProjectionMatrix();
-        
         this.renderer.setSize(width, height);
     }
     
     toggleFullscreen() {
         if (!document.fullscreenElement) {
-            this.container.requestFullscreen().catch(err => {
-                console.warn('Could not enter fullscreen:', err);
-            });
+            this.container.requestFullscreen();
         } else {
             document.exitFullscreen();
         }
