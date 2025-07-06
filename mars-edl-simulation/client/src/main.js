@@ -196,7 +196,7 @@ window.closeWelcomeDialog = function() {
     const dontShowAgain = document.getElementById('dont-show-again').checked;
     
     if (dontShowAgain) {
-        localStorage.setItem('marsEDL_hideWelcome', 'true');
+        localStorage.setItem('jupiterEDL_hideWelcome', 'true');
     }
     
     dialog.classList.remove('visible');
@@ -210,7 +210,7 @@ window.closeWelcomeDialog = function() {
  * Check if user has seen welcome
  */
 function hasSeenWelcome() {
-    return localStorage.getItem('marsEDL_hideWelcome') === 'true';
+    return localStorage.getItem('jupiterEDL_hideWelcome') === 'true';
 }
 
 /**
@@ -381,7 +381,7 @@ window.exportTelemetry = function() {
         
         window.JupiterEDL.simulation.dataManager.downloadData(
             data,
-            `mars_edl_telemetry_${Date.now()}.json`,
+            `jupiter_edl_telemetry_${Date.now()}.json`,
             'application/json'
         );
     }
