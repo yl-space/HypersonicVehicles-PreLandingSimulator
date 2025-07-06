@@ -381,7 +381,7 @@
         setTimeout(() => updateLoading(100, 'Ready!'), 2000);
         
         // Import main application
-        import('../src/main.js').catch(error => {
+        import('./src/main.js').catch(error => {
             console.error('Failed to load application:', error);
             document.getElementById('loading-screen').innerHTML = `
                 <div class="no-webgl">
