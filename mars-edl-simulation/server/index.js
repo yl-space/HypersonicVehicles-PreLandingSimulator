@@ -13,6 +13,9 @@ import winston from 'winston';
 import trajectoriesAPI from './api/trajectories.js';
 import missionsAPI from './api/missions.js';
 import telemetryAPI from './api/telemetry.js';
+import multer from 'multer';
+import app from './server.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
