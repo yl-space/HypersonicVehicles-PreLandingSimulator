@@ -1,12 +1,12 @@
 /**
  * main.js
- * Main entry point for Mars EDL Simulation
+ * Main entry point for Jupiter EDL Simulation
  */
 
 import { SimulationManager } from '../src/simulation/SimulationManager.js';
 
 // Global app state
-window.MarsEDL = {
+window.JupiterEDL = {
     simulation: null,
     config: {
         debug: false,
@@ -49,7 +49,7 @@ async function init() {
         });
         
         // Store reference
-        window.MarsEDL.simulation = simulation;
+        window.JupiterEDL.simulation = simulation;
         
         // Setup global controls
         setupGlobalControls();
@@ -141,8 +141,8 @@ function showWelcomeDialog() {
     dialog.innerHTML = `
         <div class="dialog-overlay"></div>
         <div class="dialog-content">
-            <h2>Mars Entry, Descent & Landing Simulation</h2>
-            <p>Experience the "7 Minutes of Terror" as we simulate the Mars Science Laboratory's entry into the Martian atmosphere.</p>
+            <h2>Jupiter Entry, Descent & Landing Simulation</h2>
+            <p>Experience the "7 Minutes of Terror" as we simulate the Jupiter Science Laboratory's entry into the Martian atmosphere.</p>
             
             <div class="dialog-features">
                 <div class="feature">
@@ -202,7 +202,7 @@ window.closeWelcomeDialog = function() {
     dialog.classList.remove('visible');
     setTimeout(() => {
         dialog.remove();
-        window.MarsEDL.simulation.play();
+        window.JupiterEDL.simulation.play();
     }, 300);
 };
 
@@ -268,7 +268,7 @@ function setupGlobalControls() {
     });
     
     // Performance monitoring
-    if (window.MarsEDL.config.debug) {
+    if (window.JupiterEDL.config.debug) {
         setupPerformanceMonitor();
     }
     
@@ -283,8 +283,8 @@ function setupGlobalControls() {
     
     // Visibility change handling
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden && window.MarsEDL.simulation) {
-            window.MarsEDL.simulation.pause();
+        if (document.hidden && window.JupiterEDL.simulation) {
+            window.JupiterEDL.simulation.pause();
         }
     });
 }
@@ -339,7 +339,7 @@ function setupPerformanceMonitor() {
             monitor.innerHTML = `
                 FPS: ${fps}<br>
                 Memory: ${memory}<br>
-                Time: ${window.MarsEDL.simulation?.state.currentTime.toFixed(1)}s
+                Time: ${window.JupiterEDL.simulation?.state.currentTime.toFixed(1)}s
             `;
             
             frameCount = 0;
@@ -356,9 +356,9 @@ function setupPerformanceMonitor() {
  * Replay simulation
  */
 window.replaySimulation = function() {
-    if (window.MarsEDL.simulation) {
-        window.MarsEDL.simulation.seekTo(0);
-        window.MarsEDL.simulation.play();
+    if (window.JupiterEDL.simulation) {
+        window.JupiterEDL.simulation.seekTo(0);
+        window.JupiterEDL.simulation.play();
         
         // Close dialog
         const dialog = document.querySelector('.completion-dialog');
@@ -373,13 +373,13 @@ window.replaySimulation = function() {
  * Export telemetry data
  */
 window.exportTelemetry = function() {
-    if (window.MarsEDL.simulation) {
-        const data = window.MarsEDL.simulation.dataManager.exportSimulationData(
-            window.MarsEDL.simulation.getState(),
+    if (window.JupiterEDL.simulation) {
+        const data = window.JupiterEDL.simulation.dataManager.exportSimulationData(
+            window.JupiterEDL.simulation.getState(),
             'json'
         );
         
-        window.MarsEDL.simulation.dataManager.downloadData(
+        window.JupiterEDL.simulation.dataManager.downloadData(
             data,
             `mars_edl_telemetry_${Date.now()}.json`,
             'application/json'
@@ -405,7 +405,7 @@ function logEvent(eventName, data = {}) {
     }
     
     // Console log in debug mode
-    if (window.MarsEDL.config.debug) {
+    if (window.JupiterEDL.config.debug) {
         console.log('Event:', eventName, data);
     }
 }
