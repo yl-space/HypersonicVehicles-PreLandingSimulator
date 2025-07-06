@@ -120,7 +120,7 @@ hypersonic-vehicle-simulation/
 ## 🪐 Supported Environments
 
 ### Planets
-- **Mars**: Thin CO₂ atmosphere, dust storms
+- **Mars** : Currently used 
 
 
 ### Vehicle Types
