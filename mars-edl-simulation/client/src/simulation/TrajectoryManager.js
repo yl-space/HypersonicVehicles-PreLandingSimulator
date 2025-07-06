@@ -1,7 +1,6 @@
 export class TrajectoryManager {
     constructor() {
         this.data = [];
-        this.currentIndex = 0;
         this.interpolationEnabled = true;
     }
     
@@ -11,27 +10,23 @@ export class TrajectoryManager {
         } else {
             this.data = csvData;
         }
-        
-        console.log(`Loaded ${this.data.length} trajectory points`);
+        console.log(`✅ Trajectory loaded: ${this.data.length} points`);
         return this.data;
     }
     
     parseCSV(csvText) {
         const lines = csvText.trim().split('\n');
-        const headers = lines[0].split(',');
         const data = [];
         
         for (let i = 1; i < lines.length; i++) {
             const values = lines[i].split(',');
-            const point = {
+            data.push({
                 time: parseFloat(values[0]),
                 x: parseFloat(values[1]),
                 y: parseFloat(values[2]),
                 z: parseFloat(values[3])
-            };
-            data.push(point);
+            });
         }
-        
         return data;
     }
     
@@ -50,19 +45,10 @@ export class TrajectoryManager {
         
         return {
             time: time,
-            x: prev.x + (next.x - prev.x) * factor,
-            y: prev.y + (next.y - prev.y) * factor,
-            z: prev.z + (next.z - prev.z) * factor
+            x: THREE.MathUtils.lerp(prev.x, next.x, factor),
+            y: THREE.MathUtils.lerp(prev.y, next.y, factor),
+            z: THREE.MathUtils.lerp(prev.z, next.z, factor)
         };
-    }
-    
-    getDuration() {
-        if (this.data.length === 0) return 0;
-        return this.data[this.data.length - 1].time - this.data[0].time;
-    }
-    
-    getStartTime() {
-        return this.data.length > 0 ? this.data[0].time : 0;
     }
     
     getEndTime() {
