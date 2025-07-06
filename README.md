@@ -123,7 +123,6 @@ hypersonic-vehicle-simulation/
 - **Mars**: Thin CO₂ atmosphere, dust storms
 - **Venus**: Dense atmosphere, extreme pressure
 - **Earth**: Reference atmosphere model
-- **Titan**: Thick nitrogen atmosphere, low gravity
 
 ### Vehicle Types
 - **Blunt Body Capsules**: Apollo, Orion style
