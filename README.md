@@ -173,37 +173,5 @@ Time,x,y,z
 - Efficient particle systems for atmospheric effects
 - WebGL 2.0 features when available
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
-## 📝 License
-
-MIT License - see LICENSE file for details
-
-## 🙏 Acknowledgments
-
-- NASA/JPL for trajectory data and mission information
-- Three.js community for excellent documentation
-- SPICE toolkit for ephemeris calculations
-- Contributors and testers
-
-## 🐛 Known Issues
-
-- Mobile device performance varies
-- Large trajectory files (>10MB) may cause initial loading delay
-- Some atmospheric effects require WebGL 2.0
-
-## 📞 Support
-
-- Issues: GitHub Issues
-- Documentation: Wiki
-- Discussion: GitHub Discussions
-
----
 
 **Note**: This simulation is for educational and research purposes. Trajectory data accuracy depends on source quality.
