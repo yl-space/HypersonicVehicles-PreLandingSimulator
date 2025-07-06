@@ -9,11 +9,11 @@ import { CameraController } from '../core/CameraController.js';
 import { EntryVehicle } from '../components/spacecraft/EntryVehicle.js';
 import { Mars } from '../components/environment/Mars.js';
 import { Stars } from '../components/environment/Stars.js';
-import { TrajectoryManager } from './simulation/TrajectoryManager.js';
-import { PhaseController } from './simulation/PhaseController.js';
-import { Timeline } from './ui/Timeline.js';
-import { PhaseInfo } from './ui/PhaseInfo.js';
-import { Controls } from './ui/Controls.js';
+import { TrajectoryManager } from '../simulation/TrajectoryManager.js';
+import { PhaseController } from '../simulation/PhaseController.js';
+import { Timeline } from '../ui/Timeline.js';
+import { PhaseInfo } from '../ui/PhaseInfo.js';
+import { Controls } from '../ui/Controls.js';
 import { DataManager } from './data/DataManager.js';
 
 export class SimulationManager {
