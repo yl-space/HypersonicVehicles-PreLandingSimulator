@@ -20,7 +20,7 @@
     "edl",
     "aerospace"
   ],
-  "author": "Mars EDL Simulation Team",
+  "author": "HSV Simulation Team",
   "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
