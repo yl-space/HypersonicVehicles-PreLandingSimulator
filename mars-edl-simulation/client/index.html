@@ -12,85 +12,72 @@
         <div id="loading-screen">
             <div class="loading-content">
                 <div class="loading-logo">
-                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                        <circle class="mars-icon" cx="50" cy="50" r="45" fill="#cd5c5c"/>
-                        <circle cx="50" cy="50" r="35" fill="none" stroke="#ff6b00" stroke-width="2" stroke-dasharray="220" stroke-dashoffset="220">
-                            <animate attributeName="stroke-dashoffset" values="220;0;220" dur="3s" repeatCount="indefinite"/>
-                        </circle>
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="#cd5c5c"/>
+                        <circle cx="50" cy="50" r="35" fill="none" stroke="#ff6b00" stroke-width="2"/>
                     </svg>
                 </div>
                 <h1 class="loading-title">MARS EDL SIMULATION</h1>
                 <div class="loading-progress-container">
                     <div class="loading-progress" id="loading-progress"></div>
                 </div>
-                <div class="loading-text" id="loading-text">Initializing Three.js scene...</div>
+                <div class="loading-text" id="loading-text">Loading Three.js...</div>
             </div>
         </div>
 
-        <!-- Three.js Canvas -->
+        <!-- Canvas -->
         <div id="canvas-container"></div>
 
         <!-- UI Overlay -->
         <div id="ui-overlay">
-            <!-- Stats Panel -->
+            <!-- Stats -->
             <div id="stats-panel" class="ui-panel stats-panel hidden">
                 <h3>Telemetry</h3>
                 <div class="stats-grid">
                     <div class="stat-item">
-                        <span class="stat-label">Time:</span>
-                        <span class="stat-value" id="current-time">0.00s</span>
+                        <span>Time:</span>
+                        <span id="current-time">0.00s</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-label">Altitude:</span>
-                        <span class="stat-value" id="current-altitude">132.0km</span>
+                        <span>Altitude:</span>
+                        <span id="current-altitude">132.0km</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-label">Velocity:</span>
-                        <span class="stat-value" id="current-velocity">5800m/s</span>
+                        <span>Velocity:</span>
+                        <span id="current-velocity">5800m/s</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-label">G-Force:</span>
-                        <span class="stat-value" id="current-gforce">0.0g</span>
+                        <span>G-Force:</span>
+                        <span id="current-gforce">0.0g</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Phase Information -->
+            <!-- Phase Info -->
             <div id="phase-info" class="ui-panel phase-info hidden">
-                <h3 class="phase-title" id="phase-title">Entry Interface</h3>
-                <p class="phase-description" id="phase-description">
-                    Atmospheric entry begins at 132km altitude with hypersonic speeds.
-                </p>
+                <h3 id="phase-title">Entry Interface</h3>
+                <p id="phase-description">Atmospheric entry begins at 132km altitude.</p>
                 <div class="stats-grid">
                     <div class="stat-item">
-                        <span class="stat-label">Phase:</span>
-                        <span class="stat-value" id="current-phase">Entry</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Duration:</span>
-                        <span class="stat-value" id="phase-duration">-</span>
+                        <span>Phase:</span>
+                        <span id="current-phase">Entry</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Control Panel -->
+            <!-- Controls -->
             <div id="control-panel" class="ui-panel control-panel hidden">
-                <h3>Simulation Controls</h3>
-                
+                <h3>Controls</h3>
                 <div class="control-buttons">
                     <button id="play-pause-btn" class="button">▶ Play</button>
                     <button id="reset-btn" class="button">↻ Reset</button>
-                    <button id="real-time-btn" class="button">🕒 Real Time</button>
                 </div>
-
                 <div class="control-group">
                     <label>Speed: <span id="speed-value">1.0x</span></label>
-                    <input type="range" id="speed-slider" class="slider" 
-                           min="0.1" max="10" step="0.1" value="1">
+                    <input type="range" id="speed-slider" class="slider" min="0.1" max="10" step="0.1" value="1">
                 </div>
-
                 <div class="control-group">
-                    <label>Camera Mode:</label>
+                    <label>Camera:</label>
                     <div class="camera-controls">
                         <button class="camera-btn active" data-mode="FREE">Free</button>
                         <button class="camera-btn" data-mode="FOLLOW">Follow</button>
@@ -101,38 +88,30 @@
 
             <!-- Timeline -->
             <div id="timeline-container" class="ui-panel timeline-container hidden">
-                <div>
-                    <input type="range" id="timeline-slider" class="slider" 
-                           min="0" max="260.65" step="0.1" value="0">
-                </div>
+                <input type="range" id="timeline-slider" class="slider" min="0" max="260.65" step="0.1" value="0">
                 <div class="timeline-phases">
-                    <span>Entry Interface</span>
-                    <span>Peak Heating</span>
-                    <span>Peak Deceleration</span>
-                    <span>Parachute Deploy</span>
+                    <span>Entry</span>
+                    <span>Heating</span>
+                    <span>Deceleration</span>
+                    <span>Parachute</span>
                 </div>
             </div>
         </div>
 
-        <!-- Introduction Modal -->
+        <!-- Intro Modal -->
         <div id="intro-modal" class="intro-modal hidden">
             <div class="intro-content">
-                <h2 class="intro-title">Mars Entry, Descent & Landing</h2>
-                <p class="intro-text">
-                    Experience the most challenging 7 minutes in space exploration using real MSL trajectory data.
-                </p>
-                <p class="intro-text">
-                    Navigate through 260.65 seconds from Entry Interface (132km) to Parachute Deploy (13.5km).
-                </p>
-                <button class="button" id="start-simulation-btn">🚀 Start Simulation</button>
+                <h2>Mars Entry, Descent & Landing</h2>
+                <p>Experience the 7 minutes of terror using real MSL trajectory data.</p>
+                <button id="start-simulation-btn" class="button">🚀 Start Simulation</button>
             </div>
         </div>
     </div>
 
-    <!-- Three.js Library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
+    <!-- Three.js -->
+    <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
     
-    <!-- Application Scripts -->
+    <!-- App -->
     <script type="module" src="src/main.js"></script>
 </body>
 </html>
