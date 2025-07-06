@@ -122,11 +122,14 @@ function showError(message) {
         <div class="error-content">
             <h2>Error</h2>
             <p>${message}</p>
-            <button onclick="location.reload()">Reload Page</button>
+            <button id="reload-page-btn">Reload Page</button>
         </div>
     `;
     
     document.body.appendChild(errorDiv);
+    // CSP-safe event handler
+    const reloadBtn = document.getElementById('reload-page-btn');
+    if (reloadBtn) reloadBtn.addEventListener('click', () => window.location.reload());
 }
 
 /**
@@ -167,7 +170,7 @@ function showWelcomeDialog() {
             </div>
             
             <div class="dialog-actions">
-                <button class="btn-primary" onclick="closeWelcomeDialog()">Start Simulation</button>
+                <button class="btn-primary" id="start-sim-btn">Start Simulation</button>
                 <label>
                     <input type="checkbox" id="dont-show-again"> Don't show again
                 </label>
@@ -176,7 +179,9 @@ function showWelcomeDialog() {
     `;
     
     document.body.appendChild(dialog);
-    
+    // CSP-safe event handler
+    const startBtn = document.getElementById('start-sim-btn');
+    if (startBtn) startBtn.addEventListener('click', () => window.closeWelcomeDialog());
     // Animate in
     setTimeout(() => {
         dialog.classList.add('visible');
@@ -236,14 +241,19 @@ function showCompletionDialog() {
             </div>
             
             <div class="dialog-actions">
-                <button class="btn-primary" onclick="replaySimulation()">Replay</button>
-                <button class="btn-secondary" onclick="exportTelemetry()">Export Data</button>
+                <button class="btn-primary" id="replay-btn">Replay</button>
+                <button class="btn-secondary" id="export-btn">Export Data</button>
             </div>
         </div>
     `;
     
     document.body.appendChild(dialog);
+    // CSP-safe event handlers
     setTimeout(() => dialog.classList.add('visible'), 100);
+    const replayBtn = document.getElementById('replay-btn');
+    if (replayBtn) replayBtn.addEventListener('click', () => window.replaySimulation());
+    const exportBtn = document.getElementById('export-btn');
+    if (exportBtn) exportBtn.addEventListener('click', () => window.exportTelemetry());
 }
 
 /**
