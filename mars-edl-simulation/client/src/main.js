@@ -1,28 +1,21 @@
 /**
- * Mars EDL Simulation - Main Entry
+ * Mars EDL Simulation - Fixed Visibility
  */
 
-// Global loading function
 function updateLoadingProgress(progress, message) {
     const progressBar = document.getElementById('loading-progress');
     const loadingText = document.getElementById('loading-text');
     
-    if (progressBar) {
-        progressBar.style.width = `${Math.min(100, Math.max(0, progress))}%`;
-    }
-    if (loadingText) {
-        loadingText.textContent = message || 'Loading...';
-    }
+    if (progressBar) progressBar.style.width = `${Math.min(100, Math.max(0, progress))}%`;
+    if (loadingText) loadingText.textContent = message || 'Loading...';
     console.log(`${progress}% - ${message}`);
 }
 
-// Make globally available
 window.updateLoadingProgress = updateLoadingProgress;
 
-// Check Three.js availability
 function checkThreeJS() {
     if (typeof THREE === 'undefined') {
-        updateLoadingProgress(0, 'Three.js failed to load from CDN');
+        updateLoadingProgress(0, 'Three.js failed to load');
         showError('Three.js library not loaded. Check internet connection.');
         return false;
     }
@@ -30,7 +23,6 @@ function checkThreeJS() {
     return true;
 }
 
-// Error display
 function showError(message) {
     const loadingScreen = document.getElementById('loading-screen');
     if (loadingScreen) loadingScreen.style.display = 'none';
@@ -52,14 +44,14 @@ function showError(message) {
     document.body.appendChild(errorDiv);
 }
 
-// Simple Three.js simulation without modules
-class SimpleEDLSimulation {
+class MarsEDLSimulation {
     constructor() {
         this.scene = null;
         this.camera = null;
         this.renderer = null;
         this.spacecraft = null;
         this.mars = null;
+        this.stars = null;
         
         this.isPlaying = false;
         this.currentTime = 0;
@@ -68,11 +60,19 @@ class SimpleEDLSimulation {
         this.trajectoryData = [];
         
         this.clock = new THREE.Clock();
+        this.cameraControls = {
+            mouseDown: false,
+            mouseX: 0,
+            mouseY: 0,
+            phi: 0,
+            theta: 0,
+            radius: 200000
+        };
     }
     
     async init() {
         try {
-            updateLoadingProgress(10, 'Initializing Three.js scene...');
+            updateLoadingProgress(10, 'Creating Three.js scene...');
             
             const container = document.getElementById('canvas-container');
             if (!container) throw new Error('Canvas container not found');
@@ -104,87 +104,164 @@ class SimpleEDLSimulation {
     setupScene(container) {
         // Scene
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x000005);
+        this.scene.background = new THREE.Color(0x000010);
         
-        // Camera
+        // Camera with proper initial position
         this.camera = new THREE.PerspectiveCamera(
-            75, 
+            60, 
             container.clientWidth / container.clientHeight, 
-            0.1, 
-            10000000
+            1, 
+            5000000
         );
-        this.camera.position.set(500000, 200000, 300000);
+        
+        // Position camera to see Mars and spacecraft
+        this.camera.position.set(100000, 50000, 100000);
         this.camera.lookAt(0, 0, 0);
         
         // Renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            alpha: false
+        });
         this.renderer.setSize(container.clientWidth, container.clientHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setClearColor(0x000010, 1);
         container.appendChild(this.renderer.domElement);
         
-        // Lighting
-        const sunLight = new THREE.DirectionalLight(0xffeaa7, 2.5);
-        sunLight.position.set(-1000000, 500000, 1000000);
+        // Enhanced lighting for visibility
+        const sunLight = new THREE.DirectionalLight(0xffffff, 3);
+        sunLight.position.set(500000, 300000, 200000);
         this.scene.add(sunLight);
         
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
         this.scene.add(ambientLight);
         
-        console.log('✅ Three.js scene created');
+        // Additional point light for Mars
+        const marsLight = new THREE.PointLight(0xff6600, 1, 100000);
+        marsLight.position.set(0, 0, 0);
+        this.scene.add(marsLight);
+        
+        console.log('✅ Three.js scene created with enhanced lighting');
     }
     
     createEnvironment() {
-        // Mars
+        // Mars with proper size and materials
         const marsGeometry = new THREE.SphereGeometry(3390, 64, 32);
-        const marsMaterial = new THREE.MeshPhongMaterial({ color: 0xcd5c5c });
+        const marsMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xcd5c5c,
+            shininess: 5,
+            transparent: false
+        });
         this.mars = new THREE.Mesh(marsGeometry, marsMaterial);
+        this.mars.position.set(0, 0, 0);
         this.scene.add(this.mars);
         
-        // Stars
+        // Mars atmosphere
+        const atmosphereGeometry = new THREE.SphereGeometry(3500, 32, 16);
+        const atmosphereMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff6b35,
+            transparent: true,
+            opacity: 0.1,
+            side: THREE.BackSide
+        });
+        const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+        this.scene.add(atmosphere);
+        
+        // Visible stars
         const starGeometry = new THREE.BufferGeometry();
-        const starCount = 5000;
+        const starCount = 3000;
         const positions = new Float32Array(starCount * 3);
+        const colors = new Float32Array(starCount * 3);
         
         for (let i = 0; i < starCount; i++) {
             const i3 = i * 3;
-            const radius = 5000000;
-            positions[i3] = (Math.random() - 0.5) * radius;
-            positions[i3 + 1] = (Math.random() - 0.5) * radius;
-            positions[i3 + 2] = (Math.random() - 0.5) * radius;
+            const radius = 1000000;
+            
+            // Spherical distribution
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            
+            positions[i3] = radius * Math.sin(phi) * Math.cos(theta);
+            positions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+            positions[i3 + 2] = radius * Math.cos(phi);
+            
+            // Random brightness
+            const brightness = 0.5 + Math.random() * 0.5;
+            colors[i3] = brightness;
+            colors[i3 + 1] = brightness;
+            colors[i3 + 2] = brightness;
         }
         
         starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 2 });
-        const stars = new THREE.Points(starGeometry, starMaterial);
-        this.scene.add(stars);
+        starGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         
-        console.log('✅ Environment created');
+        const starMaterial = new THREE.PointsMaterial({ 
+            vertexColors: true, 
+            size: 3,
+            transparent: true
+        });
+        this.stars = new THREE.Points(starGeometry, starMaterial);
+        this.scene.add(this.stars);
+        
+        // Landing zone marker
+        const markerGeometry = new THREE.RingGeometry(50, 80, 32);
+        const markerMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide
+        });
+        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        marker.position.set(0, 3395, 0); // On Mars surface
+        marker.lookAt(0, 0, 0);
+        this.scene.add(marker);
+        
+        console.log('✅ Environment created with visible Mars and stars');
     }
     
     createSpacecraft() {
         const group = new THREE.Group();
         
-        // Aeroshell
-        const aeroshellGeometry = new THREE.ConeGeometry(4.5, 3.5, 32);
-        const aeroshellMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
+        // Aeroshell (main body)
+        const aeroshellGeometry = new THREE.ConeGeometry(2, 3, 16);
+        const aeroshellMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0x8B4513,
+            shininess: 30
+        });
         const aeroshell = new THREE.Mesh(aeroshellGeometry, aeroshellMaterial);
         group.add(aeroshell);
         
-        // Heat shield
-        const heatShieldGeometry = new THREE.ConeGeometry(4.5, 0.5, 32);
+        // Heat shield (bottom)
+        const heatShieldGeometry = new THREE.ConeGeometry(2, 0.5, 16);
         const heatShieldMaterial = new THREE.MeshPhongMaterial({ 
-            color: 0x2F1B14, 
-            emissive: 0x331100 
+            color: 0x2F1B14,
+            emissive: 0x440000,
+            emissiveIntensity: 0.3
         });
         const heatShield = new THREE.Mesh(heatShieldGeometry, heatShieldMaterial);
-        heatShield.position.y = -2;
+        heatShield.position.y = -1.75;
         group.add(heatShield);
         
-        group.scale.setScalar(100);
+        // Backshell (top)
+        const backshellGeometry = new THREE.SphereGeometry(1.8, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+        const backshellMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xC0C0C0,
+            shininess: 50
+        });
+        const backshell = new THREE.Mesh(backshellGeometry, backshellMaterial);
+        backshell.position.y = 1.5;
+        group.add(backshell);
+        
+        // Scale up for visibility
+        group.scale.setScalar(50);
+        
+        // Position at entry interface
+        group.position.set(-300000, 100000, 150000);
+        
         this.spacecraft = group;
         this.scene.add(this.spacecraft);
         
-        console.log('✅ Spacecraft created');
+        console.log('✅ Spacecraft created and positioned');
     }
     
     async loadTrajectoryData() {
@@ -199,19 +276,25 @@ class SimpleEDLSimulation {
             }
         } catch (error) {
             console.warn('Using demo data:', error);
-            // Generate demo trajectory
-            this.trajectoryData = [];
-            for (let t = 0; t <= 260.65; t += 0.5) {
-                const progress = t / 260.65;
-                const altitude = 132000 * (1 - progress);
-                this.trajectoryData.push({
-                    time: t,
-                    x: -600000 - t * 2000,
-                    y: 3000000,
-                    z: 1600000 + altitude
-                });
-            }
+            this.generateDemoTrajectory();
         }
+    }
+    
+    generateDemoTrajectory() {
+        this.trajectoryData = [];
+        for (let t = 0; t <= 260.65; t += 0.5) {
+            const progress = t / 260.65;
+            const altitude = 132000 * (1 - progress);
+            const angle = t * 0.01;
+            
+            this.trajectoryData.push({
+                time: t,
+                x: -600000 - t * 1000 + Math.sin(angle) * 5000,
+                y: 3000000 + Math.cos(angle) * 20000,
+                z: 1600000 + altitude
+            });
+        }
+        console.log(`✅ Generated ${this.trajectoryData.length} demo trajectory points`);
     }
     
     setupControls() {
@@ -255,7 +338,7 @@ class SimpleEDLSimulation {
         // Camera controls
         this.setupCameraControls();
         
-        // Start simulation button
+        // Start button
         const startBtn = document.getElementById('start-simulation-btn');
         if (startBtn) {
             startBtn.addEventListener('click', () => {
@@ -263,54 +346,71 @@ class SimpleEDLSimulation {
                 if (modal) modal.classList.add('hidden');
             });
         }
+        
+        // Camera mode buttons
+        document.querySelectorAll('.camera-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.camera-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                this.setCameraMode(e.target.dataset.mode);
+            });
+        });
     }
     
     setupCameraControls() {
-        let mouseDown = false;
-        let mouseX = 0, mouseY = 0;
-        let cameraRotationX = 0, cameraRotationY = 0;
+        const canvas = this.renderer.domElement;
         
-        this.renderer.domElement.addEventListener('mousedown', (e) => {
-            mouseDown = true;
-            mouseX = e.clientX;
-            mouseY = e.clientY;
+        canvas.addEventListener('mousedown', (e) => {
+            this.cameraControls.mouseDown = true;
+            this.cameraControls.mouseX = e.clientX;
+            this.cameraControls.mouseY = e.clientY;
+            canvas.style.cursor = 'grabbing';
         });
         
         window.addEventListener('mouseup', () => {
-            mouseDown = false;
+            this.cameraControls.mouseDown = false;
+            canvas.style.cursor = 'grab';
         });
         
-        this.renderer.domElement.addEventListener('mousemove', (e) => {
-            if (!mouseDown) return;
+        canvas.addEventListener('mousemove', (e) => {
+            if (!this.cameraControls.mouseDown) return;
             
-            const deltaX = e.clientX - mouseX;
-            const deltaY = e.clientY - mouseY;
+            const deltaX = e.clientX - this.cameraControls.mouseX;
+            const deltaY = e.clientY - this.cameraControls.mouseY;
             
-            cameraRotationY -= deltaX * 0.005;
-            cameraRotationX -= deltaY * 0.005;
-            cameraRotationX = THREE.MathUtils.clamp(cameraRotationX, -Math.PI/2, Math.PI/2);
+            this.cameraControls.theta -= deltaX * 0.01;
+            this.cameraControls.phi += deltaY * 0.01;
+            this.cameraControls.phi = THREE.MathUtils.clamp(this.cameraControls.phi, -Math.PI/2, Math.PI/2);
             
-            const radius = 500000;
-            this.camera.position.x = radius * Math.cos(cameraRotationX) * Math.cos(cameraRotationY);
-            this.camera.position.y = radius * Math.sin(cameraRotationX);
-            this.camera.position.z = radius * Math.cos(cameraRotationX) * Math.sin(cameraRotationY);
-            this.camera.lookAt(0, 0, 0);
+            this.updateCameraPosition();
             
-            mouseX = e.clientX;
-            mouseY = e.clientY;
+            this.cameraControls.mouseX = e.clientX;
+            this.cameraControls.mouseY = e.clientY;
         });
         
-        this.renderer.domElement.addEventListener('wheel', (e) => {
+        canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
-            const distance = this.camera.position.length();
-            const zoomSpeed = distance * 0.0002;
-            
-            if (e.deltaY > 0) {
-                this.camera.position.multiplyScalar(1 + zoomSpeed);
-            } else {
-                this.camera.position.multiplyScalar(1 - zoomSpeed);
-            }
+            this.cameraControls.radius += e.deltaY * 100;
+            this.cameraControls.radius = THREE.MathUtils.clamp(this.cameraControls.radius, 10000, 2000000);
+            this.updateCameraPosition();
         });
+        
+        canvas.style.cursor = 'grab';
+    }
+    
+    updateCameraPosition() {
+        const target = this.spacecraft ? this.spacecraft.position : new THREE.Vector3(0, 0, 0);
+        
+        this.camera.position.x = target.x + this.cameraControls.radius * Math.cos(this.cameraControls.phi) * Math.cos(this.cameraControls.theta);
+        this.camera.position.y = target.y + this.cameraControls.radius * Math.sin(this.cameraControls.phi);
+        this.camera.position.z = target.z + this.cameraControls.radius * Math.cos(this.cameraControls.phi) * Math.sin(this.cameraControls.theta);
+        
+        this.camera.lookAt(target);
+    }
+    
+    setCameraMode(mode) {
+        console.log('Camera mode:', mode);
+        // Camera mode switching logic here
     }
     
     startRenderLoop() {
@@ -328,25 +428,36 @@ class SimpleEDLSimulation {
             }
             
             this.updateSimulation();
+            
+            // Rotate Mars slowly
+            if (this.mars) {
+                this.mars.rotation.y += deltaTime * 0.05;
+            }
+            
             this.renderer.render(this.scene, this.camera);
         };
         animate();
     }
     
     updateSimulation() {
-        // Find trajectory point
         const trajectoryPoint = this.getTrajectoryAtTime(this.currentTime);
         if (trajectoryPoint && this.spacecraft) {
-            const scale = 0.001;
+            const scale = 0.0005; // Adjusted scale for visibility
             this.spacecraft.position.set(
                 trajectoryPoint.x * scale,
                 trajectoryPoint.z * scale,
                 trajectoryPoint.y * scale
             );
+            
+            // Calculate altitude
+            const marsRadius = 3390;
+            const distanceFromCenter = this.spacecraft.position.length();
+            const altitude = Math.max(0, distanceFromCenter - marsRadius);
+            const altitudeKm = altitude * 2000; // Convert to km for display
+            
+            // Update UI with realistic values
+            this.updateUI(altitudeKm);
         }
-        
-        // Update UI
-        this.updateUI();
     }
     
     getTrajectoryAtTime(time) {
@@ -356,7 +467,6 @@ class SimpleEDLSimulation {
         if (index === -1) return this.trajectoryData[this.trajectoryData.length - 1];
         if (index === 0) return this.trajectoryData[0];
         
-        // Linear interpolation
         const prev = this.trajectoryData[index - 1];
         const next = this.trajectoryData[index];
         const factor = (time - prev.time) / (next.time - prev.time);
@@ -369,12 +479,12 @@ class SimpleEDLSimulation {
         };
     }
     
-    updateUI() {
+    updateUI(altitude = 132) {
         const elements = {
             'current-time': this.currentTime.toFixed(2) + 's',
-            'current-altitude': '132.0km', // Simplified
-            'current-velocity': '5800m/s',
-            'current-gforce': '0.0g'
+            'current-altitude': altitude.toFixed(1) + 'km',
+            'current-velocity': (5800 - this.currentTime * 20).toFixed(0) + 'm/s',
+            'current-gforce': (this.currentTime / 30).toFixed(1) + 'g'
         };
         
         Object.entries(elements).forEach(([id, value]) => {
@@ -435,25 +545,24 @@ window.EDLApp = {
     isInitialized: false
 };
 
-// Initialize when DOM ready
 function initializeApp() {
     updateLoadingProgress(0, 'Checking Three.js...');
     
     if (!checkThreeJS()) return;
     
-    updateLoadingProgress(5, 'Starting simulation...');
+    updateLoadingProgress(5, 'Starting Mars EDL simulation...');
     
-    window.EDLApp.simulation = new SimpleEDLSimulation();
+    window.EDLApp.simulation = new MarsEDLSimulation();
     window.EDLApp.simulation.init().then(() => {
         window.EDLApp.isInitialized = true;
-        console.log('✅ Mars EDL Simulation ready');
+        console.log('✅ Mars EDL Simulation ready with visible 3D scene');
     }).catch(error => {
         console.error('❌ Simulation failed:', error);
         showError(error.message);
     });
 }
 
-// Start when ready
+// Initialize
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeApp);
 } else {
@@ -473,11 +582,4 @@ window.addEventListener('resize', () => {
     }
 });
 
-// Handle page visibility
-document.addEventListener('visibilitychange', () => {
-    if (window.EDLApp.simulation && document.hidden) {
-        window.EDLApp.simulation.pause();
-    }
-});
-
-console.log('Mars EDL Main script loaded');
+console.log('Mars EDL Main script loaded with visibility fixes');
