@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mars EDL Simulation</title>
+    
+    <!-- SEO -->
+    <meta name="description" content="Interactive 3D simulation of Mars Entry, Descent and Landing sequence">
+    <meta property="og:title" content="Mars EDL Simulation">
+    <meta property="og:description" content="Experience the 7 minutes of terror - Mars landing sequence in 3D">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --color-primary: #00d4ff;
+            --color-secondary: #ff6b00;
+            --color-background: #0a0a0f;
+            --color-surface: rgba(20, 20, 30, 0.9);
+            --color-text-primary: #ffffff;
+            --color-text-secondary: rgba(255, 255, 255, 0.7);
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --transition-base: 300ms ease;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background: var(--color-background);
+            color: var(--color-text-primary);
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        #app-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Loading Screen */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #000 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-content {
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .loading-logo {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 2rem;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; transform: scale(0.95); }
+            50% { opacity: 1; transform: scale(1.05); }
+        }
+
+        .mars-icon {
+            fill: var(--color-secondary);
+        }
+
+        .loading-title {
+            font-size: 2rem;
+            font-weight: 300;
+            margin-bottom: 1.5rem;
+            letter-spacing: 2px;
+            background: linear-gradient(45deg, var(--color-primary), var(--color-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .loading-progress-container {
+            width: 300px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .loading-progress {
+            height: 100%;
+            background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 2px;
+        }
+
+        .loading-text {
+            color: var(--color-text-secondary);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        /* UI Overlay */
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .ui-panel {
+            position: absolute;
+            background: var(--color-surface);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-panel {
+            bottom: 2rem;
+            left: 2rem;
+            min-width: 280px;
+        }
+
+        .stats-panel {
+            top: 2rem;
+            left: 2rem;
+            min-width: 200px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.9rem;
+        }
+
+        .phase-info {
+            top: 2rem;
+            right: 2rem;
+            max-width: 300px;
+        }
+
+        .timeline-container {
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            max-width: 800px;
+        }
+
+        .button {
+            background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+            border: none;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 0.25rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all var(--transition-base);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 212, 255, 0.3);
+        }
+
+        .button:active {
+            transform: translateY(0);
+        }
+
+        .slider {
+            width: 100%;
+            margin: 1rem 0;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--color-primary);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 212, 255, 0.4);
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--color-primary);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 8px rgba(0, 212, 255, 0.4);
+        }
+
+        .camera-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .camera-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: var(--color-text-secondary);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            font-size: 0.8rem;
+        }
+
+        .camera-btn.active {
+            background: var(--color-primary);
+            color: white;
+            border-color: var(--color-primary);
+        }
+
+        .camera-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-label {
+            color: var(--color-text-secondary);
+        }
+
+        .stat-value {
+            color: var(--color-primary);
+            font-weight: 600;
+        }
+
+        .phase-title {
+            color: var(--color-primary);
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .phase-description {
+            color: var(--color-text-secondary);
+            line-height: 1.5;
+            margin-bottom: 1rem;
+        }
+
+        .timeline-phases {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--color-text-secondary);
+        }
+
+        .intro-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .intro-content {
+            background: var(--color-surface);
+            border: 2px solid var(--color-primary);
+            border-radius: 16px;
+            padding: 3rem;
+            max-width: 600px;
+            text-align: center;
+            backdrop-filter: blur(20px);
+        }
+
+        .intro-title {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(45deg, var(--color-primary), var(--color-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .intro-text {
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+            color: var(--color-text-secondary);
+            font-size: 1.1rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .ui-panel {
+                margin: 1rem;
+                padding: 1rem;
+            }
+            
+            .control-panel {
+                bottom: 1rem;
+                left: 1rem;
+                right: 1rem;
+                min-width: auto;
+            }
+            
+            .timeline-container {
+                bottom: 1rem;
+                left: 1rem;
+                right: 1rem;
+                width: auto;
+                transform: none;
+            }
+            
+            .stats-panel {
+                top: 1rem;
+                left: 1rem;
+                right: 1rem;
+                min-width: auto;
+            }
+            
+            .phase-info {
+                top: auto;
+                bottom: 140px;
+                left: 1rem;
+                right: 1rem;
+                max-width: none;
+            }
+            
+            .intro-content {
+                margin: 1rem;
+                padding: 2rem;
+            }
+            
+            .intro-title {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <!-- Loading Screen -->
+        <div id="loading-screen">
+            <div class="loading-content">
+                <div class="loading-logo">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <circle class="mars-icon" cx="50" cy="50" r="45" fill="#cd5c5c"/>
+                        <circle cx="50" cy="50" r="35" fill="none" stroke="#ff6b00" stroke-width="2" stroke-dasharray="220" stroke-dashoffset="220">
+                            <animate attributeName="stroke-dashoffset" values="220;0;220" dur="3s" repeatCount="indefinite"/>
+                        </circle>
+                    </svg>
+                </div>
+                <h1 class="loading-title">MARS EDL</h1>
+                <div class="loading-progress-container">
+                    <div class="loading-progress" id="loading-progress"></div>
+                </div>
+                <div class="loading-text" id="loading-text">Initializing simulation...</div>
+            </div>
+        </div>
+
+        <!-- Three.js Canvas -->
+        <div id="canvas-container"></div>
+
+        <!-- UI Overlay -->
+        <div id="ui-overlay">
+            <!-- Stats Panel -->
+            <div id="stats-panel" class="ui-panel stats-panel hidden">
+                <h3 style="margin-bottom: 1rem; color: var(--color-primary);">Telemetry</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Time:</span>
+                        <span class="stat-value" id="current-time">0.00s</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Altitude:</span>
+                        <span class="stat-value" id="current-altitude">132.0km</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Velocity:</span>
+                        <span class="stat-value" id="current-velocity">5800m/s</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">G-Force:</span>
+                        <span class="stat-value" id="current-gforce">0.0g</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phase Information -->
+            <div id="phase-info" class="ui-panel phase-info hidden">
+                <h3 class="phase-title" id="phase-title">Entry Interface</h3>
+                <p class="phase-description" id="phase-description">
+                    Atmospheric entry begins at 132km altitude with the vehicle traveling at hypersonic speeds.
+                </p>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Phase:</span>
+                        <span class="stat-value" id="current-phase">Entry</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Duration:</span>
+                        <span class="stat-value" id="phase-duration">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Control Panel -->
+            <div id="control-panel" class="ui-panel control-panel hidden">
+                <h3 style="margin-bottom: 1rem; color: var(--color-primary);">Simulation Controls</h3>
+                
+                <div style="margin-bottom: 1rem;">
+                    <button id="play-pause-btn" class="button">▶ Play</button>
+                    <button id="reset-btn" class="button">↻ Reset</button>
+                    <button id="real-time-btn" class="button">🕒 Real Time</button>
+                </div>
+
+                <div style="margin-bottom: 1rem;">
+                    <label style="color: var(--color-text-secondary); font-size: 0.9rem;">
+                        Speed: <span id="speed-value" style="color: var(--color-primary);">1.0x</span>
+                    </label>
+                    <input type="range" id="speed-slider" class="slider" 
+                           min="0.1" max="10" step="0.1" value="1">
+                </div>
+
+                <div>
+                    <label style="color: var(--color-text-secondary); font-size: 0.9rem; margin-bottom: 0.5rem; display: block;">
+                        Camera Mode:
+                    </label>
+                    <div class="camera-controls">
+                        <button class="camera-btn active" data-mode="FREE">Free</button>
+                        <button class="camera-btn" data-mode="FOLLOW">Follow</button>
+                        <button class="camera-btn" data-mode="CINEMATIC">Cinematic</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timeline -->
+            <div id="timeline-container" class="ui-panel timeline-container hidden">
+                <div style="margin-bottom: 0.5rem;">
+                    <input type="range" id="timeline-slider" class="slider" 
+                           min="0" max="260.65" step="0.1" value="0">
+                </div>
+                <div class="timeline-phases">
+                    <span>Entry Interface</span>
+                    <span>Peak Heating</span>
+                    <span>Peak Deceleration</span>
+                    <span>Parachute Deploy</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Introduction Modal -->
+        <div id="intro-modal" class="intro-modal hidden">
+            <div class="intro-content">
+                <h2 class="intro-title">Mars Entry, Descent & Landing</h2>
+                <p class="intro-text">
+                    Experience the most challenging 7 minutes in space exploration. 
+                    Watch as the Mars Science Laboratory navigates through the Martian atmosphere 
+                    from entry interface at 132km to parachute deployment at 13.5km altitude.
+                </p>
+                <p class="intro-text">
+                    Use the controls to adjust simulation speed, change camera angles, 
+                    and explore different phases of the descent sequence.
+                </p>
+                <button class="button" onclick="document.getElementById('intro-modal').classList.add('hidden')">
+                    🚀 Start Simulation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
