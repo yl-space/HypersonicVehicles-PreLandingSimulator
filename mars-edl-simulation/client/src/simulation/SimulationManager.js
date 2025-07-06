@@ -14,7 +14,7 @@ import { PhaseController } from '../simulation/PhaseController.js';
 import { Timeline } from '../ui/Timeline.js';
 import { PhaseInfo } from '../ui/PhaseInfo.js';
 import { Controls } from '../ui/Controls.js';
-import { DataManager } from './data/DataManager.js';
+import { DataManager } from '../data/DataManager.js';
 
 export class SimulationManager {
     constructor(options = {}) {
