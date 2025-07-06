@@ -4,7 +4,7 @@
  */
 
 import * as THREE from 'three';
-import { SceneManager } from '..//core/SceneManager.js';
+import { SceneManager } from 'core/SceneManager.js';
 import { CameraController } from './core/CameraController.js';
 import { EntryVehicle } from './components/spacecraft/EntryVehicle.js';
 import { Mars } from './components/environment/Mars.js';
