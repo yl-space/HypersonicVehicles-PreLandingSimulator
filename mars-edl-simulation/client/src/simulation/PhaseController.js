@@ -1,101 +1,52 @@
-/**
- * PhaseController.js
- * Manages mission phases and transitions
- */
-
 export class PhaseController {
     constructor() {
         this.phases = [];
         this.currentPhase = null;
-        this.currentPhaseIndex = -1;
-        this.listeners = {};
+        this.currentPhaseIndex = 0;
     }
     
     setMissionPhases(phases) {
         this.phases = phases.sort((a, b) => a.startTime - b.startTime);
-        this.reset();
+        this.currentPhaseIndex = 0;
+        this.currentPhase = this.phases[0];
     }
     
-    reset() {
-        this.currentPhaseIndex = -1;
-        this.currentPhase = null;
-        if (this.phases.length > 0) {
-            this.transitionToPhase(0);
-        }
-    }
-    
-    update(currentTime) {
+    updatePhase(currentTime) {
         if (this.phases.length === 0) return;
         
-        // Check if we need to transition to next phase
-        for (let i = this.currentPhaseIndex + 1; i < this.phases.length; i++) {
+        for (let i = this.phases.length - 1; i >= 0; i--) {
             if (currentTime >= this.phases[i].startTime) {
-                this.transitionToPhase(i);
-            } else {
+                if (this.currentPhaseIndex !== i) {
+                    this.currentPhaseIndex = i;
+                    this.currentPhase = this.phases[i];
+                    this.onPhaseChange(this.currentPhase);
+                }
                 break;
             }
         }
     }
     
-    transitionToPhase(index) {
-        if (index < 0 || index >= this.phases.length) return;
-        if (index === this.currentPhaseIndex) return;
+    onPhaseChange(phase) {
+        console.log(`Phase changed to: ${phase.name}`);
         
-        const previousPhase = this.currentPhase;
-        this.currentPhaseIndex = index;
-        this.currentPhase = this.phases[index];
+        // Update UI
+        const phaseTitle = document.getElementById('phase-title');
+        const phaseDescription = document.getElementById('phase-description');
+        const currentPhaseSpan = document.getElementById('current-phase');
         
-        // Emit phase change event
-        this.emit('phasechange', {
-            current: this.currentPhase,
-            previous: previousPhase,
-            index: this.currentPhaseIndex
-        });
+        if (phaseTitle) phaseTitle.textContent = phase.name;
+        if (phaseDescription) phaseDescription.textContent = phase.description;
+        if (currentPhaseSpan) currentPhaseSpan.textContent = phase.name;
     }
     
-    getPhaseAtTime(time) {
-        let phase = null;
-        for (let i = 0; i < this.phases.length; i++) {
-            if (time >= this.phases[i].startTime) {
-                phase = this.phases[i];
-            } else {
-                break;
-            }
+    getCurrentPhase() {
+        return this.currentPhase;
+    }
+    
+    getNextPhase() {
+        if (this.currentPhaseIndex < this.phases.length - 1) {
+            return this.phases[this.currentPhaseIndex + 1];
         }
-        return phase;
-    }
-    
-    getPhaseProgress(currentTime) {
-        if (!this.currentPhase) return 0;
-        
-        const nextPhase = this.phases[this.currentPhaseIndex + 1];
-        if (!nextPhase) return 1;
-        
-        const phaseDuration = nextPhase.startTime - this.currentPhase.startTime;
-        const timeInPhase = currentTime - this.currentPhase.startTime;
-        
-        return Math.min(1, timeInPhase / phaseDuration);
-    }
-    
-    // Event system
-    on(event, callback) {
-        if (!this.listeners[event]) {
-            this.listeners[event] = [];
-        }
-        this.listeners[event].push(callback);
-    }
-    
-    off(event, callback) {
-        if (this.listeners[event]) {
-            this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
-        }
-    }
-    
-    emit(event, data) {
-        if (this.listeners[event]) {
-            this.listeners[event].forEach(callback => callback(data));
-        }
+        return null;
     }
 }
-
-export default PhaseController;
