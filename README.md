@@ -120,7 +120,7 @@ hypersonic-vehicle-simulation/
 ## 🪐 Supported Environments
 
 ### Planets
-- **Mars** : Currently used 
+- **Jupiter** : Currently used 
 
 
 ### Vehicle Types
