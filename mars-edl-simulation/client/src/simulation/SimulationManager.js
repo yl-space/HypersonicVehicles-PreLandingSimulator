@@ -91,8 +91,8 @@ export class SimulationManager {
     
     createSceneObjects() {
         // Create Jupiter
-        this.mars = new Jupiter();
-        this.sceneManager.scene.add(this.mars.getObject3D());
+        this.jupiter = new Jupiter();
+        this.sceneManager.scene.add(this.jupiter.getObject3D());
         
         // Create stars
         this.stars = new Stars();
