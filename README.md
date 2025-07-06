@@ -48,6 +48,42 @@ npm start
 # Open http://localhost:3001
 ```
 
+## 🖥️ Running the Application
+
+### Development Mode
+```bash
+# Start the server
+npm start
+# or
+npm run dev
+
+# Server runs on http://localhost:3001
+# Open this URL in your browser
+```
+
+### Production Mode
+```bash
+# Start with production settings
+npm run prod
+
+# Or use PM2 for process management
+pm2 start server/index.js --name "hypersonic-sim"
+```
+
+### First Time Setup
+1. Ensure all files are in correct directories (see Project Structure)
+2. Check that `MSL_position_J2000.csv` is in `client/assets/data/`
+3. Start server: `npm start`
+4. Open browser to `http://localhost:3001`
+5. Wait for "Ready!" status
+6. Press Space to begin simulation
+
+### Troubleshooting
+- **404 Errors**: Check file paths match directory structure
+- **MIME Type Errors**: Restart server, clear browser cache
+- **No Trajectory Data**: Verify CSV file is in `client/assets/data/`
+- **Port Already in Use**: Change port in `server.js` or use `PORT=3002 npm start`
+
 ## 📁 Project Structure
 
 ```
@@ -137,3 +173,37 @@ Time,x,y,z
 - Efficient particle systems for atmospheric effects
 - WebGL 2.0 features when available
 
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
+
+## 📝 License
+
+MIT License - see LICENSE file for details
+
+## 🙏 Acknowledgments
+
+- NASA/JPL for trajectory data and mission information
+- Three.js community for excellent documentation
+- SPICE toolkit for ephemeris calculations
+- Contributors and testers
+
+## 🐛 Known Issues
+
+- Mobile device performance varies
+- Large trajectory files (>10MB) may cause initial loading delay
+- Some atmospheric effects require WebGL 2.0
+
+## 📞 Support
+
+- Issues: GitHub Issues
+- Documentation: Wiki
+- Discussion: GitHub Discussions
+
+---
+
+**Note**: This simulation is for educational and research purposes. Trajectory data accuracy depends on source quality.
