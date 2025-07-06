@@ -1,8 +1,4 @@
-/**
- * index.js
- * Client library exports for Mars EDL Simulation
- * Use this if you want to integrate the simulation into another application
- */
+
 
 // Core exports
 export { SceneManager } from './client/src/core/SceneManager.js';
