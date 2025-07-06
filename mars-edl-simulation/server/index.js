@@ -1,5 +1,5 @@
 /**
- * Mars EDL Simulation Server - Fixed CSP
+ * Mars EDL Simulation Server - CSP Fixed for Three.js
  */
 
 import express from 'express';
@@ -21,14 +21,10 @@ const logger = winston.createLogger({
     level: 'info',
     format: winston.format.combine(
         winston.format.timestamp(),
-        winston.format.errors({ stack: true }),
-        winston.format.json()
+        winston.format.simple()
     ),
-    defaultMeta: { service: 'mars-edl-server' },
     transports: [
-        new winston.transports.Console({
-            format: winston.format.simple()
-        })
+        new winston.transports.Console()
     ]
 });
 
@@ -44,33 +40,13 @@ class EDLServer {
     }
 
     setupMiddleware() {
-        // Relaxed CSP for Three.js development
+        // Disable CSP entirely for development
         this.app.use(helmet({
-            contentSecurityPolicy: {
-                directives: {
-                    defaultSrc: ["'self'"],
-                    scriptSrc: [
-                        "'self'", 
-                        "'unsafe-inline'", 
-                        "'unsafe-eval'",
-                        "https://cdnjs.cloudflare.com",
-                        "https://cdn.jsdelivr.net",
-                        "https://unpkg.com"
-                    ],
-                    styleSrc: ["'self'", "'unsafe-inline'"],
-                    imgSrc: ["'self'", "data:", "blob:"],
-                    connectSrc: ["'self'"],
-                    fontSrc: ["'self'", "data:"],
-                    objectSrc: ["'none'"],
-                    mediaSrc: ["'self'"],
-                    frameSrc: ["'none'"],
-                    workerSrc: ["'self'", "blob:"],
-                }
-            }
+            contentSecurityPolicy: false
         }));
 
         this.app.use(cors({
-            origin: this.isProduction ? false : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5000'],
+            origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5000', 'http://127.0.0.1:5000'],
             credentials: true
         }));
 
@@ -83,7 +59,7 @@ class EDLServer {
         this.app.use(express.static(clientPath));
 
         this.app.use((req, res, next) => {
-            logger.info(`${req.method} ${req.path} - ${req.ip}`);
+            logger.info(`${req.method} ${req.path}`);
             next();
         });
     }
@@ -121,11 +97,7 @@ class EDLServer {
     }
 
     async ensureDirectories() {
-        const dirs = [
-            'data/trajectories',
-            'data/missions'
-        ];
-
+        const dirs = ['data/trajectories', 'data/missions'];
         for (const dir of dirs) {
             await fs.mkdir(path.join(__dirname, dir), { recursive: true });
         }
@@ -135,40 +107,16 @@ class EDLServer {
         const mslConfig = {
             id: 'msl',
             name: 'Mars Science Laboratory',
-            vehicle: 'msl_aeroshell',
-            planet: 'mars',
-            launchDate: '2011-11-26',
-            landingDate: '2012-08-06',
-            entryInterface: {
-                altitude: 132000,
-                velocity: 5800,
-                angle: -15.5,
-                latitude: -4.6,
-                longitude: 137.4
-            },
             phases: [
                 { name: 'Entry Interface', startTime: 0, altitude: 132000, description: 'Atmospheric entry begins' },
-                { name: 'Peak Heating', startTime: 80, altitude: 60000, description: 'Maximum thermal stress on heat shield' },
-                { name: 'Peak Deceleration', startTime: 150, altitude: 25000, description: 'Maximum g-forces experienced' },
-                { name: 'Parachute Deploy', startTime: 260.65, altitude: 13462.9, description: 'Supersonic parachute deployment' }
-            ],
-            landingSite: {
-                name: 'Gale Crater',
-                latitude: -5.4,
-                longitude: 137.8,
-                elevation: -4500
-            },
-            vehicleSpecs: {
-                mass: 3893,
-                diameter: 4.5,
-                heatShieldMaterial: 'PICA',
-                parachuteDiameter: 21.5
-            }
+                { name: 'Peak Heating', startTime: 80, altitude: 60000, description: 'Maximum thermal stress' },
+                { name: 'Peak Deceleration', startTime: 150, altitude: 25000, description: 'Maximum g-forces' },
+                { name: 'Parachute Deploy', startTime: 260.65, altitude: 13462.9, description: 'Parachute deployment' }
+            ]
         };
 
         const configPath = path.join(__dirname, 'data/missions/msl.json');
         await fs.writeFile(configPath, JSON.stringify(mslConfig, null, 2));
-        
         logger.info('Mission configuration initialized');
     }
 
@@ -179,7 +127,6 @@ class EDLServer {
 
             this.server = this.app.listen(this.port, () => {
                 logger.info(`🚀 Mars EDL Server running on port ${this.port}`);
-                logger.info(`🌍 Environment: ${this.isProduction ? 'production' : 'development'}`);
                 logger.info(`📡 Access: http://localhost:${this.port}`);
             });
 
