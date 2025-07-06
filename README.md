@@ -175,19 +175,7 @@ Each planet has specific parameters:
 - **Gravity**: Surface gravity and escape velocity
 - **Visual Properties**: Colors and textures
 
-## 🎯 Mission Objectives
 
-### Success Criteria
-- **Safe Landing**: Vehicle reaches surface with minimal velocity
-- **System Health**: Maintain fuel, battery, and temperature within limits
-- **Trajectory Accuracy**: Land within acceptable distance of target
-- **Phase Completion**: Successfully complete all mission phases
-
-### Failure Conditions
-- **Excessive G-Force**: Vehicle experiences too much acceleration
-- **Overheating**: Temperature exceeds material limits
-- **Fuel Depletion**: Insufficient fuel for landing
-- **System Failures**: Critical system malfunctions
 
 ## 🚧 Development
 
