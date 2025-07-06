@@ -95,7 +95,27 @@ const upload = multer({
 
 // Static files - Serve client directory
 const clientPath = path.join(__dirname, '..', 'client');
-app.use(express.static(clientPath));
+
+// Serve static files with proper MIME types
+app.use(express.static(clientPath, {
+    setHeaders: (res, path) => {
+        if (path.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript');
+        } else if (path.endsWith('.mjs')) {
+            res.setHeader('Content-Type', 'application/javascript');
+        }
+    }
+}));
+
+// Serve src directory for JavaScript modules
+app.use('/src', express.static(path.join(clientPath, 'src'), {
+    setHeaders: (res, path) => {
+        res.setHeader('Content-Type', 'application/javascript');
+    }
+}));
+
+// Serve assets
+app.use('/assets', express.static(path.join(clientPath, 'assets')));
 
 // Serve data files
 app.use('/data', express.static(path.join(clientPath, 'assets', 'data')));
@@ -143,7 +163,12 @@ app.get('/api/stats', (req, res) => {
 });
 
 // Serve index.html for all other routes (SPA support)
+// But exclude file extensions to avoid serving HTML for JS/CSS files
 app.get('*', (req, res) => {
+    // Don't serve index.html for file requests
+    if (req.path.includes('.')) {
+        return res.status(404).send('File not found');
+    }
     res.sendFile(path.join(clientPath, 'index.html'));
 });
 
