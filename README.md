@@ -132,12 +132,7 @@ A real-time, interactive simulation of hypersonic vehicles landing on different 
 - **Top**: Bird's eye view
 - **Side**: Side view of the vehicle
 
-### Mission Phases
 
-1. **Cruise Phase**: Interplanetary travel
-2. **Entry Phase**: High-speed atmospheric entry
-3. **Descent Phase**: Controlled descent through atmosphere
-4. **Landing Phase**: Final approach and touchdown
 
 ## 📊 API Documentation
 
