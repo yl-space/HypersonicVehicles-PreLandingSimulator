@@ -9,7 +9,7 @@ export class DataManager {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return await response.json();
         } catch (error) {
-            console.warn('Failed to load mission config, using defaults:', error);
+            console.warn('Using default mission config');
             return this.getDefaultMissionConfig();
         }
     }
@@ -21,7 +21,7 @@ export class DataManager {
             const result = await response.json();
             return result.data;
         } catch (error) {
-            console.warn('Failed to load trajectory data, using demo:', error);
+            console.warn('Using demo trajectory data');
             return this.generateDemoTrajectory();
         }
     }
@@ -32,8 +32,8 @@ export class DataManager {
             phases: [
                 { name: 'Entry Interface', startTime: 0, altitude: 132000, description: 'Atmospheric entry begins at hypersonic speeds' },
                 { name: 'Peak Heating', startTime: 80, altitude: 60000, description: 'Maximum thermal stress on heat shield' },
-                { name: 'Peak Deceleration', startTime: 150, altitude: 25000, description: 'Maximum g-forces experienced by spacecraft' },
-                { name: 'Parachute Deploy', startTime: 260.65, altitude: 13462.9, description: 'Supersonic parachute deployment begins' }
+                { name: 'Peak Deceleration', startTime: 150, altitude: 25000, description: 'Maximum g-forces experienced' },
+                { name: 'Parachute Deploy', startTime: 260.65, altitude: 13462.9, description: 'Supersonic parachute deployment' }
             ]
         };
     }
