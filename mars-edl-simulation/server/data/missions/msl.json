@@ -1,4 +1,5 @@
 {
+  "id": "msl",
   "name": "Mars Science Laboratory",
   "vehicle": "msl_aeroshell",
   "planet": "mars",
@@ -43,7 +44,7 @@
     "longitude": 137.8,
     "elevation": -4500
   },
-  "vehicle_specs": {
+  "vehicleSpecs": {
     "mass": 3893,
     "diameter": 4.5,
     "heatShieldMaterial": "PICA",
