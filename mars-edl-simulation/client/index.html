@@ -391,13 +391,11 @@
                     <button id="reload-button" style="margin-top: 20px; padding: 10px 20px; background: #ff6600; border: none; color: white; border-radius: 5px; cursor: pointer;">
                         Reload Page
                     </button>
-                    <script>
-                        document.getElementById('reload-button').addEventListener('click', function() {
-                            location.reload();
-                        });
-                    </script>
                 </div>
             `;
+            document.getElementById('reload-button').addEventListener('click', function() {
+                location.reload();
+            });
         });
     </script>
 
