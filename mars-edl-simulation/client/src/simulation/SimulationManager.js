@@ -27,28 +27,29 @@ export class SimulationManager {
     
     async init() {
         try {
-            this.updateLoadingProgress(10, 'Initializing scene...');
+            window.updateLoadingProgress(20, 'Initializing 3D scene...');
             
             const container = document.getElementById('canvas-container');
             this.sceneManager = new SceneManager(container);
             
-            this.updateLoadingProgress(30, 'Creating environment...');
+            window.updateLoadingProgress(40, 'Creating Mars environment...');
             this.createEnvironment();
             
-            this.updateLoadingProgress(50, 'Loading spacecraft...');
+            window.updateLoadingProgress(60, 'Loading spacecraft...');
             this.createSpacecraft();
             
-            this.updateLoadingProgress(70, 'Loading trajectory data...');
+            window.updateLoadingProgress(80, 'Loading trajectory data...');
             await this.loadData();
             
-            this.updateLoadingProgress(90, 'Finalizing...');
+            window.updateLoadingProgress(95, 'Setting up controls...');
             this.setupEventListeners();
             
-            this.updateLoadingProgress(100, 'Ready!');
-            setTimeout(() => this.hideLoadingScreen(), 500);
+            window.updateLoadingProgress(100, 'Simulation ready!');
+            setTimeout(() => this.hideLoadingScreen(), 1000);
             
         } catch (error) {
             console.error('Simulation initialization failed:', error);
+            throw error;
         }
     }
     
@@ -78,56 +79,63 @@ export class SimulationManager {
             this.updateTimelineSlider();
             
         } catch (error) {
-            console.error('Failed to load data:', error);
+            console.warn('Using demo data due to load error:', error);
+            // Use demo data as fallback
+            const demoData = this.dataManager.generateDemoTrajectory();
+            await this.trajectoryManager.loadTrajectoryData(demoData);
+            this.phaseController.setMissionPhases(this.dataManager.getDefaultMissionConfig().phases);
         }
     }
     
     setupUI() {
-        this.playPauseBtn = document.getElementById('play-pause-btn');
-        this.resetBtn = document.getElementById('reset-btn');
-        this.speedSlider = document.getElementById('speed-slider');
-        this.timelineSlider = document.getElementById('timeline-slider');
-        
         // Show UI panels
-        ['control-panel', 'timeline-container', 'phase-info', 'stats-display'].forEach(id => {
+        ['control-panel', 'timeline-container', 'phase-info', 'stats-panel'].forEach(id => {
             const element = document.getElementById(id);
             if (element) element.classList.remove('hidden');
         });
     }
     
     setupEventListeners() {
-        if (this.playPauseBtn) {
-            this.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
+        // Play/Pause button
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        if (playPauseBtn) {
+            playPauseBtn.addEventListener('click', () => this.togglePlayPause());
         }
         
-        if (this.resetBtn) {
-            this.resetBtn.addEventListener('click', () => this.reset());
+        // Reset button
+        const resetBtn = document.getElementById('reset-btn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => this.reset());
         }
         
-        if (this.speedSlider) {
-            this.speedSlider.addEventListener('input', (e) => {
+        // Speed slider
+        const speedSlider = document.getElementById('speed-slider');
+        if (speedSlider) {
+            speedSlider.addEventListener('input', (e) => {
                 this.timeScale = parseFloat(e.target.value);
-                document.getElementById('speed-value').textContent = `${this.timeScale}x`;
+                document.getElementById('speed-value').textContent = `${this.timeScale.toFixed(1)}x`;
             });
         }
         
-        if (this.timelineSlider) {
-            this.timelineSlider.addEventListener('input', (e) => {
+        // Timeline slider
+        const timelineSlider = document.getElementById('timeline-slider');
+        if (timelineSlider) {
+            timelineSlider.addEventListener('input', (e) => {
                 this.currentTime = parseFloat(e.target.value);
                 this.updateSimulation();
             });
         }
         
         // Camera mode buttons
-        document.querySelectorAll('.camera-mode-btn').forEach(btn => {
+        document.querySelectorAll('.camera-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.camera-mode-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.camera-btn').forEach(b => b.classList.remove('active'));
                 e.target.classList.add('active');
                 this.sceneManager.cameraController.setMode(e.target.dataset.mode);
             });
         });
         
-        // Start render loop
+        // Start update loop
         this.startUpdateLoop();
     }
     
@@ -149,7 +157,7 @@ export class SimulationManager {
     
     updateSimulation() {
         const trajectoryData = this.trajectoryManager.getStateAtTime(this.currentTime);
-        if (trajectoryData) {
+        if (trajectoryData && this.entryVehicle) {
             this.entryVehicle.updateState(trajectoryData);
         }
         
@@ -158,7 +166,7 @@ export class SimulationManager {
         
         // Handle phase-specific events
         const currentPhase = this.phaseController.getCurrentPhase();
-        if (currentPhase) {
+        if (currentPhase && this.entryVehicle) {
             if (currentPhase.name === 'Parachute Deploy' && this.currentTime >= currentPhase.startTime) {
                 this.entryVehicle.deployParachute();
             }
@@ -167,26 +175,30 @@ export class SimulationManager {
     
     updateUI() {
         // Update stats display
-        const currentTimeSpan = document.getElementById('current-time');
-        const currentAltitudeSpan = document.getElementById('current-altitude');
-        const currentVelocitySpan = document.getElementById('current-velocity');
-        const currentGForceSpan = document.getElementById('current-gforce');
-        
-        if (currentTimeSpan) currentTimeSpan.textContent = this.currentTime.toFixed(2);
-        if (currentAltitudeSpan) currentAltitudeSpan.textContent = (this.entryVehicle.getAltitude() / 1000).toFixed(1);
-        if (currentVelocitySpan) currentVelocitySpan.textContent = this.entryVehicle.getSpeed().toFixed(0);
-        if (currentGForceSpan) currentGForceSpan.textContent = this.entryVehicle.getGForce().toFixed(1);
+        if (this.entryVehicle) {
+            const currentTimeSpan = document.getElementById('current-time');
+            const currentAltitudeSpan = document.getElementById('current-altitude');
+            const currentVelocitySpan = document.getElementById('current-velocity');
+            const currentGForceSpan = document.getElementById('current-gforce');
+            
+            if (currentTimeSpan) currentTimeSpan.textContent = this.currentTime.toFixed(2) + 's';
+            if (currentAltitudeSpan) currentAltitudeSpan.textContent = (this.entryVehicle.getAltitude() / 1000).toFixed(1) + 'km';
+            if (currentVelocitySpan) currentVelocitySpan.textContent = this.entryVehicle.getSpeed().toFixed(0) + 'm/s';
+            if (currentGForceSpan) currentGForceSpan.textContent = this.entryVehicle.getGForce().toFixed(1) + 'g';
+        }
         
         // Update timeline slider
-        if (this.timelineSlider && !this.timelineSlider.matches(':focus')) {
-            this.timelineSlider.value = this.currentTime;
+        const timelineSlider = document.getElementById('timeline-slider');
+        if (timelineSlider && !timelineSlider.matches(':focus')) {
+            timelineSlider.value = this.currentTime;
         }
     }
     
     updateTimelineSlider() {
-        if (this.timelineSlider) {
-            this.timelineSlider.max = this.maxTime;
-            this.timelineSlider.step = this.maxTime / 1000;
+        const timelineSlider = document.getElementById('timeline-slider');
+        if (timelineSlider) {
+            timelineSlider.max = this.maxTime;
+            timelineSlider.step = this.maxTime / 1000;
         }
     }
     
@@ -200,26 +212,20 @@ export class SimulationManager {
     
     play() {
         this.isPlaying = true;
-        if (this.playPauseBtn) this.playPauseBtn.textContent = 'Pause';
+        const btn = document.getElementById('play-pause-btn');
+        if (btn) btn.innerHTML = '⏸ Pause';
     }
     
     pause() {
         this.isPlaying = false;
-        if (this.playPauseBtn) this.playPauseBtn.textContent = 'Play';
+        const btn = document.getElementById('play-pause-btn');
+        if (btn) btn.innerHTML = '▶ Play';
     }
     
     reset() {
         this.currentTime = 0;
         this.pause();
         this.updateSimulation();
-    }
-    
-    updateLoadingProgress(progress, message) {
-        const progressBar = document.getElementById('loading-progress');
-        const loadingText = document.getElementById('loading-text');
-        
-        if (progressBar) progressBar.style.width = `${progress}%`;
-        if (loadingText) loadingText.textContent = message;
     }
     
     hideLoadingScreen() {
