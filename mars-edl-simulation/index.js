@@ -25,7 +25,7 @@ export { Controls } from './client/src/ui/Controls.js';
 export { DataManager } from './client/src/data/DataManager.js';
 
 // Main initialization function
-export function createMarsEDLSimulation(options = {}) {
+export function createJupiterEDLSimulation(options = {}) {
     const {
         container = document.getElementById('app-container'),
         trajectoryData = null,
@@ -73,7 +73,7 @@ export function quickStart() {
             <div id="canvas-container"></div>
             <div id="ui-overlay"></div>
             <div id="loading-screen" style="position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content: center; color: white;">
-                <div>Loading Mars EDL Simulation...</div>
+                <div>Loading Jupiter EDL Simulation...</div>
             </div>
             <div id="error-screen" style="display: none;"></div>
         `;
@@ -82,7 +82,7 @@ export function quickStart() {
     }
     
     // Create and return simulation
-    return createMarsEDLSimulation({ container, autoStart: true });
+    return createJupiterEDLSimulation({ container, autoStart: true });
 }
 
 // Export Three.js for convenience
@@ -93,7 +93,7 @@ export const VERSION = '1.0.0';
 
 // Default export for convenience
 export default {
-    createMarsEDLSimulation,
+    createJupiterEDLSimulation,
     quickStart,
     SimulationManager,
     TrajectoryManager,
