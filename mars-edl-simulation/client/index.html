@@ -388,9 +388,14 @@
                     <h2>Loading Error</h2>
                     <p>Failed to load the simulation. Please check your internet connection and refresh the page.</p>
                     <p style="font-size: 12px; color: #666;">Error: ${error.message}</p>
-                    <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #ff6600; border: none; color: white; border-radius: 5px; cursor: pointer;">
+                    <button id="reload-button" style="margin-top: 20px; padding: 10px 20px; background: #ff6600; border: none; color: white; border-radius: 5px; cursor: pointer;">
                         Reload Page
                     </button>
+                    <script>
+                        document.getElementById('reload-button').addEventListener('click', function() {
+                            location.reload();
+                        });
+                    </script>
                 </div>
             `;
         });
