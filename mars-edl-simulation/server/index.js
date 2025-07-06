@@ -1,6 +1,5 @@
 /**
- * Mars EDL Simulation Server
- * Main entry point for the backend server
+ * Mars EDL Simulation Server - Fixed CSP
  */
 
 import express from 'express';
@@ -18,7 +17,6 @@ import telemetryAPI from './api/telemetry.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Logger setup
 const logger = winston.createLogger({
     level: 'info',
     format: winston.format.combine(
@@ -28,8 +26,6 @@ const logger = winston.createLogger({
     ),
     defaultMeta: { service: 'mars-edl-server' },
     transports: [
-        new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-        new winston.transports.File({ filename: 'logs/combined.log' }),
         new winston.transports.Console({
             format: winston.format.simple()
         })
@@ -48,30 +44,36 @@ class EDLServer {
     }
 
     setupMiddleware() {
-        // Security middleware
+        // Relaxed CSP for Three.js development
         this.app.use(helmet({
             contentSecurityPolicy: {
                 directives: {
                     defaultSrc: ["'self'"],
-                    scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com"],
+                    scriptSrc: [
+                        "'self'", 
+                        "'unsafe-inline'", 
+                        "'unsafe-eval'",
+                        "https://cdnjs.cloudflare.com",
+                        "https://cdn.jsdelivr.net",
+                        "https://unpkg.com"
+                    ],
                     styleSrc: ["'self'", "'unsafe-inline'"],
                     imgSrc: ["'self'", "data:", "blob:"],
                     connectSrc: ["'self'"],
-                    fontSrc: ["'self'"],
+                    fontSrc: ["'self'", "data:"],
                     objectSrc: ["'none'"],
                     mediaSrc: ["'self'"],
                     frameSrc: ["'none'"],
+                    workerSrc: ["'self'", "blob:"],
                 }
             }
         }));
 
-        // CORS configuration
         this.app.use(cors({
-            origin: this.isProduction ? false : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+            origin: this.isProduction ? false : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5000'],
             credentials: true
         }));
 
-        // Compression and parsing
         this.app.use(compression());
         this.app.use(express.json({ limit: '10mb' }));
         this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -80,7 +82,6 @@ class EDLServer {
         const clientPath = path.join(__dirname, '../client');
         this.app.use(express.static(clientPath));
 
-        // Request logging
         this.app.use((req, res, next) => {
             logger.info(`${req.method} ${req.path} - ${req.ip}`);
             next();
@@ -88,7 +89,6 @@ class EDLServer {
     }
 
     setupRoutes() {
-        // Health check
         this.app.get('/api/health', (req, res) => {
             res.json({ 
                 status: 'healthy', 
@@ -97,7 +97,6 @@ class EDLServer {
             });
         });
 
-        // API routes
         this.app.use('/api/trajectories', trajectoriesAPI);
         this.app.use('/api/missions', missionsAPI);
         this.app.use('/api/telemetry', telemetryAPI);
@@ -109,12 +108,10 @@ class EDLServer {
     }
 
     setupErrorHandling() {
-        // 404 handler
         this.app.use((req, res) => {
             res.status(404).json({ error: 'Not found' });
         });
 
-        // Global error handler
         this.app.use((err, req, res, next) => {
             logger.error('Server error:', err);
             res.status(500).json({ 
@@ -125,10 +122,8 @@ class EDLServer {
 
     async ensureDirectories() {
         const dirs = [
-            'logs',
             'data/trajectories',
-            'data/missions',
-            'uploads'
+            'data/missions'
         ];
 
         for (const dir of dirs) {
@@ -137,7 +132,6 @@ class EDLServer {
     }
 
     async initializeData() {
-        // Create MSL mission configuration
         const mslConfig = {
             id: 'msl',
             name: 'Mars Science Laboratory',
@@ -189,7 +183,6 @@ class EDLServer {
                 logger.info(`📡 Access: http://localhost:${this.port}`);
             });
 
-            // Graceful shutdown
             process.on('SIGTERM', () => this.shutdown());
             process.on('SIGINT', () => this.shutdown());
 
@@ -208,6 +201,5 @@ class EDLServer {
     }
 }
 
-// Start server
 const server = new EDLServer();
 server.start();
