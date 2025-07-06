@@ -1,213 +1,173 @@
 # Hypersonic Vehicle Simulation
 
-A real-time, interactive simulation of hypersonic vehicles landing on different planets. This project provides a comprehensive platform for simulating atmospheric entry, descent, and landing (EDL) missions with realistic physics, beautiful 3D graphics, and real-time control systems.
+A high-fidelity 3D simulation platform for atmospheric entry, descent, and landing (EDL) of hypersonic vehicles across multiple celestial bodies in the solar system.
 
-## 🚀 Features
+## 🚀 Overview
 
-### Real-Time Vehicle Control
-- **Thrust Control**: Adjust main engine and RCS thrust in real-time
-- **Attitude Control**: Control pitch, yaw, and roll using intuitive joysticks
-- **System Management**: Deploy parachutes, eject heat shields, and extend landing legs
-- **Real-time Response**: All controls immediately affect vehicle behavior and trajectory
+This simulation provides real-time visualization and analysis of hypersonic vehicle trajectories during atmospheric entry on various planets and moons. Built with Three.js and featuring actual trajectory data, it offers an immersive experience for understanding the complex dynamics of EDL missions.
 
-### Multi-Planet Support
-- **Mars**: Realistic atmospheric entry with dust storms and craters
-- **Venus**: High-pressure atmosphere with sulfuric acid clouds
-- **Titan**: Low-gravity environment with methane lakes
-- **Earth**: Familiar terrestrial landing simulation
+## ✨ Key Features
 
-### Advanced Physics Engine
-- **Gravitational Forces**: Realistic planetary gravity calculations
-- **Atmospheric Drag**: Exponential atmosphere models for each planet
-- **Heating Effects**: Plasma heating during high-speed entry
-- **Orbital Mechanics**: Accurate trajectory calculations and predictions
+- **Multi-Planet Support**: Mars, Venus, Titan, Earth, and more
+- **Real Trajectory Data**: Uses actual mission data (SPICE kernels, CSV formats)
+- **Multiple Vehicle Types**: Capsules, lifting bodies, deployable decelerators
+- **Interactive 3D Visualization**: Real-time rendering with multiple camera modes
+- **Mission Phase Tracking**: Entry interface, peak heating, parachute deployment, powered descent
+- **Live Telemetry**: Altitude, velocity, g-force, heat flux, atmospheric pressure
+- **Timeline Control**: Scrubbing, playback speed control, phase markers
 
-### Real-Time Trajectory Analysis
-- **Live Predictions**: Continuously updated landing predictions
-- **Mission Phases**: Automatic phase transitions (Cruise → Entry → Descent → Landing)
-- **Telemetry Tracking**: Comprehensive data logging and analysis
-- **Performance Metrics**: Real-time monitoring of vehicle health and mission status
+## 🛠️ Tech Stack
 
-### Beautiful 3D Visualization
-- **Three.js Graphics**: High-quality 3D rendering with realistic lighting
-- **Particle Effects**: Engine exhaust, plasma trails, and atmospheric effects
-- **Dynamic Environments**: Procedurally generated planetary surfaces
-- **Multiple Camera Views**: Follow, orbit, top-down, and side views
+- **Frontend**: Three.js, ES6 Modules, WebGL
+- **Backend**: Node.js, Express.js
+- **Data**: CSV trajectory files, JSON mission configurations
+- **Visualization**: Custom shaders, particle systems, atmospheric effects
 
-### Mission Management
-- **Mission Planning**: Create and configure missions for different planets
-- **Real-time Monitoring**: Live telemetry and mission status updates
-- **Data Persistence**: SQLite database for mission history and analysis
-- **WebSocket Communication**: Real-time data streaming between client and server
+## 📋 Prerequisites
 
-## 🛠️ Technology Stack
+- Node.js v18+ 
+- Modern browser with WebGL support
+- Trajectory data files (CSV format)
 
-### Frontend
-- **Three.js**: 3D graphics and visualization
-- **Vanilla JavaScript**: Modern ES6+ with modules
-- **CSS3**: Responsive design with animations
-- **WebSocket**: Real-time communication
+## 🚀 Quick Start
 
-### Backend
-- **Node.js**: Server runtime
-- **Express.js**: Web framework and API
-- **Socket.IO**: Real-time bidirectional communication
-- **SQLite**: Lightweight database
-- **Sequelize**: ORM for database management
+```bash
+# Clone repository
+git clone https://github.com/yourusername/hypersonic-vehicle-simulation.git
+cd hypersonic-vehicle-simulation
 
-### Physics & Simulation
-- **Custom Physics Engine**: Realistic orbital mechanics
-- **Atmospheric Models**: Planet-specific density and pressure calculations
-- **Trajectory Prediction**: Real-time landing calculations
-- **Mission Phase Management**: Automated phase transitions
+# Install dependencies
+npm install
 
-## 📦 Installation
+# Place trajectory data in client/assets/data/
+# Example: MSL_position_J2000.csv
 
-### Prerequisites
-- Node.js (v16 or higher)
-- npm or yarn package manager
+# Start development server
+npm start
 
-### Setup Instructions
+# Open http://localhost:3001
+```
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd mars-edl-simulation
-   ```
+## 📁 Project Structure
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+```
+hypersonic-vehicle-simulation/
+├── client/
+│   ├── src/
+│   │   ├── core/              # Three.js scene, camera, rendering
+│   │   ├── components/        # 3D models, environments, effects
+│   │   ├── simulation/        # Physics, trajectory, phases
+│   │   ├── ui/               # Controls, timeline, telemetry
+│   │   └── data/             # Data loading and management
+│   ├── assets/
+│   │   ├── data/             # Trajectory CSV files
+│   │   ├── models/           # 3D vehicle models
+│   │   └── textures/         # Planet textures
+│   └── index.html
+├── server/
+│   ├── api/                  # REST endpoints
+│   └── server.js             # Express server
+└── package.json
+```
 
-3. **Start the development server**
-   ```bash
-   npm run dev
-   ```
+## 🎮 Controls
 
-4. **Open your browser**
-   Navigate to `http://localhost:3001`
+| Key/Action | Function |
+|------------|----------|
+| **Space** | Play/Pause |
+| **1/2/3** | Camera modes (Follow/Free/Cinematic) |
+| **←/→** | Skip ±5 seconds |
+| **Mouse Wheel** | Zoom |
+| **F** | Fullscreen |
+| **Timeline Click** | Scrub to position |
 
-### Production Build
+## 🪐 Supported Environments
 
-1. **Build the client**
-   ```bash
-   npm run build
-   ```
+### Planets
+- **Mars**: Thin CO₂ atmosphere, dust storms
+- **Venus**: Dense atmosphere, extreme pressure
+- **Earth**: Reference atmosphere model
+- **Titan**: Thick nitrogen atmosphere, low gravity
 
-2. **Start production server**
-   ```bash
-   npm start
-   ```
+### Vehicle Types
+- **Blunt Body Capsules**: Apollo, Orion style
+- **Lifting Bodies**: Space Shuttle, Dream Chaser
+- **Deployable Decelerators**: HIAD, ballutes
+- **Powered Descent**: SpaceX-style propulsive landing
 
-## 🎮 Usage
+## 📊 Data Format
 
-### Getting Started
+### Trajectory CSV
+```csv
+Time,x,y,z
+0.0,-606436.28,3075821.96,1604925.87
+0.05,-606562.17,3075739.39,1604947.46
+...
+```
 
-1. **Select a Planet**: Choose from Mars, Venus, Titan, or Earth
-2. **Start Mission**: Click "Start Mission" to begin simulation
-3. **Control Vehicle**: Use the control panels to maneuver the vehicle
-4. **Monitor Telemetry**: Watch real-time data in the telemetry panel
-5. **Follow Timeline**: Track mission progress in the timeline
-
-### Vehicle Controls
-
-#### Thrust Control
-- **Main Engine**: Primary propulsion system (0-100%)
-- **RCS Thrusters**: Reaction control system for attitude control
-
-#### Attitude Control
-- **Pitch**: Control nose up/down movement
-- **Yaw**: Control left/right turning
-- **Roll**: Control rolling motion
-
-#### System Controls
-- **Deploy Parachute**: Reduce velocity during descent
-- **Eject Heat Shield**: Remove heat shield after entry
-- **Deploy Landing Legs**: Prepare for touchdown
-
-### Camera Controls
-- **Follow**: Camera follows the vehicle
-- **Orbit**: Camera orbits around the vehicle
-- **Top**: Bird's eye view
-- **Side**: Side view of the vehicle
-
-
-
-## 📊 API Documentation
-
-### Missions API
-- `GET /api/missions` - Get all missions
-- `POST /api/missions` - Create new mission
-- `GET /api/missions/:id` - Get specific mission
-- `PUT /api/missions/:id` - Update mission
-- `DELETE /api/missions/:id` - Delete mission
-
-### Telemetry API
-- `GET /api/telemetry` - Get telemetry data
-- `POST /api/telemetry` - Create telemetry record
-- `GET /api/telemetry/mission/:id` - Get mission telemetry
-- `GET /api/telemetry/mission/:id/latest` - Get latest telemetry
-
-### Trajectories API
-- `GET /api/trajectories` - Get trajectory data
-- `POST /api/trajectories` - Create trajectory record
-- `POST /api/trajectories/mission/:id/predict` - Generate prediction
+### Mission Configuration
+```json
+{
+  "id": "mission_name",
+  "vehicle": "vehicle_type",
+  "planet": "mars",
+  "phases": [...],
+  "vehicleConfig": {...}
+}
+```
 
 ## 🔧 Configuration
 
-### Environment Variables
-```bash
-PORT=3001                    # Server port
-NODE_ENV=development         # Environment mode
-DATABASE_URL=sqlite://...    # Database connection
-```
+### Add New Planet
+1. Create planet data in `components/environment/planets/`
+2. Add atmosphere model
+3. Configure surface features
+4. Update gravity and atmospheric parameters
 
-### Planet Configuration
-Each planet has specific parameters:
-- **Mass and Radius**: Physical properties
-- **Atmosphere**: Composition and density models
-- **Gravity**: Surface gravity and escape velocity
-- **Visual Properties**: Colors and textures
+### Add New Vehicle
+1. Add 3D model to `assets/models/`
+2. Create vehicle component in `components/spacecraft/`
+3. Define aerodynamic properties
+4. Configure phase transitions
 
+## 📈 Performance
 
+- Optimized for 60 FPS on modern hardware
+- Level-of-detail (LOD) for planet surfaces
+- Efficient particle systems for atmospheric effects
+- WebGL 2.0 features when available
 
-## 🚧 Development
+## 🤝 Contributing
 
-### Project Structure
-```
-mars-edl-simulation/
-├── client/                 # Frontend application
-│   ├── src/
-│   │   ├── components/     # 3D components
-│   │   ├── core/          # Core systems
-│   │   ├── simulation/    # Simulation logic
-│   │   └── ui/            # User interface
-│   └── styles/            # CSS stylesheets
-├── server/                # Backend application
-│   ├── api/               # API routes
-│   ├── database/          # Database models
-│   └── index.js           # Server entry point
-├── index.html             # Main HTML file
-└── package.json           # Project configuration
-```
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
 
-### Adding New Features
+## 📝 License
 
-1. **New Planet**: Add planet data to `Planet.js`
-2. **New Vehicle**: Extend `VehicleController.js`
-3. **New Effects**: Add to particle systems
-4. **New Controls**: Extend UI components
+MIT License - see LICENSE file for details
 
-### Testing
-```bash
-# Run tests (when implemented)
-npm test
+## 🙏 Acknowledgments
 
-# Run linting
-npm run lint
+- NASA/JPL for trajectory data and mission information
+- Three.js community for excellent documentation
+- SPICE toolkit for ephemeris calculations
+- Contributors and testers
 
-# Check code formatting
-npm run format
-```
+## 🐛 Known Issues
 
+- Mobile device performance varies
+- Large trajectory files (>10MB) may cause initial loading delay
+- Some atmospheric effects require WebGL 2.0
+
+## 📞 Support
+
+- Issues: GitHub Issues
+- Documentation: Wiki
+- Discussion: GitHub Discussions
+
+---
+
+**Note**: This simulation is for educational and research purposes. Trajectory data accuracy depends on source quality.
