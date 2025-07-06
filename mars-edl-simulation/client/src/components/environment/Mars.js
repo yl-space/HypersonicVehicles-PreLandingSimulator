@@ -1,22 +1,39 @@
 export class Mars {
     constructor() {
         this.mesh = new THREE.Group();
-        this.planet = null;
-        this.atmosphere = null;
         this.createPlanet();
         this.createAtmosphere();
     }
     
     createPlanet() {
         const geometry = new THREE.SphereGeometry(3390, 64, 32);
+        
+        // Create Mars texture
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        
+        const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+        gradient.addColorStop(0, '#CD5C5C');
+        gradient.addColorStop(0.5, '#A0522D');
+        gradient.addColorStop(1, '#8B4513');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 1024, 512);
+        
+        const texture = new THREE.CanvasTexture(canvas);
         const material = new THREE.MeshPhongMaterial({
-            color: 0xCD5C5C,
+            map: texture,
             shininess: 5
         });
         
         this.planet = new THREE.Mesh(geometry, material);
         this.planet.receiveShadow = true;
         this.mesh.add(this.planet);
+        
+        // Add landing zone marker
+        this.highlightLandingZone(-5.4, 137.8, 50);
     }
     
     createAtmosphere() {
