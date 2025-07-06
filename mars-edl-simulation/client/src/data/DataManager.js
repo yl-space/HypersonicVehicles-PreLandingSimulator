@@ -9,7 +9,7 @@ export class DataManager {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return await response.json();
         } catch (error) {
-            console.error('Failed to load mission config:', error);
+            console.warn('Failed to load mission config, using defaults:', error);
             return this.getDefaultMissionConfig();
         }
     }
@@ -21,7 +21,7 @@ export class DataManager {
             const result = await response.json();
             return result.data;
         } catch (error) {
-            console.error('Failed to load trajectory data:', error);
+            console.warn('Failed to load trajectory data, using demo:', error);
             return this.generateDemoTrajectory();
         }
     }
@@ -30,22 +30,24 @@ export class DataManager {
         return {
             name: 'Mars Science Laboratory',
             phases: [
-                { name: 'Entry Interface', startTime: 0, altitude: 132000, description: 'Atmospheric entry begins' },
-                { name: 'Peak Heating', startTime: 80, altitude: 60000, description: 'Maximum thermal stress' },
-                { name: 'Peak Deceleration', startTime: 150, altitude: 25000, description: 'Maximum g-forces' },
-                { name: 'Parachute Deploy', startTime: 260.65, altitude: 13462.9, description: 'Parachute deployment' }
+                { name: 'Entry Interface', startTime: 0, altitude: 132000, description: 'Atmospheric entry begins at hypersonic speeds' },
+                { name: 'Peak Heating', startTime: 80, altitude: 60000, description: 'Maximum thermal stress on heat shield' },
+                { name: 'Peak Deceleration', startTime: 150, altitude: 25000, description: 'Maximum g-forces experienced by spacecraft' },
+                { name: 'Parachute Deploy', startTime: 260.65, altitude: 13462.9, description: 'Supersonic parachute deployment begins' }
             ]
         };
     }
     
     generateDemoTrajectory() {
         const data = [];
-        for (let t = 0; t <= 260.65; t += 0.1) {
-            const altitude = 132000 - (t / 260.65) * 118500;
+        for (let t = 0; t <= 260.65; t += 0.5) {
+            const progress = t / 260.65;
+            const altitude = 132000 * (1 - progress);
             const angle = t * 0.01;
+            
             data.push({
                 time: t,
-                x: -600000 - t * 2000,
+                x: -600000 - t * 2000 + Math.sin(angle) * 10000,
                 y: 3000000 + Math.cos(angle) * 50000,
                 z: 1600000 + altitude
             });
