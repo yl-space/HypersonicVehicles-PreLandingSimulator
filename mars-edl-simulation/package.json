@@ -1,7 +1,7 @@
 {
-  "name": "mars-edl-simulation",
+  "name": "HSV-simulation",
   "version": "1.0.0",
-  "description": "Interactive Mars Entry, Descent, and Landing Simulation using Three.js",
+  "description": "Interactive HSV Entry, Descent, and Landing Simulation using Three.js",
   "main": "server/index.js",
   "type": "module",
   "scripts": {
