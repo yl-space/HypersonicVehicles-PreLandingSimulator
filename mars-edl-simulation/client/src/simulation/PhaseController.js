@@ -29,7 +29,6 @@ export class PhaseController {
     onPhaseChange(phase) {
         console.log(`Phase changed to: ${phase.name}`);
         
-        // Update UI
         const phaseTitle = document.getElementById('phase-title');
         const phaseDescription = document.getElementById('phase-description');
         const currentPhaseSpan = document.getElementById('current-phase');
@@ -41,12 +40,5 @@ export class PhaseController {
     
     getCurrentPhase() {
         return this.currentPhase;
-    }
-    
-    getNextPhase() {
-        if (this.currentPhaseIndex < this.phases.length - 1) {
-            return this.phases[this.currentPhaseIndex + 1];
-        }
-        return null;
     }
 }
