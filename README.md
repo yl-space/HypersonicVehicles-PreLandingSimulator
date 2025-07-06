@@ -8,7 +8,7 @@ This simulation provides real-time visualization and analysis of hypersonic vehi
 
 ## ✨ Key Features
 
-- **Multi-Planet Support**: Mars, Venus, Titan, Earth, and more
+- **Multi-Planet Support**: Mars, Venus, Jupiter, Earth, and more
 - **Real Trajectory Data**: Uses actual mission data (SPICE kernels, CSV formats)
 - **Multiple Vehicle Types**: Capsules, lifting bodies, deployable decelerators
 - **Interactive 3D Visualization**: Real-time rendering with multiple camera modes
