@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { SceneManager } from '../core/SceneManager.js';
 import { CameraController } from '../core/CameraController.js';
 import { EntryVehicle } from '../components/spacecraft/EntryVehicle.js';
-import { Mars } from '../components/environment/Mars.js';
+import { Mars } from '../components/environment/Jupiter.js';
 import { Stars } from '../components/environment/Stars.js';
 import { TrajectoryManager } from '../simulation/TrajectoryManager.js';
 import { PhaseController } from '../simulation/PhaseController.js';

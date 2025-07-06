@@ -1,11 +1,11 @@
 /**
- * Mars.js
- * Mars planet with surface features and atmosphere
+ * Jupiter.js
+ * Jupiter planet with surface features and atmosphere
  */
 
 import * as THREE from 'three';
 
-export class Mars {
+export class Jupiter {
     constructor() {
         this.group = new THREE.Group();
         this.radius = 3389.5; // km
@@ -24,11 +24,11 @@ export class Mars {
     }
     
     createSurface() {
-        // Main Mars sphere
+        // Main Jupiter sphere
         const geometry = new THREE.SphereGeometry(this.radius, 128, 64);
         
-        // Create Mars texture with canvas
-        const texture = this.createMarsTexture();
+        // Create Jupiter texture with canvas
+        const texture = this.createJupiterTexture();
         
         const material = new THREE.MeshPhongMaterial({
             map: texture,
@@ -45,7 +45,7 @@ export class Mars {
         this.group.add(this.surface);
     }
     
-    createMarsTexture() {
+    createJupiterTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 2048;
         canvas.height = 1024;
@@ -151,7 +151,7 @@ export class Mars {
         const colors = new Float32Array(particleCount * 3);
         
         for (let i = 0; i < particleCount; i++) {
-            // Random position around Mars
+            // Random position around Jupiter
             const phi = Math.random() * Math.PI * 2;
             const theta = Math.acos(2 * Math.random() - 1);
             const radius = this.radius + Math.random() * 50;
@@ -280,7 +280,7 @@ export class Mars {
     }
     
     update(deltaTime) {
-        // Rotate Mars
+        // Rotate Jupiter
         this.surface.rotation.y += deltaTime * 0.0001;
         
         // Rotate dust clouds
