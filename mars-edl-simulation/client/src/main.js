@@ -3,7 +3,7 @@
  * Main entry point for Mars EDL Simulation
  */
 
-import { SimulationManager } from '../';
+import { SimulationManager } from '../src/simulation/SimulationManager.js';
 
 // Global app state
 window.MarsEDL = {
