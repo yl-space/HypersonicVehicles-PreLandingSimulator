@@ -1,254 +1,374 @@
-import { SceneManager } from '../core/SceneManager.js';
-import { TrajectoryManager } from './TrajectoryManager.js';
-import { PhaseController } from './PhaseController.js';
-import { EntryVehicle } from '../components/spacecraft/EntryVehicle.js';
-import { Mars } from '../components/environment/Mars.js';
-import { Stars } from '../components/environment/Stars.js';
-import { DataManager } from '../data/DataManager.js';
+/**
+ * SimulationManager.js
+ * Main simulation controller that coordinates all components
+ */
+
+import * as THREE from 'three';
+import { SceneManager } from './core/SceneManager.js';
+import { CameraController } from './core/CameraController.js';
+import { EntryVehicle } from './components/spacecraft/EntryVehicle.js';
+import { Mars } from './components/environment/Mars.js';
+import { Stars } from './components/environment/Stars.js';
+import { TrajectoryManager } from './simulation/TrajectoryManager.js';
+import { PhaseController } from './simulation/PhaseController.js';
+import { Timeline } from './ui/Timeline.js';
+import { PhaseInfo } from './ui/PhaseInfo.js';
+import { Controls } from './ui/Controls.js';
+import { DataManager } from './data/DataManager.js';
 
 export class SimulationManager {
-    constructor() {
-        this.sceneManager = null;
-        this.trajectoryManager = new TrajectoryManager();
-        this.phaseController = new PhaseController();
-        this.dataManager = new DataManager();
+    constructor(options = {}) {
+        this.options = {
+            container: document.getElementById('canvas-container'),
+            dataPath: '/data/MSL_position_J2000.csv',
+            autoStart: false,
+            showStats: false,
+            ...options
+        };
         
+        // Core components
+        this.sceneManager = null;
+        this.cameraController = null;
+        this.trajectoryManager = null;
+        this.phaseController = null;
+        this.dataManager = null;
+        
+        // Scene objects
         this.entryVehicle = null;
         this.mars = null;
         this.stars = null;
         
-        this.isPlaying = false;
-        this.currentTime = 0;
-        this.timeScale = 1;
-        this.maxTime = 260.65;
+        // UI components
+        this.timeline = null;
+        this.phaseInfo = null;
+        this.controls = null;
         
+        // Simulation state
+        this.state = {
+            currentTime: 0,
+            totalTime: 260.65,
+            isPlaying: false,
+            playbackSpeed: 1,
+            currentPhase: 0,
+            vehicleData: null
+        };
+        
+        // Animation
         this.clock = new THREE.Clock();
+        this.animationId = null;
+        
+        this.init();
     }
     
     async init() {
-        try {
-            window.updateLoadingProgress(20, 'Creating Three.js scene...');
-            
-            const container = document.getElementById('canvas-container');
-            if (!container) throw new Error('Canvas container not found');
-            
-            this.sceneManager = new SceneManager(container);
-            
-            window.updateLoadingProgress(40, 'Building Mars environment...');
-            this.createEnvironment();
-            
-            window.updateLoadingProgress(60, 'Loading MSL spacecraft...');
-            this.createSpacecraft();
-            
-            window.updateLoadingProgress(80, 'Loading trajectory data...');
-            await this.loadData();
-            
-            window.updateLoadingProgress(95, 'Setting up controls...');
-            this.setupUI();
-            this.setupEventListeners();
-            
-            window.updateLoadingProgress(100, 'Simulation ready!');
-            setTimeout(() => this.hideLoadingScreen(), 1000);
-            
-        } catch (error) {
-            console.error('Three.js simulation initialization failed:', error);
-            throw error;
+        // Initialize core components
+        this.sceneManager = new SceneManager(this.options.container);
+        this.cameraController = new CameraController(this.sceneManager.renderer);
+        this.trajectoryManager = new TrajectoryManager();
+        this.phaseController = new PhaseController();
+        this.dataManager = new DataManager();
+        
+        // Create scene objects
+        this.createSceneObjects();
+        
+        // Initialize UI
+        this.initializeUI();
+        
+        // Load trajectory data
+        await this.loadData();
+        
+        // Setup event listeners
+        this.setupEventListeners();
+        
+        // Start animation loop
+        this.animate();
+        
+        // Auto-start if requested
+        if (this.options.autoStart) {
+            this.play();
         }
     }
     
-    createEnvironment() {
+    createSceneObjects() {
+        // Create Mars
         this.mars = new Mars();
+        this.sceneManager.scene.add(this.mars.getObject3D());
+        
+        // Create stars
         this.stars = new Stars();
+        this.sceneManager.scene.add(this.stars.getObject3D());
         
-        this.sceneManager.addToScene(this.mars);
-        this.sceneManager.addToScene(this.stars);
+        // Create entry vehicle
+        this.entryVehicle = new EntryVehicle();
+        this.sceneManager.scene.add(this.entryVehicle.getObject3D());
         
-        console.log('✅ Three.js environment created');
+        // Add trajectory line
+        this.sceneManager.scene.add(this.trajectoryManager.getObject3D());
+        
+        // Set camera target
+        this.cameraController.setTarget(this.entryVehicle.getObject3D());
     }
     
-    createSpacecraft() {
-        this.entryVehicle = new EntryVehicle();
-        this.sceneManager.addToScene(this.entryVehicle);
-        this.sceneManager.cameraController.setTarget(this.entryVehicle.mesh);
+    initializeUI() {
+        // Timeline
+        this.timeline = new Timeline({
+            container: document.getElementById('timeline-container'),
+            totalTime: this.state.totalTime,
+            onTimeUpdate: (time) => this.seekTo(time),
+            onPlayPause: () => this.togglePlayPause()
+        });
         
-        console.log('✅ Three.js spacecraft created');
+        // Phase info panel
+        this.phaseInfo = new PhaseInfo({
+            container: document.getElementById('phase-info')
+        });
+        
+        // Camera and zoom controls
+        this.controls = new Controls({
+            onCameraMode: (mode) => this.setCameraMode(mode),
+            onZoom: (direction) => this.handleZoom(direction)
+        });
     }
     
     async loadData() {
         try {
-            const missionConfig = await this.dataManager.loadMissionConfig('msl');
-            const trajectoryData = await this.dataManager.loadTrajectoryData('msl_position_J2000');
+            // Load trajectory data
+            await this.trajectoryManager.loadTrajectoryData(this.options.dataPath);
             
-            await this.trajectoryManager.loadTrajectoryData(trajectoryData);
-            this.phaseController.setMissionPhases(missionConfig.phases);
-            
-            this.maxTime = this.trajectoryManager.getEndTime();
-            this.updateTimelineSlider();
-            
-            console.log('✅ Trajectory data loaded:', this.trajectoryManager.data.length, 'points');
+            // Load mission configuration
+            const missionConfig = await this.dataManager.loadMissionConfig();
+            this.phaseController.setPhases(missionConfig.phases);
             
         } catch (error) {
-            console.warn('Using demo data due to load error:', error);
-            const demoData = this.dataManager.generateDemoTrajectory();
-            await this.trajectoryManager.loadTrajectoryData(demoData);
-            this.phaseController.setMissionPhases(this.dataManager.getDefaultMissionConfig().phases);
+            console.error('Error loading data:', error);
+            // Use sample data if loading fails
+            this.trajectoryManager.generateSampleTrajectory();
         }
-    }
-    
-    setupUI() {
-        ['control-panel', 'timeline-container', 'phase-info', 'stats-panel'].forEach(id => {
-            const element = document.getElementById(id);
-            if (element) element.classList.remove('hidden');
-        });
     }
     
     setupEventListeners() {
-        const playPauseBtn = document.getElementById('play-pause-btn');
-        const resetBtn = document.getElementById('reset-btn');
-        const speedSlider = document.getElementById('speed-slider');
-        const timelineSlider = document.getElementById('timeline-slider');
-        
-        if (playPauseBtn) {
-            playPauseBtn.addEventListener('click', () => this.togglePlayPause());
-        }
-        
-        if (resetBtn) {
-            resetBtn.addEventListener('click', () => this.reset());
-        }
-        
-        if (speedSlider) {
-            speedSlider.addEventListener('input', (e) => {
-                this.timeScale = parseFloat(e.target.value);
-                const speedValue = document.getElementById('speed-value');
-                if (speedValue) speedValue.textContent = `${this.timeScale.toFixed(1)}x`;
-            });
-        }
-        
-        if (timelineSlider) {
-            timelineSlider.addEventListener('input', (e) => {
-                this.currentTime = parseFloat(e.target.value);
-                this.updateSimulation();
-            });
-        }
-        
-        document.querySelectorAll('.camera-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.camera-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                this.sceneManager.cameraController.setMode(e.target.dataset.mode);
-            });
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case ' ':
+                    e.preventDefault();
+                    this.togglePlayPause();
+                    break;
+                case 'ArrowRight':
+                    this.seekTo(Math.min(this.state.currentTime + 5, this.state.totalTime));
+                    break;
+                case 'ArrowLeft':
+                    this.seekTo(Math.max(this.state.currentTime - 5, 0));
+                    break;
+                case '1':
+                    this.setCameraMode('FOLLOW');
+                    break;
+                case '2':
+                    this.setCameraMode('FREE');
+                    break;
+                case '3':
+                    this.setCameraMode('CINEMATIC');
+                    break;
+            }
         });
         
-        this.startUpdateLoop();
+        // Window resize
+        window.addEventListener('resize', () => {
+            this.handleResize();
+        });
     }
     
-    startUpdateLoop() {
-        const update = () => {
-            const deltaTime = this.clock.getDelta();
-            
-            if (this.isPlaying) {
-                this.currentTime += deltaTime * this.timeScale;
-                if (this.currentTime > this.maxTime) {
-                    this.currentTime = this.maxTime;
-                    this.pause();
-                }
-            }
-            
-            this.updateSimulation();
-            
-            // Update Three.js objects
-            if (this.entryVehicle) {
-                this.entryVehicle.update(deltaTime);
-            }
-            
-            requestAnimationFrame(update);
-        };
-        update();
-    }
-    
-    updateSimulation() {
-        const trajectoryData = this.trajectoryManager.getStateAtTime(this.currentTime);
-        if (trajectoryData && this.entryVehicle) {
-            this.entryVehicle.updateState(trajectoryData);
+    animate() {
+        this.animationId = requestAnimationFrame(() => this.animate());
+        
+        const deltaTime = this.clock.getDelta();
+        
+        // Update simulation time
+        if (this.state.isPlaying) {
+            this.updateSimulation(deltaTime);
         }
         
-        this.phaseController.updatePhase(this.currentTime);
-        this.updateUI();
+        // Update components
+        this.updateComponents(deltaTime);
         
-        const currentPhase = this.phaseController.getCurrentPhase();
-        if (currentPhase && this.entryVehicle) {
-            if (currentPhase.name === 'Parachute Deploy' && this.currentTime >= currentPhase.startTime) {
+        // Render
+        this.sceneManager.render(this.cameraController.camera);
+    }
+    
+    updateSimulation(deltaTime) {
+        // Update time
+        this.state.currentTime += deltaTime * this.state.playbackSpeed;
+        
+        // Check bounds
+        if (this.state.currentTime >= this.state.totalTime) {
+            this.state.currentTime = this.state.totalTime;
+            this.pause();
+        }
+        
+        // Get current vehicle data
+        this.state.vehicleData = this.trajectoryManager.getInterpolatedData(this.state.currentTime);
+        
+        if (this.state.vehicleData) {
+            // Update vehicle position
+            this.entryVehicle.getObject3D().position.copy(this.state.vehicleData.position);
+            
+            // Orient vehicle along velocity vector
+            const velocityVector = this.trajectoryManager.getVelocityVector(this.state.currentTime);
+            const lookAtPoint = this.state.vehicleData.position.clone().add(velocityVector);
+            this.entryVehicle.getObject3D().lookAt(lookAtPoint);
+            
+            // Update phase
+            const currentPhase = this.phaseController.getCurrentPhase(this.state.currentTime);
+            if (currentPhase !== this.state.currentPhase) {
+                this.handlePhaseTransition(currentPhase);
+            }
+        }
+    }
+    
+    updateComponents(deltaTime) {
+        // Update camera
+        this.cameraController.update(deltaTime, this.state.vehicleData);
+        
+        // Update entry vehicle effects
+        this.entryVehicle.update(this.state.currentTime, this.state.vehicleData);
+        
+        // Update Mars rotation
+        this.mars.update(deltaTime);
+        
+        // Update trajectory visibility
+        this.trajectoryManager.updateTrajectoryVisibility(this.state.currentTime);
+        
+        // Update scene lighting based on altitude
+        if (this.state.vehicleData) {
+            this.sceneManager.updateLighting(
+                this.state.vehicleData.altitude,
+                this.state.currentPhase
+            );
+        }
+        
+        // Update UI
+        this.timeline.update(this.state.currentTime, this.state.isPlaying);
+        this.phaseInfo.update(
+            this.phaseController.phases[this.state.currentPhase],
+            this.state.vehicleData,
+            this.state.currentTime,
+            this.state.totalTime
+        );
+    }
+    
+    handlePhaseTransition(newPhase) {
+        this.state.currentPhase = newPhase;
+        const phase = this.phaseController.phases[newPhase];
+        
+        console.log(`Phase transition: ${phase.name}`);
+        
+        // Handle phase-specific events
+        switch(phase.name) {
+            case 'Parachute Deploy':
                 this.entryVehicle.deployParachute();
-            }
-        }
-    }
-    
-    updateUI() {
-        if (this.entryVehicle) {
-            const elements = {
-                'current-time': this.currentTime.toFixed(2) + 's',
-                'current-altitude': (this.entryVehicle.getAltitude() / 1000).toFixed(1) + 'km',
-                'current-velocity': this.entryVehicle.getSpeed().toFixed(0) + 'm/s',
-                'current-gforce': this.entryVehicle.getGForce().toFixed(1) + 'g'
-            };
-            
-            Object.entries(elements).forEach(([id, value]) => {
-                const element = document.getElementById(id);
-                if (element) element.textContent = value;
-            });
+                this.cameraController.shake(2, 0.5);
+                break;
+                
+            case 'Heat Shield Separation':
+                this.entryVehicle.ejectHeatShield();
+                this.cameraController.shake(1, 0.3);
+                break;
+                
+            case 'Powered Descent':
+                this.entryVehicle.activateThrusters(true);
+                break;
         }
         
-        const timelineSlider = document.getElementById('timeline-slider');
-        if (timelineSlider && !timelineSlider.matches(':focus')) {
-            timelineSlider.value = this.currentTime;
-        }
+        // Emit phase change event
+        this.emit('phaseChange', phase);
     }
     
-    updateTimelineSlider() {
-        const timelineSlider = document.getElementById('timeline-slider');
-        if (timelineSlider) {
-            timelineSlider.max = this.maxTime;
-            timelineSlider.step = this.maxTime / 1000;
-        }
-    }
-    
-    togglePlayPause() {
-        this.isPlaying ? this.pause() : this.play();
-    }
-    
+    // Control methods
     play() {
-        this.isPlaying = true;
-        const btn = document.getElementById('play-pause-btn');
-        if (btn) btn.innerHTML = '⏸ Pause';
+        this.state.isPlaying = true;
+        this.timeline.setPlaying(true);
     }
     
     pause() {
-        this.isPlaying = false;
-        const btn = document.getElementById('play-pause-btn');
-        if (btn) btn.innerHTML = '▶ Play';
+        this.state.isPlaying = false;
+        this.timeline.setPlaying(false);
     }
     
-    reset() {
-        this.currentTime = 0;
-        this.pause();
-        this.updateSimulation();
-    }
-    
-    hideLoadingScreen() {
-        const loadingScreen = document.getElementById('loading-screen');
-        if (loadingScreen) {
-            loadingScreen.style.opacity = '0';
-            setTimeout(() => {
-                loadingScreen.style.display = 'none';
-                this.showIntroduction();
-            }, 500);
+    togglePlayPause() {
+        if (this.state.isPlaying) {
+            this.pause();
+        } else {
+            this.play();
         }
     }
     
-    showIntroduction() {
-        const introModal = document.getElementById('intro-modal');
-        if (introModal) {
-            introModal.classList.remove('hidden');
+    seekTo(time) {
+        this.state.currentTime = Math.max(0, Math.min(time, this.state.totalTime));
+        this.timeline.setTime(this.state.currentTime);
+        
+        // Update vehicle immediately
+        this.state.vehicleData = this.trajectoryManager.getInterpolatedData(this.state.currentTime);
+        if (this.state.vehicleData) {
+            this.entryVehicle.getObject3D().position.copy(this.state.vehicleData.position);
         }
+    }
+    
+    setPlaybackSpeed(speed) {
+        this.state.playbackSpeed = speed;
+        this.timeline.setPlaybackSpeed(speed);
+    }
+    
+    setCameraMode(mode) {
+        this.cameraController.setMode(mode);
+        this.controls.setActiveCamera(mode);
+    }
+    
+    handleZoom(direction) {
+        if (direction === 'in') {
+            this.cameraController.zoomIn();
+        } else {
+            this.cameraController.zoomOut();
+        }
+    }
+    
+    handleResize() {
+        this.cameraController.handleResize();
+        this.sceneManager.handleResize();
+    }
+    
+    // Event emitter methods (simplified)
+    emit(event, data) {
+        if (this.options[`on${event.charAt(0).toUpperCase() + event.slice(1)}`]) {
+            this.options[`on${event.charAt(0).toUpperCase() + event.slice(1)}`](data);
+        }
+    }
+    
+    // Cleanup
+    dispose() {
+        cancelAnimationFrame(this.animationId);
+        
+        // Dispose components
+        this.sceneManager.dispose();
+        this.trajectoryManager.dispose();
+        this.entryVehicle.dispose();
+        this.mars.dispose();
+        this.stars.dispose();
+        
+        // Remove event listeners
+        document.removeEventListener('keydown', this.handleKeydown);
+        window.removeEventListener('resize', this.handleResize);
+    }
+    
+    // Public API
+    getState() {
+        return { ...this.state };
+    }
+    
+    getVehicleData() {
+        return this.state.vehicleData;
+    }
+    
+    getCurrentPhase() {
+        return this.phaseController.phases[this.state.currentPhase];
     }
 }
