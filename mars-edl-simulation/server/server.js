@@ -51,11 +51,11 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://www.googletagmanager.com"],
             styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", "data:", "blob:"],
-            connectSrc: ["'self'"],
-            fontSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "blob:", "https:"],
+            connectSrc: ["'self'", "https://www.google-analytics.com"],
+            fontSrc: ["'self'", "data:"],
             objectSrc: ["'none'"],
             mediaSrc: ["'self'"],
             frameSrc: ["'none'"],
@@ -96,21 +96,23 @@ const upload = multer({
 // Static files - Serve client directory
 const clientPath = path.join(__dirname, '..', 'client');
 
-// Serve static files with proper MIME types
-app.use(express.static(clientPath, {
-    setHeaders: (res, path) => {
-        if (path.endsWith('.js')) {
-            res.setHeader('Content-Type', 'application/javascript');
-        } else if (path.endsWith('.mjs')) {
-            res.setHeader('Content-Type', 'application/javascript');
+// Serve JavaScript modules with correct MIME type
+app.use('/src', express.static(path.join(clientPath, 'src'), {
+    index: false,
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.js') || filePath.endsWith('.mjs')) {
+            res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
         }
     }
 }));
 
-// Serve src directory for JavaScript modules
-app.use('/src', express.static(path.join(clientPath, 'src'), {
-    setHeaders: (res, path) => {
-        res.setHeader('Content-Type', 'application/javascript');
+// Serve root static files
+app.use(express.static(clientPath, {
+    index: 'index.html',
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.js') || filePath.endsWith('.mjs')) {
+            res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+        }
     }
 }));
 
