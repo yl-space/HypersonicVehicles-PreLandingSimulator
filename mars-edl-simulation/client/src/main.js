@@ -15,6 +15,9 @@ async function initializeApp() {
     try {
         console.log('🚀 Initializing Mars EDL Simulation...');
         
+        // Update loading progress
+        updateLoadingProgress(10, 'Starting simulation...');
+        
         // Create simulation manager
         window.EDLApp.simulation = new SimulationManager();
         
@@ -30,6 +33,20 @@ async function initializeApp() {
     }
 }
 
+// Loading progress helper
+function updateLoadingProgress(progress, message) {
+    const progressBar = document.getElementById('loading-progress');
+    const loadingText = document.getElementById('loading-text');
+    
+    if (progressBar) {
+        progressBar.style.width = `${progress}%`;
+    }
+    
+    if (loadingText) {
+        loadingText.textContent = message;
+    }
+}
+
 // Error display function
 function showError(message) {
     const errorDiv = document.createElement('div');
@@ -38,20 +55,21 @@ function showError(message) {
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        background: rgba(255, 0, 0, 0.9);
+        background: linear-gradient(135deg, #ff4444, #cc0000);
         color: white;
-        padding: 20px;
-        border-radius: 10px;
-        z-index: 10000;
+        padding: 2rem;
+        border-radius: 12px;
+        z-index: 20000;
         text-align: center;
         max-width: 400px;
+        box-shadow: 0 8px 32px rgba(255, 68, 68, 0.3);
     `;
     errorDiv.innerHTML = `
-        <h3>Simulation Error</h3>
-        <p>${message}</p>
+        <h3 style="margin-bottom: 1rem;">🚨 Simulation Error</h3>
+        <p style="margin-bottom: 1.5rem; line-height: 1.5;">${message}</p>
         <button onclick="this.parentElement.remove(); location.reload();" 
-                style="margin-top: 10px; padding: 5px 15px; background: white; color: red; border: none; border-radius: 5px; cursor: pointer;">
-            Reload
+                style="padding: 0.75rem 1.5rem; background: white; color: #cc0000; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+            🔄 Reload Application
         </button>
     `;
     document.body.appendChild(errorDiv);
@@ -96,7 +114,9 @@ document.addEventListener('keydown', (event) => {
             }
             break;
         case 'KeyF':
-            window.EDLApp.simulation.sceneManager.toggleFullscreen();
+            if (window.EDLApp.simulation.sceneManager) {
+                window.EDLApp.simulation.sceneManager.toggleFullscreen();
+            }
             break;
         case 'Escape':
             if (document.fullscreenElement) {
@@ -108,3 +128,4 @@ document.addEventListener('keydown', (event) => {
 
 // Export for global access
 window.EDLApp.initializeApp = initializeApp;
+window.updateLoadingProgress = updateLoadingProgress;
