@@ -33,11 +33,10 @@ export class EntryVehicle {
     createHeatShield() {
         // Main heat shield geometry (aeroshell)
         const heatShieldGeometry = new THREE.ConeGeometry(5, 8, 32);
-        const heatShieldMaterial = new THREE.MeshPhongMaterial({
+        const heatShieldMaterial = new THREE.MeshStandardMaterial({
             color: 0xcccccc,
             emissive: 0x111111,
             emissiveIntensity: 0.1,
-            shininess: 100,
             metalness: 0.3,
             roughness: 0.4
         });
@@ -71,11 +70,10 @@ export class EntryVehicle {
         
         // Primary shell
         const shellGeometry = new THREE.CylinderGeometry(5, 5, 4, 32);
-        const shellMaterial = new THREE.MeshPhongMaterial({
+        const shellMaterial = new THREE.MeshStandardMaterial({
             color: 0xaaaaaa,
             emissive: 0x111111,
             emissiveIntensity: 0.05,
-            shininess: 50,
             metalness: 0.2,
             roughness: 0.6
         });
