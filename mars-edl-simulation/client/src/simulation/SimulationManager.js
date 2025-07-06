@@ -35,7 +35,7 @@ export class SimulationManager {
         
         // Scene objects
         this.entryVehicle = null;
-        this.mars = null;
+        this.jupiter = null;
         this.stars = null;
         
         // UI components
