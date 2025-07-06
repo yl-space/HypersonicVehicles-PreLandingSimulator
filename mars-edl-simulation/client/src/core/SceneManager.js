@@ -1,10 +1,3 @@
-/**
- * SceneManager.js - Core Three.js scene management
- */
-
-import * as THREE from 'three';
-import { CameraController } from './CameraController.js';
-
 export class SceneManager {
     constructor(container) {
         this.container = container;
@@ -25,7 +18,7 @@ export class SceneManager {
             powerPreference: "high-performance"
         });
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -39,7 +32,7 @@ export class SceneManager {
         
         // Setup scene
         this.scene.background = new THREE.Color(0x000005);
-        this.scene.fog = new THREE.FogExp2(0x000005, 0.00001);
+        this.scene.fog = new THREE.FogExp2(0x000005, 0.000001);
         
         // Lighting
         this.setupLighting();
@@ -55,12 +48,6 @@ export class SceneManager {
         sunLight.castShadow = true;
         sunLight.shadow.mapSize.width = 2048;
         sunLight.shadow.mapSize.height = 2048;
-        sunLight.shadow.camera.near = 500;
-        sunLight.shadow.camera.far = 4000;
-        sunLight.shadow.camera.left = -1000;
-        sunLight.shadow.camera.right = 1000;
-        sunLight.shadow.camera.top = 1000;
-        sunLight.shadow.camera.bottom = -1000;
         this.scene.add(sunLight);
         
         // Ambient light
@@ -92,23 +79,11 @@ export class SceneManager {
         this.renderer.render(this.scene, this.cameraController.camera);
     }
     
-    stopRenderLoop() {
-        this.isRendering = false;
-    }
-    
     addToScene(object) {
         if (object.mesh) {
             this.scene.add(object.mesh);
         } else if (object.isObject3D || object.type) {
             this.scene.add(object);
-        }
-    }
-    
-    removeFromScene(object) {
-        if (object.mesh) {
-            this.scene.remove(object.mesh);
-        } else if (object.isObject3D || object.type) {
-            this.scene.remove(object);
         }
     }
     
@@ -129,35 +104,6 @@ export class SceneManager {
             });
         } else {
             document.exitFullscreen();
-        }
-    }
-    
-    setBackgroundColor(color) {
-        this.scene.background = new THREE.Color(color);
-    }
-    
-    getCamera() {
-        return this.cameraController.camera;
-    }
-    
-    getRenderer() {
-        return this.renderer;
-    }
-    
-    getScene() {
-        return this.scene;
-    }
-    
-    dispose() {
-        this.stopRenderLoop();
-        
-        if (this.renderer) {
-            this.renderer.dispose();
-            this.container.removeChild(this.renderer.domElement);
-        }
-        
-        if (this.cameraController) {
-            this.cameraController.dispose();
         }
     }
 }
