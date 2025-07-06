@@ -90,8 +90,8 @@ export class SimulationManager {
     }
     
     createSceneObjects() {
-        // Create Mars
-        this.mars = new Mars();
+        // Create Jupiter
+        this.mars = new Jupiter();
         this.sceneManager.scene.add(this.mars.getObject3D());
         
         // Create stars
@@ -232,7 +232,7 @@ export class SimulationManager {
         // Update entry vehicle effects
         this.entryVehicle.update(this.state.currentTime, this.state.vehicleData);
         
-        // Update Mars rotation
+        // Update Jupiter rotation
         this.mars.update(deltaTime);
         
         // Update trajectory visibility
