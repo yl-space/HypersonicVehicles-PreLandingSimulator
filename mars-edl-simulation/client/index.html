@@ -3,115 +3,406 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mars EDL Simulation</title>
-    <link rel="stylesheet" href="src/styles.css">
+    <meta name="description" content="Experience the Mars Entry, Descent, and Landing simulation with real trajectory data and interactive 3D visualization">
+    <meta name="keywords" content="Mars, EDL, NASA, simulation, 3D, Three.js, space, landing">
+    <meta name="author" content="Mars EDL Simulation Team">
+    
+    <title>Mars EDL Pre-Landing Simulation</title>
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Mars EDL Pre-Landing Simulation">
+    <meta property="og:description" content="Experience the 7 Minutes of Terror - Mars Entry, Descent & Landing">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="/assets/images/mars-edl-preview.jpg">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/assets/images/favicon.png">
+    
+    <!-- Styles -->
+    <style>
+        /* Base Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        /* Canvas Container */
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            background: radial-gradient(ellipse at center, #0a0a0a 0%, #000000 100%);
+        }
+        
+        /* Loading Screen */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        
+        .loading-content {
+            text-align: center;
+        }
+        
+        .loading-spinner {
+            width: 80px;
+            height: 80px;
+            border: 3px solid rgba(255, 102, 0, 0.2);
+            border-top-color: #ff6600;
+            border-radius: 50%;
+            animation: spin 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+            margin: 0 auto 30px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            font-size: 18px;
+            color: #ccc;
+            margin-bottom: 10px;
+        }
+        
+        .loading-progress {
+            width: 200px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            margin: 20px auto;
+            overflow: hidden;
+        }
+        
+        .loading-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6600, #ff8800);
+            width: 0%;
+            transition: width 0.3s;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        /* Header */
+        .header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
+            z-index: 100;
+            pointer-events: none;
+        }
+        
+        .header > * {
+            pointer-events: auto;
+        }
+        
+        .mission-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .nasa-logo {
+            width: 50px;
+            height: 50px;
+            background: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICAgIDxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQ1IiBmaWxsPSIjZmZmIi8+CiAgICA8dGV4dCB4PSI1MCIgeT0iNjUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSI0NSIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiMwMDAiPk48L3RleHQ+Cjwvc3ZnPg==') center/contain no-repeat;
+        }
+        
+        .mission-title {
+            line-height: 1.4;
+        }
+        
+        .mission-title strong {
+            font-size: 20px;
+            font-weight: 600;
+            display: block;
+            letter-spacing: 2px;
+        }
+        
+        .mission-title span {
+            font-size: 14px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .simulation-badge {
+            padding: 8px 20px;
+            background: rgba(255, 102, 0, 0.2);
+            border: 1px solid rgba(255, 102, 0, 0.5);
+            border-radius: 20px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #ff6600;
+            font-weight: 500;
+        }
+        
+        /* Phase Info Panel */
+        #phase-info {
+            position: absolute;
+            top: 100px;
+            left: 40px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 450px;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* Timeline Container */
+        #timeline-container {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 900px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 25px;
+            border-radius: 10px;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .header {
+                padding: 15px 20px;
+            }
+            
+            .mission-title strong {
+                font-size: 16px;
+            }
+            
+            #phase-info {
+                left: 20px;
+                right: 20px;
+                max-width: none;
+                padding: 20px;
+            }
+            
+            #timeline-container {
+                width: 95%;
+                bottom: 20px;
+                padding: 20px;
+            }
+            
+            .simulation-badge {
+                display: none;
+            }
+        }
+        
+        /* Fullscreen Styles */
+        :fullscreen #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        /* Performance Mode */
+        body.performance-mode * {
+            will-change: auto !important;
+            backface-visibility: hidden;
+        }
+        
+        /* No WebGL Fallback */
+        .no-webgl {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            max-width: 500px;
+            padding: 40px;
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 10px;
+            border: 1px solid #ff6600;
+        }
+        
+        .no-webgl h2 {
+            color: #ff6600;
+            margin-bottom: 20px;
+        }
+        
+        .no-webgl p {
+            color: #ccc;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        
+        /* Accessibility */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        
+        /* Focus Styles */
+        button:focus,
+        a:focus,
+        input:focus,
+        select:focus {
+            outline: 2px solid #ff6600;
+            outline-offset: 2px;
+        }
+        
+        /* Print Styles */
+        @media print {
+            body {
+                background: white;
+                color: black;
+            }
+            
+            .header,
+            #timeline-container,
+            .camera-controls,
+            .zoom-controls,
+            .settings-panel {
+                display: none !important;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div id="app-container">
-        <!-- Loading Screen -->
-        <div id="loading-screen">
-            <div class="loading-content">
-                <div class="loading-logo">
-                    <svg viewBox="0 0 100 100">
-                        <circle cx="50" cy="50" r="45" fill="#cd5c5c"/>
-                        <circle cx="50" cy="50" r="35" fill="none" stroke="#ff6b00" stroke-width="2"/>
-                    </svg>
-                </div>
-                <h1 class="loading-title">MARS EDL SIMULATION</h1>
-                <div class="loading-progress-container">
-                    <div class="loading-progress" id="loading-progress"></div>
-                </div>
-                <div class="loading-text" id="loading-text">Loading Three.js...</div>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Loading Mars EDL Simulation...</div>
+            <div class="loading-progress">
+                <div class="loading-bar" id="loading-bar"></div>
             </div>
-        </div>
-
-        <!-- Canvas -->
-        <div id="canvas-container"></div>
-
-        <!-- UI Overlay -->
-        <div id="ui-overlay">
-            <!-- Stats -->
-            <div id="stats-panel" class="ui-panel stats-panel hidden">
-                <h3>Telemetry</h3>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <span>Time:</span>
-                        <span id="current-time">0.00s</span>
-                    </div>
-                    <div class="stat-item">
-                        <span>Altitude:</span>
-                        <span id="current-altitude">132.0km</span>
-                    </div>
-                    <div class="stat-item">
-                        <span>Velocity:</span>
-                        <span id="current-velocity">5800m/s</span>
-                    </div>
-                    <div class="stat-item">
-                        <span>G-Force:</span>
-                        <span id="current-gforce">0.0g</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Phase Info -->
-            <div id="phase-info" class="ui-panel phase-info hidden">
-                <h3 id="phase-title">Entry Interface</h3>
-                <p id="phase-description">Atmospheric entry begins at 132km altitude.</p>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <span>Phase:</span>
-                        <span id="current-phase">Entry</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Controls -->
-            <div id="control-panel" class="ui-panel control-panel hidden">
-                <h3>Controls</h3>
-                <div class="control-buttons">
-                    <button id="play-pause-btn" class="button">▶ Play</button>
-                    <button id="reset-btn" class="button">↻ Reset</button>
-                </div>
-                <div class="control-group">
-                    <label>Speed: <span id="speed-value">1.0x</span></label>
-                    <input type="range" id="speed-slider" class="slider" min="0.1" max="10" step="0.1" value="1">
-                </div>
-                <div class="control-group">
-                    <label>Camera:</label>
-                    <div class="camera-controls">
-                        <button class="camera-btn active" data-mode="FREE">Free</button>
-                        <button class="camera-btn" data-mode="FOLLOW">Follow</button>
-                        <button class="camera-btn" data-mode="CINEMATIC">Cinematic</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Timeline -->
-            <div id="timeline-container" class="ui-panel timeline-container hidden">
-                <input type="range" id="timeline-slider" class="slider" min="0" max="260.65" step="0.1" value="0">
-                <div class="timeline-phases">
-                    <span>Entry</span>
-                    <span>Heating</span>
-                    <span>Deceleration</span>
-                    <span>Parachute</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Intro Modal -->
-        <div id="intro-modal" class="intro-modal hidden">
-            <div class="intro-content">
-                <h2>Mars Entry, Descent & Landing</h2>
-                <p>Experience the 7 minutes of terror using real MSL trajectory data.</p>
-                <button id="start-simulation-btn" class="button">🚀 Start Simulation</button>
+            <div id="loading-status" style="font-size: 12px; color: #666; margin-top: 10px;">
+                Initializing...
             </div>
         </div>
     </div>
 
+    <!-- Main Canvas Container -->
+    <div id="canvas-container" role="application" aria-label="Mars EDL 3D Simulation"></div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="mission-info">
+            <div class="nasa-logo" role="img" aria-label="NASA Logo"></div>
+            <div class="mission-title">
+                <strong>MARS 2020</strong>
+                <span>Entry Descent Landing</span>
+            </div>
+        </div>
+        <div class="simulation-badge">PRE-LANDING SIMULATION</div>
+    </header>
+
+    <!-- Phase Information Panel -->
+    <div id="phase-info" role="region" aria-label="Mission Phase Information"></div>
+
+    <!-- Timeline Controls -->
+    <div id="timeline-container" role="region" aria-label="Simulation Timeline Controls"></div>
+
+    <!-- Screen Reader Announcements -->
+    <div class="sr-only" role="status" aria-live="polite" aria-atomic="true" id="sr-announcements"></div>
+
+    <!-- No WebGL Support Message -->
+    <noscript>
+        <div class="no-webgl">
+            <h2>JavaScript Required</h2>
+            <p>This simulation requires JavaScript to be enabled in your browser.</p>
+            <p>Please enable JavaScript and refresh the page to continue.</p>
+        </div>
+    </noscript>
+
     <!-- Three.js -->
-    <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
-    
-    <!-- App -->
-    <script type="module" src="src/main.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js"
+        }
+    }
+    </script>
+
+    <!-- Main Application -->
+    <script type="module">
+        // Loading simulation
+        const loadingBar = document.getElementById('loading-bar');
+        const loadingStatus = document.getElementById('loading-status');
+        
+        // Simulate loading progress
+        const updateLoading = (progress, status) => {
+            loadingBar.style.width = `${progress}%`;
+            loadingStatus.textContent = status;
+        };
+        
+        // Loading stages
+        setTimeout(() => updateLoading(20, 'Loading Three.js...'), 100);
+        setTimeout(() => updateLoading(40, 'Creating scene...'), 500);
+        setTimeout(() => updateLoading(60, 'Loading trajectory data...'), 1000);
+        setTimeout(() => updateLoading(80, 'Initializing controls...'), 1500);
+        setTimeout(() => updateLoading(100, 'Ready!'), 2000);
+        
+        // Import main application
+        import('./src/main.js').catch(error => {
+            console.error('Failed to load application:', error);
+            document.getElementById('loading-screen').innerHTML = `
+                <div class="no-webgl">
+                    <h2>Loading Error</h2>
+                    <p>Failed to load the simulation. Please check your internet connection and refresh the page.</p>
+                    <p style="font-size: 12px; color: #666;">Error: ${error.message}</p>
+                    <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #ff6600; border: none; color: white; border-radius: 5px; cursor: pointer;">
+                        Reload Page
+                    </button>
+                </div>
+            `;
+        });
+    </script>
+
+    <!-- Analytics (optional) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'GA_MEASUREMENT_ID');
+    </script>
 </body>
 </html>
