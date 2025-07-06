@@ -233,8 +233,8 @@ export class SimulationManager {
         this.entryVehicle.update(this.state.currentTime, this.state.vehicleData);
         
         // Update Jupiter rotation
-        this.mars.update(deltaTime);
-        
+        this.jupiter.update(deltaTime);
+
         // Update trajectory visibility
         this.trajectoryManager.updateTrajectoryVisibility(this.state.currentTime);
         
@@ -351,7 +351,7 @@ export class SimulationManager {
         this.sceneManager.dispose();
         this.trajectoryManager.dispose();
         this.entryVehicle.dispose();
-        this.mars.dispose();
+        this.jupiter.dispose();
         this.stars.dispose();
         
         // Remove event listeners
