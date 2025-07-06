@@ -161,7 +161,7 @@
  * Server entry point
  */
 
-import app from './server.js';
+import app from '../server.js';
 
 // Export for module usage
 export default app;
