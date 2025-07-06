@@ -16,6 +16,8 @@ import telemetryAPI from './api/telemetry.js';
 import multer from 'multer';
 import app from './server.js';
 
+// Export for module usage
+export default app;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
