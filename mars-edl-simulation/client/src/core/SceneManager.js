@@ -68,9 +68,9 @@ export class SceneManager {
         this.scene.add(this.lights.sun);
         
         // Jupiter surface reflection light (subtle orange)
-        this.lights.marsReflection = new THREE.DirectionalLight(0xB87333, 0.2);
-        this.lights.marsReflection.position.set(-2000, -5000, -2000);
-        this.scene.add(this.lights.marsReflection);
+        this.lights.jupiterReflection = new THREE.DirectionalLight(0xB87333, 0.2);
+        this.lights.jupiterReflection.position.set(-2000, -5000, -2000);
+        this.scene.add(this.lights.jupiterReflection);
         
         // Rim light for spacecraft visibility
         this.lights.rim = new THREE.DirectionalLight(0x8888ff, 0.3);
@@ -99,7 +99,7 @@ export class SceneManager {
         this.lights.sun.intensity = 1.2 - atmosphereEffect * 0.2;
         
         // Increase Jupiter reflection when closer to surface
-        this.lights.marsReflection.intensity = 0.2 + (1 - atmosphereEffect) * 0.3;
+        this.lights.jupiterReflection.intensity = 0.2 + (1 - atmosphereEffect) * 0.3;
     }
     
     dispose() {
