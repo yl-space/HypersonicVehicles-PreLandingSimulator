@@ -121,8 +121,7 @@ hypersonic-vehicle-simulation/
 
 ### Planets
 - **Mars**: Thin CO₂ atmosphere, dust storms
-- **Venus**: Dense atmosphere, extreme pressure
-- **Earth**: Reference atmosphere model
+
 
 ### Vehicle Types
 - **Blunt Body Capsules**: Apollo, Orion style
