@@ -8,7 +8,7 @@ export { CameraController } from './client/src/core/CameraController.js';
 // Component exports
 export { EntryVehicle } from './client/src/components/spacecraft/EntryVehicle.js';
 export { Parachute } from './client/src/components/spacecraft/Parachute.js';
-export { Mars } from './client/src/components/environment/Mars.js';
+export { Mars } from './client/src/components/environment/Planet.js';
 export { Stars } from './client/src/components/environment/Stars.js';
 
 // Simulation exports
