@@ -1,5 +1,6 @@
 .vscode/settings.json
 # Ignore Visual Studio Code settings
+.vscode
 .vscode/*
 node_modules/
 dist/
