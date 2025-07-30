@@ -101,8 +101,8 @@ export class SceneManager {
         
         // this.renderer.setSize(width, height);
         if (this.composer) {
-    this.composer.setSize(window.innerWidth, window.innerHeight);
-}
+            this.composer.setSize(window.innerWidth, window.innerHeight);
+        }
     }
     
     render(camera) {
