@@ -96,8 +96,8 @@ export class SceneManager {
     }
     
     handleResize() {
-        const width = window.innerWidth;
-        const height = window.innerHeight;
+        // const width = window.innerWidth;
+        // const height = window.innerHeight;
         
         // this.renderer.setSize(width, height);
         if (this.composer) {
