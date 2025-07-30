@@ -12,6 +12,7 @@ export class SceneManager {
         this.renderer = null;
         this.lights = {};
         
+        
         this.init();
     }
     
