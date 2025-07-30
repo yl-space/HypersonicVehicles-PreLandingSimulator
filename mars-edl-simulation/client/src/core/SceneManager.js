@@ -44,7 +44,7 @@ export class SceneManager {
 
         
         this.container.appendChild(this.renderer.domElement);
-        
+
         // Setup post-processing
         this.setupPostProcessing();
         
@@ -65,16 +65,16 @@ export class SceneManager {
         this.lights.sun.position.set(5000, 10000, 5000);
         this.lights.sun.castShadow = true;
         
-        // Shadow settings for sun
-        this.lights.sun.shadow.mapSize.width = 2048;
-        this.lights.sun.shadow.mapSize.height = 2048;
-        this.lights.sun.shadow.camera.near = 1;
-        this.lights.sun.shadow.camera.far = 50000;
-        this.lights.sun.shadow.camera.left = -5000;
-        this.lights.sun.shadow.camera.right = 5000;
-        this.lights.sun.shadow.camera.top = 5000;
-        this.lights.sun.shadow.camera.bottom = -5000;
-        this.lights.sun.shadow.bias = -0.0005;
+        // // Shadow settings for sun
+        // this.lights.sun.shadow.mapSize.width = 2048;
+        // this.lights.sun.shadow.mapSize.height = 2048;
+        // this.lights.sun.shadow.camera.near = 1;
+        // this.lights.sun.shadow.camera.far = 50000;
+        // this.lights.sun.shadow.camera.left = -5000;
+        // this.lights.sun.shadow.camera.right = 5000;
+        // this.lights.sun.shadow.camera.top = 5000;
+        // this.lights.sun.shadow.camera.bottom = -5000;
+        // this.lights.sun.shadow.bias = -0.0005;
         
         this.scene.add(this.lights.sun);
         
