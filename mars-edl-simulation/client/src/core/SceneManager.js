@@ -108,6 +108,19 @@ export class SceneManager {
         // Increase Jupiter reflection when closer to surface
         this.lights.jupiterReflection.intensity = 0.2 + (1 - atmosphereEffect) * 0.3;
     }
+    // Post-processing setup
+    setupPostProcessing() {
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    
+    const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.5,  // strength
+        0.4,  // radius
+        0.85  // threshold
+    );
+    this.composer.addPass(bloomPass);
+}
     
     dispose() {
         window.removeEventListener('resize', this.handleResize);
