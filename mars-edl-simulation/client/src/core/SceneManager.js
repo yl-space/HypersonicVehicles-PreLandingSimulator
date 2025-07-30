@@ -42,6 +42,7 @@ export class SceneManager {
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1;
         
+        
         this.container.appendChild(this.renderer.domElement);
         
         // Setup lighting
