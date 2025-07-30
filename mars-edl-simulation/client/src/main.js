@@ -3,7 +3,7 @@
  * Main entry point for Jupiter EDL Simulation
  */
 
-import { SimulationManager } from '../src/simulation/SimulationManager.js';
+import { SimulationManager } from './simulation/SimulationManager.js';
 
 // Global app state
 window.JupiterEDL = {
