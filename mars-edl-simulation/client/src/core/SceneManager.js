@@ -105,10 +105,10 @@ export class SceneManager {
     render(camera) {
         // this.renderer.render(this.scene, camera);
         if (this.composer) {
-    this.composer.render();
-} else {
-    this.renderer.render(this.scene, this.camera);
-}
+            this.composer.render();
+        } else {
+            this.renderer.render(this.scene, this.camera);
+        }
     }
     
     // Update lighting based on altitude and phase
