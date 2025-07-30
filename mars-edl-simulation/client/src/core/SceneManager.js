@@ -82,7 +82,6 @@ export class SceneManager {
         this.scene.add(this.lights.sun);
         
         // Jupiter surface reflection light (subtle orange)
-         
         this.lights.jupiterReflection = new THREE.DirectionalLight(0xB87333, 0.2);
         this.lights.jupiterReflection.position.set(-2000, -5000, -2000);
         this.scene.add(this.lights.jupiterReflection);
