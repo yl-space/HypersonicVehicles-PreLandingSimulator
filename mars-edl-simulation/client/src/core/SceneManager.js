@@ -41,9 +41,12 @@ export class SceneManager {
         this.renderer.outputEncoding = THREE.sRGBEncoding;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1;
-        
+
         
         this.container.appendChild(this.renderer.domElement);
+        
+        // Setup post-processing
+        this.setupPostProcessing();
         
         // Setup lighting
         this.setupLighting();
