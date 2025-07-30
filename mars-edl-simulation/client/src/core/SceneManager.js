@@ -63,6 +63,9 @@ export class SceneManager {
         // Sun light (main directional light)
         this.lights.sun = new THREE.DirectionalLight(0xffffff, 1.2);
         this.lights.sun.position.set(5000, 10000, 5000);
+        sunLight.intensity = 2.0; // Increase intensity
+        sunLight.shadow.mapSize.width = 4096; // Higher quality shadows
+        sunLight.shadow.mapSize.height = 4096;
         this.lights.sun.castShadow = true;
         
         // // Shadow settings for sun
