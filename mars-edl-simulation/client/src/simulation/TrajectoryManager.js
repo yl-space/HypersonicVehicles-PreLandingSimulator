@@ -12,6 +12,12 @@ export class TrajectoryManager {
         this.currentIndex = 0;
         this.totalTime = 260.65;
         this.jupiterRadius = 3389.5; // km
+        this.modifiedData = JSON.parse(JSON.stringify(trajectoryData)); // Deep copy
+        this.deflectionPoints = [];
+        this.deflectionMarkers = [];
+        this.pastTrajectory = null;
+        this.futureTrajectory = null;
+
         
         // Landing site coordinates (Jezero Crater)
         this.landingSite = {
@@ -46,9 +52,224 @@ export class TrajectoryManager {
             linewidth: 2
         });
         
+        // Add split trajectory for past/future:
+        const pastMaterial = new THREE.LineBasicMaterial({
+            color: 0xff0000,
+            linewidth: 3,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        const futureMaterial = new THREE.LineBasicMaterial({
+            color: 0x00ff00,
+            linewidth: 3,
+            transparent: true,
+            opacity: 0.6
+        });
+        
+        this.pastTrajectory = new THREE.Line(new THREE.BufferGeometry(), pastMaterial);
+        this.futureTrajectory = new THREE.Line(new THREE.BufferGeometry(), futureMaterial);
+
         const geometry = new THREE.BufferGeometry();
         this.trajectoryLine = new THREE.Line(geometry, material);
+        this.trajectoryGroup.add(this.pastTrajectory);
+        this.trajectoryGroup.add(this.futureTrajectory);
+        
     }
+
+    updateTrajectoryDisplay(currentTime) {
+        // Find current index
+        let currentIndex = 0;
+        for (let i = 0; i < this.modifiedData.length - 1; i++) {
+            if (this.modifiedData[i].Time <= currentTime && 
+                this.modifiedData[i + 1].Time > currentTime) {
+                currentIndex = i;
+                break;
+            }
+        }
+        
+        // Split points
+        const pastPoints = [];
+        const futurePoints = [];
+        
+        // Past trajectory
+        for (let i = 0; i <= currentIndex; i++) {
+            pastPoints.push(new THREE.Vector3(
+                this.modifiedData[i].x,
+                this.modifiedData[i].y,
+                this.modifiedData[i].z
+            ));
+        }
+        
+        // Add interpolated current position
+        if (currentIndex < this.modifiedData.length - 1) {
+            const t = (currentTime - this.modifiedData[currentIndex].Time) /
+                    (this.modifiedData[currentIndex + 1].Time - this.modifiedData[currentIndex].Time);
+            
+            const currentPos = new THREE.Vector3().lerpVectors(
+                new THREE.Vector3(this.modifiedData[currentIndex].x, this.modifiedData[currentIndex].y, this.modifiedData[currentIndex].z),
+                new THREE.Vector3(this.modifiedData[currentIndex + 1].x, this.modifiedData[currentIndex + 1].y, this.modifiedData[currentIndex + 1].z),
+                t
+            );
+            
+            pastPoints.push(currentPos);
+            futurePoints.push(currentPos);
+        }
+        
+        // Future trajectory
+        for (let i = currentIndex + 1; i < this.modifiedData.length; i++) {
+            futurePoints.push(new THREE.Vector3(
+                this.modifiedData[i].x,
+                this.modifiedData[i].y,
+                this.modifiedData[i].z
+            ));
+        }
+        
+        // Update geometries
+        if (pastPoints.length > 1) {
+            this.pastTrajectory.geometry.setFromPoints(pastPoints);
+        }
+        
+        if (futurePoints.length > 1) {
+            this.futureTrajectory.geometry.setFromPoints(futurePoints);
+        }
+    }
+
+    // 4. Add deflection method:
+    applyDeflection(mouseCoords, currentTime, camera) {
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(mouseCoords, camera);
+        
+        const intersects = raycaster.intersectObject(this.futureTrajectory);
+        if (intersects.length === 0) return false;
+        
+        // Find closest trajectory point
+        const hitPoint = intersects[0].point;
+        let deflectionIndex = -1;
+        let minDistance = Infinity;
+        
+        for (let i = 0; i < this.modifiedData.length; i++) {
+            if (this.modifiedData[i].Time < currentTime) continue;
+            
+            const point = new THREE.Vector3(
+                this.modifiedData[i].x,
+                this.modifiedData[i].y,
+                this.modifiedData[i].z
+            );
+            
+            const distance = point.distanceTo(hitPoint);
+            if (distance < minDistance && distance < 50000) {
+                minDistance = distance;
+                deflectionIndex = i;
+            }
+        }
+        
+        if (deflectionIndex === -1) return false;
+        
+        // Perform deflection
+        this.performDeflection(deflectionIndex);
+        this.addDeflectionMarker(hitPoint, deflectionIndex);
+        
+        return true;
+    }
+
+    // 5. Add deflection calculation:
+    performDeflection(startIndex) {
+        const deflectionAngle = 0.1; // 10% deflection
+        
+        if (startIndex === 0 || startIndex >= this.modifiedData.length - 1) return;
+        
+        const deflectionPoint = new THREE.Vector3(
+            this.modifiedData[startIndex].x,
+            this.modifiedData[startIndex].y,
+            this.modifiedData[startIndex].z
+        );
+        
+        const prevPoint = new THREE.Vector3(
+            this.modifiedData[startIndex - 1].x,
+            this.modifiedData[startIndex - 1].y,
+            this.modifiedData[startIndex - 1].z
+        );
+        
+        // Calculate deflection direction
+        const velocity = new THREE.Vector3().subVectors(deflectionPoint, prevPoint).normalize();
+        const radialIn = deflectionPoint.clone().normalize().negate();
+        const deflectionAxis = new THREE.Vector3().crossVectors(velocity, radialIn).normalize();
+        
+        const rotation = new THREE.Quaternion().setFromAxisAngle(deflectionAxis, deflectionAngle);
+        
+        // Apply to subsequent points
+        for (let i = startIndex; i < this.modifiedData.length; i++) {
+            const point = new THREE.Vector3(
+                this.modifiedData[i].x,
+                this.modifiedData[i].y,
+                this.modifiedData[i].z
+            );
+            
+            // Rotate around deflection point
+            point.sub(deflectionPoint);
+            point.applyQuaternion(rotation);
+            point.add(deflectionPoint);
+            
+            // Add gravity effect
+            const gravityFactor = 1 + (i - startIndex) * 0.00005;
+            const newRadius = point.length() / gravityFactor;
+            point.normalize().multiplyScalar(newRadius);
+            
+            this.modifiedData[i].x = point.x;
+            this.modifiedData[i].y = point.y;
+            this.modifiedData[i].z = point.z;
+        }
+        
+        this.deflectionPoints.push({
+            index: startIndex,
+            position: deflectionPoint.clone()
+        });
+    }
+
+    // 6. Add visual marker:
+    addDeflectionMarker(position, index) {
+        const markerGeometry = new THREE.SphereGeometry(5000, 16, 16);
+        const markerMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffff00,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        marker.position.copy(position);
+        marker.userData = { time: 0, active: true };
+        
+        this.deflectionMarkers.push(marker);
+        this.trajectoryGroup.add(marker);
+    }
+
+    // 7. Add marker animation:
+    animateMarkers(deltaTime) {
+        this.deflectionMarkers.forEach(marker => {
+            if (!marker.userData.active) return;
+            
+            marker.userData.time += deltaTime;
+            
+            // Pulsing
+            const scale = 1 + Math.sin(marker.userData.time * 3) * 0.3;
+            marker.scale.setScalar(scale);
+            
+            // Fade after 10 seconds
+            if (marker.userData.time > 10) {
+                marker.material.opacity = Math.max(0, 1 - (marker.userData.time - 10) / 5);
+                if (marker.material.opacity <= 0) {
+                    marker.userData.active = false;
+                    this.trajectoryGroup.remove(marker);
+                    marker.geometry.dispose();
+                    marker.material.dispose();
+                }
+            }
+        });
+        
+        this.deflectionMarkers = this.deflectionMarkers.filter(m => m.userData.active);
+    }
+
     
     async loadTrajectoryData(csvFile) {
         try {
