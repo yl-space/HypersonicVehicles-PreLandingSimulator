@@ -82,11 +82,13 @@ export class SceneManager {
         this.scene.add(this.lights.sun);
         
         // Jupiter surface reflection light (subtle orange)
-        const hemiLight = new THREE.HemisphereLight(0xff6b4a, 0x000033, 0.5);
-        this.scene.add(hemiLight);  
+         
         this.lights.jupiterReflection = new THREE.DirectionalLight(0xB87333, 0.2);
         this.lights.jupiterReflection.position.set(-2000, -5000, -2000);
         this.scene.add(this.lights.jupiterReflection);
+        // Hemisphere light for ambient effect
+        const hemiLight = new THREE.HemisphereLight(0xff6b4a, 0x000033, 0.5);
+        this.scene.add(hemiLight); 
         
         // Rim light for spacecraft visibility
         this.lights.rim = new THREE.DirectionalLight(0x8888ff, 0.3);
