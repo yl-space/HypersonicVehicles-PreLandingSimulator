@@ -120,7 +120,7 @@ export class SceneManager {
         0.85  // threshold
     );
     this.composer.addPass(bloomPass);
-}
+    }
     
     dispose() {
         window.removeEventListener('resize', this.handleResize);
