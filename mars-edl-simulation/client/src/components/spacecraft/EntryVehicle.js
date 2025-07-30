@@ -16,7 +16,8 @@ export class EntryVehicle {
             heatShieldAttached: true,
             parachuteDeployed: false,
             thrustersActive: false,
-            heatLevel: 0
+            heatLevel: 0,
+            isDeflected: false
         };
         
         this.init();
@@ -284,6 +285,63 @@ export class EntryVehicle {
         
         return new THREE.CanvasTexture(canvas);
     }
+
+    onDeflection() {
+        this.state.isDeflected = true;
+        const flashDuration = 500;
+        const startTime = Date.now();
+        
+        // Save original materials
+        const originalBackshellEmissive = this.components.backshell.children[0].material.emissive.clone();
+        const originalHeatShieldEmissive = this.components.heatShield.material.emissive.clone();
+        
+        const flash = () => {
+            const elapsed = Date.now() - startTime;
+            if (elapsed < flashDuration) {
+                const intensity = Math.sin((elapsed / flashDuration) * Math.PI);
+                
+                // Flash vehicle yellow
+                const flashColor = new THREE.Color(1, 1, 0);
+                
+                // Flash backshell
+                this.components.backshell.children[0].material.emissive = flashColor;
+                this.components.backshell.children[0].material.emissiveIntensity = intensity * 0.5;
+                
+                // Flash heat shield if still attached
+                if (this.state.heatShieldAttached) {
+                    this.components.heatShield.material.emissive = flashColor;
+                    this.components.heatShield.material.emissiveIntensity = intensity * 0.5;
+                }
+                
+                // Fire all thrusters during deflection
+                this.effects.thrusters.forEach(thruster => {
+                    thruster.visible = true;
+                    thruster.scale.y = 1.5 + intensity * 0.5;
+                    thruster.material.opacity = 0.8 + intensity * 0.2;
+                });
+                
+                requestAnimationFrame(flash);
+            } else {
+                // Reset to original colors
+                this.components.backshell.children[0].material.emissive = originalBackshellEmissive;
+                this.components.backshell.children[0].material.emissiveIntensity = 0.05;
+                
+                if (this.state.heatShieldAttached) {
+                    this.components.heatShield.material.emissive = originalHeatShieldEmissive;
+                    this.components.heatShield.material.emissiveIntensity = 0.1;
+                }
+                
+                // Hide thrusters if not active
+                if (!this.state.thrustersActive) {
+                    this.effects.thrusters.forEach(thruster => {
+                        thruster.visible = false;
+                    });
+                }
+            }
+        };
+        
+        flash();
+    }
     
     // Update methods
     update(time, data) {
@@ -346,6 +404,11 @@ export class EntryVehicle {
             this.effects.thrusters.forEach(thruster => {
                 thruster.visible = false;
             });
+        }
+
+        // Reset deflection state after animation
+        if (this.state.isDeflected && Date.now() - this.lastDeflectionTime > 1000) {
+            this.state.isDeflected = false;
         }
     }
     

@@ -12,11 +12,13 @@ export class TrajectoryManager {
         this.currentIndex = 0;
         this.totalTime = 260.65;
         this.jupiterRadius = 3389.5; // km
-        this.modifiedData = JSON.parse(JSON.stringify(trajectoryData)); // Deep copy
+        // this.modifiedData = JSON.parse(JSON.stringify(trajectoryData)); // Deep copy
+        this.modifiedData = [];
         this.deflectionPoints = [];
         this.deflectionMarkers = [];
         this.pastTrajectory = null;
         this.futureTrajectory = null;
+        this.trajectoryGroup = new THREE.Group();
 
         
         // Landing site coordinates (Jezero Crater)
@@ -78,37 +80,31 @@ export class TrajectoryManager {
     }
 
     updateTrajectoryDisplay(currentTime) {
-        // Find current index
         let currentIndex = 0;
         for (let i = 0; i < this.modifiedData.length - 1; i++) {
-            if (this.modifiedData[i].Time <= currentTime && 
-                this.modifiedData[i + 1].Time > currentTime) {
+            if (this.modifiedData[i].time <= currentTime && 
+                this.modifiedData[i + 1].time > currentTime) {
                 currentIndex = i;
                 break;
             }
         }
         
-        // Split points
         const pastPoints = [];
         const futurePoints = [];
         
         // Past trajectory
         for (let i = 0; i <= currentIndex; i++) {
-            pastPoints.push(new THREE.Vector3(
-                this.modifiedData[i].x,
-                this.modifiedData[i].y,
-                this.modifiedData[i].z
-            ));
+            pastPoints.push(this.modifiedData[i].position);
         }
         
         // Add interpolated current position
         if (currentIndex < this.modifiedData.length - 1) {
-            const t = (currentTime - this.modifiedData[currentIndex].Time) /
-                    (this.modifiedData[currentIndex + 1].Time - this.modifiedData[currentIndex].Time);
+            const t = (currentTime - this.modifiedData[currentIndex].time) /
+                    (this.modifiedData[currentIndex + 1].time - this.modifiedData[currentIndex].time);
             
             const currentPos = new THREE.Vector3().lerpVectors(
-                new THREE.Vector3(this.modifiedData[currentIndex].x, this.modifiedData[currentIndex].y, this.modifiedData[currentIndex].z),
-                new THREE.Vector3(this.modifiedData[currentIndex + 1].x, this.modifiedData[currentIndex + 1].y, this.modifiedData[currentIndex + 1].z),
+                this.modifiedData[currentIndex].position,
+                this.modifiedData[currentIndex + 1].position,
                 t
             );
             
@@ -118,14 +114,9 @@ export class TrajectoryManager {
         
         // Future trajectory
         for (let i = currentIndex + 1; i < this.modifiedData.length; i++) {
-            futurePoints.push(new THREE.Vector3(
-                this.modifiedData[i].x,
-                this.modifiedData[i].y,
-                this.modifiedData[i].z
-            ));
+            futurePoints.push(this.modifiedData[i].position);
         }
         
-        // Update geometries
         if (pastPoints.length > 1) {
             this.pastTrajectory.geometry.setFromPoints(pastPoints);
         }
@@ -149,7 +140,7 @@ export class TrajectoryManager {
         let minDistance = Infinity;
         
         for (let i = 0; i < this.modifiedData.length; i++) {
-            if (this.modifiedData[i].Time < currentTime) continue;
+            if (this.modifiedData[i].time < currentTime) continue;
             
             const point = new THREE.Vector3(
                 this.modifiedData[i].x,
@@ -175,36 +166,21 @@ export class TrajectoryManager {
 
     // 5. Add deflection calculation:
     performDeflection(startIndex) {
-        const deflectionAngle = 0.1; // 10% deflection
+        const deflectionAngle = 0.1;
         
         if (startIndex === 0 || startIndex >= this.modifiedData.length - 1) return;
         
-        const deflectionPoint = new THREE.Vector3(
-            this.modifiedData[startIndex].x,
-            this.modifiedData[startIndex].y,
-            this.modifiedData[startIndex].z
-        );
+        const deflectionPoint = this.modifiedData[startIndex].position.clone();
+        const prevPoint = this.modifiedData[startIndex - 1].position.clone();
         
-        const prevPoint = new THREE.Vector3(
-            this.modifiedData[startIndex - 1].x,
-            this.modifiedData[startIndex - 1].y,
-            this.modifiedData[startIndex - 1].z
-        );
-        
-        // Calculate deflection direction
         const velocity = new THREE.Vector3().subVectors(deflectionPoint, prevPoint).normalize();
         const radialIn = deflectionPoint.clone().normalize().negate();
         const deflectionAxis = new THREE.Vector3().crossVectors(velocity, radialIn).normalize();
         
         const rotation = new THREE.Quaternion().setFromAxisAngle(deflectionAxis, deflectionAngle);
         
-        // Apply to subsequent points
         for (let i = startIndex; i < this.modifiedData.length; i++) {
-            const point = new THREE.Vector3(
-                this.modifiedData[i].x,
-                this.modifiedData[i].y,
-                this.modifiedData[i].z
-            );
+            const point = this.modifiedData[i].position.clone();
             
             // Rotate around deflection point
             point.sub(deflectionPoint);
@@ -216,9 +192,9 @@ export class TrajectoryManager {
             const newRadius = point.length() / gravityFactor;
             point.normalize().multiplyScalar(newRadius);
             
-            this.modifiedData[i].x = point.x;
-            this.modifiedData[i].y = point.y;
-            this.modifiedData[i].z = point.z;
+            // Update the data structure
+            this.modifiedData[i].position = point;
+            this.modifiedData[i].altitude = point.length() - this.jupiterRadius;
         }
         
         this.deflectionPoints.push({
@@ -316,6 +292,7 @@ export class TrajectoryManager {
                     });
                 }
             }
+            this.modifiedData = JSON.parse(JSON.stringify(this.trajectoryData));
             
             this.updateTrajectoryLine();
             console.log(`Loaded ${this.trajectoryData.length} trajectory points`);
@@ -326,6 +303,8 @@ export class TrajectoryManager {
             this.generateSampleTrajectory();
         }
     }
+
+
     
     generateSampleTrajectory() {
         const numPoints = 5211;
@@ -412,26 +391,24 @@ export class TrajectoryManager {
     }
     
     getInterpolatedData(time) {
-        if (this.trajectoryData.length === 0) return null;
+        // CHANGE: Use modifiedData instead of trajectoryData
+        if (this.modifiedData.length === 0) return null;
         
-        // Clamp time
         time = Math.max(0, Math.min(time, this.totalTime));
         
-        // Find surrounding data points
         let i = 0;
-        while (i < this.trajectoryData.length - 1 && this.trajectoryData[i].time < time) {
+        while (i < this.modifiedData.length - 1 && this.modifiedData[i].time < time) {
             i++;
         }
         
-        if (i === 0) return this.trajectoryData[0];
-        if (i >= this.trajectoryData.length) return this.trajectoryData[this.trajectoryData.length - 1];
+        if (i === 0) return this.modifiedData[0];
+        if (i >= this.modifiedData.length) return this.modifiedData[this.modifiedData.length - 1];
         
         // Interpolate between points
-        const d1 = this.trajectoryData[i - 1];
-        const d2 = this.trajectoryData[i];
+        const d1 = this.modifiedData[i - 1];
+        const d2 = this.modifiedData[i];
         const t = (time - d1.time) / (d2.time - d1.time);
         
-        // Smooth interpolation using cubic ease
         const smoothT = t < 0.5 
             ? 4 * t * t * t 
             : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -444,11 +421,12 @@ export class TrajectoryManager {
             distanceToLanding: d1.distanceToLanding + (d2.distanceToLanding - d1.distanceToLanding) * smoothT
         };
     }
+
     
     // Get velocity vector for orientation
     getVelocityVector(time) {
-        const dt = 0.1; // Small time step
-        const currentData = this.getInterpolatedData(time);
+        const dt = 0.1;
+        const currentData = this.getInterpolatedData(time); // This now uses modifiedData
         const futureData = this.getInterpolatedData(time + dt);
         
         if (!currentData || !futureData) return new THREE.Vector3(0, -1, 0);
@@ -510,5 +488,19 @@ export class TrajectoryManager {
             this.trajectoryLine.geometry.dispose();
             this.trajectoryLine.material.dispose();
         }
+    }
+
+    reset() {
+    this.modifiedData = JSON.parse(JSON.stringify(this.trajectoryData));
+    
+    // Clear markers
+    this.deflectionMarkers.forEach(marker => {
+        this.trajectoryGroup.remove(marker);
+        if (marker.geometry) marker.geometry.dispose();
+        if (marker.material) marker.material.dispose();
+    });
+    
+    this.deflectionMarkers = [];
+    this.deflectionPoints = [];
     }
 }

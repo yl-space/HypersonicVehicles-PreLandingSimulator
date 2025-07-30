@@ -14,7 +14,7 @@ export class SceneManager {
         this.scene = null;
         this.renderer = null;
         this.lights = {};
-        this.renderer.logarithmicDepthBuffer = true; // For large scale distances
+        // this.renderer.logarithmicDepthBuffer = true; // For large scale distances
         this.renderer.outputEncoding = THREE.sRGBEncoding;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 0.8;
@@ -31,7 +31,8 @@ export class SceneManager {
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
             alpha: true,
-            powerPreference: "high-performance"
+            powerPreference: "high-performance",
+            logarithmicDepthBuffer: true
         });
         
         this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -40,7 +41,7 @@ export class SceneManager {
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.outputEncoding = THREE.sRGBEncoding;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1;
+        this.renderer.toneMappingExposure = 0.8;
 
         
         this.container.appendChild(this.renderer.domElement);

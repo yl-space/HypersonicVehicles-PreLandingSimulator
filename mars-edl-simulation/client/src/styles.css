@@ -530,6 +530,20 @@ body {
     }
 }
 
+/* Enhanced Button Styles */
+@keyframes deflectionRipple {
+        0% {
+            width: 40px;
+            height: 40px;
+            opacity: 1;
+        }
+        100% {
+            width: 100px;
+            height: 100px;
+            opacity: 0;
+        }
+    }
+
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {
     * {

@@ -56,6 +56,12 @@ export class SimulationManager {
         // Animation
         this.clock = new THREE.Clock();
         this.animationId = null;
+
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+        this.clickEnabled = true;
+        this.lastClickTime = 0;
+        this.clickCooldown = 500;
         
         this.init();
     }
@@ -160,6 +166,10 @@ export class SimulationManager {
                 case 'ArrowLeft':
                     this.seekTo(Math.max(this.state.currentTime - 5, 0));
                     break;
+                case 'r':
+                case 'R':
+                    this.reset();
+                    break;
                 case '1':
                     this.setCameraMode('FOLLOW');
                     break;
@@ -171,6 +181,10 @@ export class SimulationManager {
                     break;
             }
         });
+
+        // Mouse click for deflection
+        this.options.container.addEventListener('mousemove', (e) => this.onMouseMove(e));
+        this.options.container.addEventListener('click', (e) => this.onMouseClick(e));
         
         // Window resize
         window.addEventListener('resize', () => {
@@ -178,6 +192,95 @@ export class SimulationManager {
         });
     }
     
+    onMouseMove(event) {
+        const rect = this.options.container.getBoundingClientRect();
+        this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        // Check hover over future trajectory
+        if (this.trajectoryManager && this.trajectoryManager.futureTrajectory) {
+            this.raycaster.setFromCamera(this.mouse, this.cameraController.camera);
+            const intersects = this.raycaster.intersectObject(this.trajectoryManager.futureTrajectory);
+            
+            this.options.container.style.cursor = 
+                (intersects.length > 0 && this.state.isPlaying) ? 'pointer' : 'default';
+        }
+    }
+
+    onMouseClick(event) {
+        if (!this.clickEnabled || !this.state.isPlaying) return;
+        
+        const now = Date.now();
+        if (now - this.lastClickTime < this.clickCooldown) return;
+        
+        // Apply deflection
+        const deflected = this.trajectoryManager.applyDeflection(
+            this.mouse,
+            this.state.currentTime,
+            this.cameraController.camera
+        );
+        
+        if (deflected) {
+            this.lastClickTime = now;
+            this.showClickFeedback(event.clientX, event.clientY);
+            
+            // Check if vehicle should react
+            const currentDeflection = this.trajectoryManager.deflectionPoints[
+                this.trajectoryManager.deflectionPoints.length - 1
+            ];
+            
+            if (currentDeflection) {
+                const deflectionTime = this.trajectoryManager.modifiedData[
+                    currentDeflection.index
+                ].time; // Note: lowercase 'time' in your data structure
+                
+                if (Math.abs(this.state.currentTime - deflectionTime) < 0.5) {
+                    this.entryVehicle.onDeflection();
+                }
+            }
+        }
+    }
+
+    reset() {
+        this.state.currentTime = 0;
+        this.pause();
+        
+        // Reset trajectory
+        if (this.trajectoryManager) {
+            this.trajectoryManager.reset();
+            this.trajectoryManager.updateTrajectoryDisplay(0);
+        }
+        
+        // Reset vehicle position
+        this.state.vehicleData = this.trajectoryManager.getInterpolatedData(0);
+        if (this.state.vehicleData) {
+            this.entryVehicle.getObject3D().position.copy(this.state.vehicleData.position);
+        }
+        
+        // Update UI
+        this.timeline.setTime(0);
+    }
+
+    showClickFeedback(x, y) {
+        const ripple = document.createElement('div');
+        ripple.style.cssText = `
+            position: fixed;
+            left: ${x}px;
+            top: ${y}px;
+            width: 40px;
+            height: 40px;
+            border: 2px solid #ffff00;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            animation: deflectionRipple 0.6s ease-out;
+            z-index: 1000;
+        `;
+        
+        document.body.appendChild(ripple);
+        setTimeout(() => document.body.removeChild(ripple), 600);
+    }
+
     animate() {
         this.animationId = requestAnimationFrame(() => this.animate());
         
@@ -222,6 +325,18 @@ export class SimulationManager {
             if (currentPhase !== this.state.currentPhase) {
                 this.handlePhaseTransition(currentPhase);
             }
+
+            // ADD: Update trajectory display
+            this.trajectoryManager.updateTrajectoryDisplay(this.state.currentTime);
+            
+            // ADD: Check for deflection passage
+            for (const deflection of this.trajectoryManager.deflectionPoints) {
+                const deflectionTime = this.trajectoryManager.modifiedData[deflection.index].time;
+                if (Math.abs(this.state.currentTime - deflectionTime) < 0.5) {
+                    this.entryVehicle.onDeflection();
+                    break;
+                }
+            }
         }
     }
     
@@ -237,6 +352,11 @@ export class SimulationManager {
 
         // Update trajectory visibility
         this.trajectoryManager.updateTrajectoryVisibility(this.state.currentTime);
+
+        // ADD: Animate deflection markers
+        if (this.trajectoryManager) {
+            this.trajectoryManager.animateMarkers(deltaTime);
+        }
         
         // Update scene lighting based on altitude
         if (this.state.vehicleData) {
@@ -306,10 +426,12 @@ export class SimulationManager {
         this.state.currentTime = Math.max(0, Math.min(time, this.state.totalTime));
         this.timeline.setTime(this.state.currentTime);
         
-        // Update vehicle immediately
         this.state.vehicleData = this.trajectoryManager.getInterpolatedData(this.state.currentTime);
         if (this.state.vehicleData) {
             this.entryVehicle.getObject3D().position.copy(this.state.vehicleData.position);
+            
+            // ADD: Update trajectory display when seeking
+            this.trajectoryManager.updateTrajectoryDisplay(this.state.currentTime);
         }
     }
     
