@@ -99,7 +99,10 @@ export class SceneManager {
         const width = window.innerWidth;
         const height = window.innerHeight;
         
-        this.renderer.setSize(width, height);
+        // this.renderer.setSize(width, height);
+        if (this.composer) {
+    this.composer.setSize(window.innerWidth, window.innerHeight);
+}
     }
     
     render(camera) {
