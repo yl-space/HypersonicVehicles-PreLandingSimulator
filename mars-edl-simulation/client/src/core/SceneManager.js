@@ -11,7 +11,10 @@ export class SceneManager {
         this.scene = null;
         this.renderer = null;
         this.lights = {};
-        
+        this.renderer.logarithmicDepthBuffer = true; // For large scale distances
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 0.8;
         
         this.init();
     }
