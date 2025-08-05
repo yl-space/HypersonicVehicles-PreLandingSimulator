@@ -232,25 +232,38 @@ export class SimulationManager {
     
     async loadData() {
         try {
-                // Extract filename from path
-                const filename = this.options.dataPath.split('/').pop();
-                
-                // Load trajectory data using existing DataManager method
-                const csvData = await this.dataManager.loadTrajectoryCSV(filename);
-                
-                // Transform CSV data to trajectory format
-                const trajectoryData = csvData.rows.map(row => ({
-                    time: row.Time || row.time,
-                    position: new THREE.Vector3(
-                        row.x * 0.000001,  // Scale down
-                        row.y * 0.000001,
-                        row.z * 0.000001
-                    ),
-                    altitude: Math.sqrt(row.x * row.x + row.y * row.y + row.z * row.z) - 3389500, // Mars radius in meters
-                    velocity: 5900,
-                    distanceToLanding: 100
-                }));
+            // Extract filename from path
+            const filename = this.options.dataPath.split('/').pop();
             
+            // Load trajectory data using existing DataManager method
+            const csvData = await this.dataManager.loadTrajectoryCSV(filename);
+            
+            // Transform CSV data to trajectory format with proper Vector3 objects
+            const trajectoryData = csvData.rows.map(row => {
+                // Parse values as floats
+                const time = parseFloat(row.Time || row.time || 0);
+                const x = parseFloat(row.x || 0);
+                const y = parseFloat(row.y || 0);
+                const z = parseFloat(row.z || 0);
+                
+                // Calculate altitude (distance from Mars center - Mars radius)
+                const distance = Math.sqrt(x * x + y * y + z * z);
+                const altitude = distance * 0.001 - 3389.5; // Convert to km and subtract Mars radius
+                
+                return {
+                    time: time,
+                    position: new THREE.Vector3(
+                        x * 0.000001,  // Scale down for visualization
+                        y * 0.000001,
+                        z * 0.000001
+                    ),
+                    altitude: altitude,
+                    velocity: 5900 * (1 - time / 260.65), // Approximate velocity decay
+                    distanceToLanding: distance * 0.001 // km
+                };
+            });
+            
+            // Set trajectory data
             this.trajectoryManager.setTrajectoryData(trajectoryData);
             
             // Load mission configuration
@@ -259,18 +272,20 @@ export class SimulationManager {
             // PhaseController expects setPhases with array
             if (missionConfig.phases) {
                 this.phaseController.setPhases(missionConfig.phases);
-            } else {
-                // Use default phases if config doesn't have them
-                this.phaseController.setPhases(this.phaseController.phases);
             }
-             
+            
             // Notify data loaded
             if (this.options.onDataLoaded) {
                 this.options.onDataLoaded();
             }
             
+            console.log('Trajectory data loaded successfully:', trajectoryData.length, 'points');
+            
         } catch (error) {
             console.error('Error loading data:', error);
+            // Use sample data if loading fails
+            this.trajectoryManager.generateSampleTrajectory();
+            console.log('Using sample trajectory data');
         }
     }
     

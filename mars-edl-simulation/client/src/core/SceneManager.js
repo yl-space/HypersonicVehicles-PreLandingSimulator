@@ -62,40 +62,19 @@ export class SceneManager {
     }
     
     createStarfield() {
-        const starFieldGeometry = new THREE.SphereGeometry(50, 64, 64);
-        
-        // Create star texture procedurally if texture not available
-        const canvas = document.createElement('canvas');
-        canvas.width = 2048;
-        canvas.height = 1024;
-        const ctx = canvas.getContext('2d');
-        
-        // Black background
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Add stars
-        for (let i = 0; i < 4000; i++) {
-            const x = Math.random() * canvas.width;
-            const y = Math.random() * canvas.height;
-            const radius = Math.random() * 1.5;
-            const opacity = Math.random() * 0.8 + 0.2;
-            
-            ctx.beginPath();
-            ctx.arc(x, y, radius, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-            ctx.fill();
-        }
-        
-        const starFieldTexture = new THREE.CanvasTexture(canvas);
+        const starFieldGeometry = new THREE.SphereGeometry(30, 64, 64);
+        const starFieldTexture = new THREE.TextureLoader().load('/assets/textures/starfield.png');
+        starFieldTexture.colorSpace = THREE.SRGBColorSpace;
         starFieldTexture.wrapS = THREE.RepeatWrapping;
         starFieldTexture.wrapT = THREE.RepeatWrapping;
-        starFieldTexture.repeat.set(4, 2);
+        starFieldTexture.magFilter = THREE.LinearFilter;
+        starFieldTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        starFieldTexture.anisotropy = 16;
+        starFieldTexture.repeat.set(8, 4);
 
         const starMaterial = new THREE.MeshBasicMaterial({ 
             map: starFieldTexture,
-            side: THREE.BackSide,
-            fog: false
+            side: THREE.DoubleSide
         });
 
         this.starfield = new THREE.Mesh(starFieldGeometry, starMaterial);
@@ -111,40 +90,29 @@ export class SceneManager {
         const marsStarfield = this.starfield.clone();
         marsScene.add(marsStarfield);
 
-        const marsGeometry = new THREE.SphereGeometry(3.39, 64, 64); // Mars radius ~3,390 km
+        // Load Mars textures exactly as in planet-renders branch
+        const marsColorTex = textureLoader.load('/assets/textures/Mars/Mars.jpg');
+        marsColorTex.colorSpace = THREE.SRGBColorSpace;
+        marsColorTex.wrapS = THREE.RepeatWrapping;
+        marsColorTex.wrapT = THREE.RepeatWrapping;
+
+        const marsNormalTex = textureLoader.load('/assets/textures/Mars/mars_normal.jpg');
+        marsNormalTex.wrapS = THREE.RepeatWrapping;
+        marsNormalTex.wrapT = THREE.RepeatWrapping;
+
+        const marsGeometry = new THREE.SphereGeometry(1, 64, 64);
         const marsMaterial = new THREE.MeshPhysicalMaterial({
-            color: new THREE.Color(0xCD5C5C),
-            roughness: 0.9,
-            metalness: 0.1,
-            emissive: new THREE.Color(0x220000),
+            map: marsColorTex,
+            normalMap: marsNormalTex,
+            normalScale: new THREE.Vector2(1.0, 1.0),
+            roughness: 1.0,
+            metalness: 0.0,
+            color: new THREE.Color(0xffffff),
             emissiveIntensity: 0.02,
         });
         
-        // Try to load textures, but use fallback if not available
-        textureLoader.load(
-            '/assets/textures/Mars/Mars.jpg',
-            (texture) => {
-                texture.colorSpace = THREE.SRGBEncoding;
-                marsMaterial.map = texture;
-                marsMaterial.needsUpdate = true;
-            },
-            undefined,
-            () => console.log('Mars color texture not found, using default color')
-        );
-        
-        textureLoader.load(
-            '/assets/textures/Mars/mars_normal.jpg',
-            (texture) => {
-                marsMaterial.normalMap = texture;
-                marsMaterial.normalScale = new THREE.Vector2(1.0, 1.0);
-                marsMaterial.needsUpdate = true;
-            },
-            undefined,
-            () => console.log('Mars normal map not found')
-        );
-        
         const mars = new THREE.Mesh(marsGeometry, marsMaterial);
-        mars.position.set(0, -4, -5); // Position below spacecraft path
+        mars.position.set(0, 0, 0);
         marsScene.add(mars);
         this.planets.mars = mars;
 
@@ -155,33 +123,59 @@ export class SceneManager {
         const earthStarfield = this.starfield.clone();
         earthScene.add(earthStarfield);
 
-        const earthGeometry = new THREE.SphereGeometry(6.37, 64, 64); // Earth radius ~6,371 km
+        // Load all Earth textures
+        const earthColorTex = textureLoader.load('/assets/textures/Earth/earthmap_color.jpg');
+        earthColorTex.colorSpace = THREE.SRGBColorSpace;
+        earthColorTex.wrapS = THREE.RepeatWrapping;
+        earthColorTex.wrapT = THREE.RepeatWrapping;
+        earthColorTex.magFilter = THREE.LinearFilter;
+        earthColorTex.minFilter = THREE.LinearMipmapLinearFilter;
+        earthColorTex.anisotropy = 16;
+
+        const earthBumpTex = textureLoader.load('/assets/textures/Earth/earthmap_bump.jpg');
+        earthBumpTex.wrapS = THREE.RepeatWrapping;
+        earthBumpTex.wrapT = THREE.RepeatWrapping;
+
+        const earthSpecularTex = textureLoader.load('/assets/textures/Earth/earthmap_specular.jpg');
+        // const earthNightTex = textureLoader.load('/assets/textures/Earth/earthmap_lights.jpg');
+        const earthCloudTex = textureLoader.load('/assets/textures/Earth/earthmap_cloud.jpg');
+        const earthCloudAlpha = textureLoader.load('/assets/textures/Earth/earthcloudmap_transperancy.jpg');
+
+        const earthGeometry = new THREE.SphereGeometry(1, 64, 64);
         const earthMaterial = new THREE.MeshPhysicalMaterial({
-            color: new THREE.Color(0x2E8B57),
-            roughness: 0.5,
-            metalness: 0.1,
-            clearcoat: 0.3,
+            map: earthColorTex,
+            normalMap: earthBumpTex,
+            normalScale: new THREE.Vector2(0.3, 0.3),
+            roughnessMap: earthSpecularTex,
+            roughness: 0.9,
+            metalness: 0.02,
+            // emissiveMap: earthNightTex,
+            emissiveIntensity: 1.5,
+            color: new THREE.Color(0xffffff),
+            clearcoat: 0.1,
             clearcoatRoughness: 0.1,
         });
         
         const earth = new THREE.Mesh(earthGeometry, earthMaterial);
-        earth.position.set(0, -8, -10);
+        earth.position.set(0, 0, 0);
         earthScene.add(earth);
         this.planets.earth = earth;
 
-        // Add cloud layer for Earth
-        const cloudGeometry = new THREE.SphereGeometry(6.4, 64, 64);
+        // Earth cloud layer
+        const cloudGeometry = new THREE.SphereGeometry(1.005, 64, 64);
         const cloudMaterial = new THREE.MeshPhysicalMaterial({
-            color: new THREE.Color(0xffffff),
+            map: earthCloudTex,
+            alphaMap: earthCloudAlpha,
             transparent: true,
-            opacity: 0.4,
+            opacity: 0.6,
             roughness: 1.0,
             metalness: 0.0,
             depthWrite: false,
+            side: THREE.DoubleSide,
         });
         
         const clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
-        clouds.position.copy(earth.position);
+        clouds.position.set(0, 0, 0);
         earthScene.add(clouds);
         this.planets.earthClouds = clouds;
 
@@ -192,17 +186,15 @@ export class SceneManager {
         const jupiterStarfield = this.starfield.clone();
         jupiterScene.add(jupiterStarfield);
 
-        const jupiterGeometry = new THREE.SphereGeometry(14.3, 64, 64); // Jupiter radius ~71,492 km (scaled)
+        const jupiterGeometry = new THREE.SphereGeometry(2, 64, 64);
         const jupiterMaterial = new THREE.MeshPhysicalMaterial({
-            color: new THREE.Color(0xDAA520),
+            color: new THREE.Color(0xffa500),
             roughness: 0.8,
             metalness: 0.0,
-            emissive: new THREE.Color(0x332200),
-            emissiveIntensity: 0.01,
         });
         
         const jupiter = new THREE.Mesh(jupiterGeometry, jupiterMaterial);
-        jupiter.position.set(0, -20, -30);
+        jupiter.position.set(0, 0, 0);
         jupiterScene.add(jupiter);
         this.planets.jupiter = jupiter;
 
@@ -224,41 +216,30 @@ export class SceneManager {
     }
     
     setupLighting(scene, planetName) {
-        // Ambient light
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
-        scene.add(ambientLight);
-        
-        // Main directional light (sun)
-        const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
+        // Main Sun light - brighter for Earth visibility
+        const sunLight = new THREE.DirectionalLight(0xffffff, 3.0);
         sunLight.position.set(100, 50, 75);
+        sunLight.target.position.set(0, 0, 0);
         sunLight.castShadow = true;
         sunLight.shadow.mapSize.width = 2048;
         sunLight.shadow.mapSize.height = 2048;
         sunLight.shadow.camera.near = 0.1;
         sunLight.shadow.camera.far = 200;
-        sunLight.shadow.camera.left = -50;
-        sunLight.shadow.camera.right = 50;
-        sunLight.shadow.camera.top = 50;
-        sunLight.shadow.camera.bottom = -50;
+        sunLight.shadow.camera.left = -10;
+        sunLight.shadow.camera.right = 10;
+        sunLight.shadow.camera.top = 10;
+        sunLight.shadow.camera.bottom = -10;
         scene.add(sunLight);
+
+        // Increased ambient light for better visibility
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
+        scene.add(ambientLight);
         
-        // Fill light
-        const fillLight = new THREE.DirectionalLight(0x4a4a6a, 0.5);
-        fillLight.position.set(-50, -25, -50);
-        scene.add(fillLight);
-        
-        // Rim light for better planet visibility
-        const rimLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        rimLight.position.set(-50, 20, -50);
-        scene.add(rimLight);
-        
-        // Store lights reference for this scene
+        // Store lights reference
         if (!this.lights[planetName]) {
             this.lights[planetName] = {};
         }
         this.lights[planetName].sun = sunLight;
-        this.lights[planetName].fill = fillLight;
-        this.lights[planetName].rim = rimLight;
         this.lights[planetName].ambient = ambientLight;
     }
     
@@ -322,15 +303,14 @@ export class SceneManager {
     }
     
     updatePlanetRotation(deltaTime) {
-        // Rotate current planet
         if (this.planets[this.currentScene]) {
-            this.planets[this.currentScene].rotation.y += 0.001 * deltaTime * 60;
+            this.planets[this.currentScene].rotation.y += 0.002;
         }
         
-        // Special handling for Earth clouds
+        // Rotate Earth clouds at different speed for realism
         if (this.currentScene === 'earth' && this.planets.earthClouds) {
-            this.planets.earthClouds.rotation.y += 0.0008 * deltaTime * 60;
-            this.planets.earthClouds.rotation.x += 0.0001 * deltaTime * 60;
+            this.planets.earthClouds.rotation.y += 0.0015;
+            this.planets.earthClouds.rotation.x += 0.0002;
         }
     }
     

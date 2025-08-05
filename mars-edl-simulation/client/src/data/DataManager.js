@@ -26,11 +26,35 @@ export class DataManager {
         }
         
         try {
-            const response = await fetch(`/assets/data/${filename}`);
-            if (!response.ok) {
-                throw new Error(`Failed to load trajectory data: ${response.statusText}`);
+            // Try multiple paths to find the file
+            const paths = [
+                `/assets/data/${filename}`,
+                `/data/${filename}`,
+                `./assets/data/${filename}`,
+                `./data/${filename}`,
+                filename // Try direct path as fallback
+            ];
+            
+            let response;
+            let successPath;
+            
+            for (const path of paths) {
+                try {
+                    response = await fetch(path);
+                    if (response.ok) {
+                        successPath = path;
+                        break;
+                    }
+                } catch (e) {
+                    // Try next path
+                }
             }
             
+            if (!response || !response.ok) {
+                throw new Error(`Failed to load trajectory data: ${filename} not found`);
+            }
+            
+            console.log(`Loaded trajectory from: ${successPath}`);
             const csvText = await response.text();
             const data = this.parseCSV(csvText);
             

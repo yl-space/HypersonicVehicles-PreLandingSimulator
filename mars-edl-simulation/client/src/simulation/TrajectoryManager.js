@@ -52,6 +52,16 @@ export class TrajectoryManager {
         this.deflectionMarkersGroup = new THREE.Group();
         this.group.add(this.deflectionMarkersGroup);
     }
+
+    deepCopyTrajectoryData(data) {
+    return data.map(point => ({
+        time: point.time,
+        position: point.position.clone(), // Properly clone Vector3
+        altitude: point.altitude,
+        velocity: point.velocity,
+        distanceToLanding: point.distanceToLanding
+    }));
+}
     
     async loadTrajectoryData(filename) {
         try {
@@ -122,7 +132,7 @@ export class TrajectoryManager {
             });
         }
         
-        this.modifiedData = JSON.parse(JSON.stringify(this.trajectoryData));
+        this.modifiedData = this.deepCopyTrajectoryData(this.trajectoryData);
         this.updateTrajectoryDisplay(0);
     }
     
@@ -169,7 +179,11 @@ export class TrajectoryManager {
             const distance = currentPoint.position.distanceTo(prevPoint.position);
             const newPosition = prevPoint.position.clone().add(direction.multiplyScalar(distance));
             
-            this.modifiedData[i].position = newPosition;
+            // Update with new Vector3 object
+            this.modifiedData[i] = {
+                ...this.modifiedData[i],
+                position: newPosition
+            };
         }
         
         // Update trajectory display
@@ -273,7 +287,7 @@ export class TrajectoryManager {
     
     reset() {
         // Reset modified data to original
-        this.modifiedData = JSON.parse(JSON.stringify(this.trajectoryData));
+        this.modifiedData = this.deepCopyTrajectoryData(this.trajectoryData);
         
         // Clear deflection markers
         this.deflectionMarkersGroup.clear();
@@ -281,7 +295,7 @@ export class TrajectoryManager {
         
         // Reset display
         this.updateTrajectoryDisplay(0);
-    }
+    } 
     
     getObject3D() {
         return this.group;
@@ -303,8 +317,14 @@ export class TrajectoryManager {
     
     setTrajectoryData(data) {
         if (Array.isArray(data)) {
-            this.trajectoryData = data;
-            this.modifiedData = JSON.parse(JSON.stringify(data));
+            // Ensure all positions are Vector3 objects
+            this.trajectoryData = data.map(point => ({
+                ...point,
+                position: point.position instanceof THREE.Vector3 
+                    ? point.position 
+                    : new THREE.Vector3(point.position.x, point.position.y, point.position.z)
+            }));
+            this.modifiedData = this.deepCopyTrajectoryData(this.trajectoryData);
             this.updateTrajectoryDisplay(0);
         }
     }
