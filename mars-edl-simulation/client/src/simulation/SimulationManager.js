@@ -35,9 +35,9 @@ export class SimulationManager {
         
         // Scene objects
         this.entryVehicle = null;
-        this.mars = null;
-        this.stars = null;
-        
+        this.Mars = null;
+        this.Stars = null;
+
         // UI components
         this.timeline = null;
         this.phaseInfo = null;
@@ -51,7 +51,7 @@ export class SimulationManager {
             playbackSpeed: 1,
             currentPhase: 0,
             vehicleData: null,
-            currentPlanet: 'mars'
+            currentPlanet: 'Mars' // Default planet
         };
         
         // Animation
@@ -144,16 +144,15 @@ export class SimulationManager {
     }
     
     addPlanetControls() {
-        // Check if planet controls already exist
         if (document.getElementById('planet-controls')) return;
         
-        // Add planet controls to existing UI without disrupting layout
         const planetControls = document.createElement('div');
         planetControls.id = 'planet-controls';
         planetControls.style.cssText = `
             position: absolute;
             top: 20px;
-            right: 20px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 100;
             display: flex;
             gap: 10px;
@@ -164,19 +163,19 @@ export class SimulationManager {
             btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''}`;
             btn.textContent = planet.charAt(0).toUpperCase() + planet.slice(1);
             btn.style.cssText = `
-                padding: 10px 20px;
+                padding: 12px 24px;
                 font-size: 14px;
                 background-color: rgba(255, 255, 255, 0.1);
                 color: white;
                 border: 1px solid rgba(255, 255, 255, 0.3);
-                border-radius: 5px;
+                border-radius: 25px;
                 cursor: pointer;
                 transition: all 0.3s ease;
                 backdrop-filter: blur(10px);
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                text-transform: capitalize;
             `;
             
-            // Add hover effect
             btn.addEventListener('mouseenter', () => {
                 if (!btn.classList.contains('active')) {
                     btn.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
@@ -193,7 +192,6 @@ export class SimulationManager {
             planetControls.appendChild(btn);
         });
         
-        // Add CSS for active state
         const style = document.createElement('style');
         style.textContent = `
             .planet-btn.active {
@@ -217,7 +215,7 @@ export class SimulationManager {
         // Update button states
         document.querySelectorAll('.planet-btn').forEach(btn => {
             btn.classList.toggle('active', 
-                btn.textContent.toLowerCase() === planetName);
+                btn.textContent.toLowerCase() === planetName.toLowerCase());
         });
         
         // Adjust camera for different planet sizes
@@ -234,14 +232,38 @@ export class SimulationManager {
     
     async loadData() {
         try {
-            // Load trajectory data
-            const trajectoryData = await this.dataManager.loadTrajectoryData(this.options.dataPath);
+                // Extract filename from path
+                const filename = this.options.dataPath.split('/').pop();
+                
+                // Load trajectory data using existing DataManager method
+                const csvData = await this.dataManager.loadTrajectoryCSV(filename);
+                
+                // Transform CSV data to trajectory format
+                const trajectoryData = csvData.rows.map(row => ({
+                    time: row.Time || row.time,
+                    position: new THREE.Vector3(
+                        row.x * 0.000001,  // Scale down
+                        row.y * 0.000001,
+                        row.z * 0.000001
+                    ),
+                    altitude: Math.sqrt(row.x * row.x + row.y * row.y + row.z * row.z) - 3389500, // Mars radius in meters
+                    velocity: 5900,
+                    distanceToLanding: 100
+                }));
+            
             this.trajectoryManager.setTrajectoryData(trajectoryData);
             
             // Load mission configuration
             const missionConfig = await this.dataManager.loadMissionConfig();
-            this.phaseController.setPhases(missionConfig.phases);
             
+            // PhaseController expects setPhases with array
+            if (missionConfig.phases) {
+                this.phaseController.setPhases(missionConfig.phases);
+            } else {
+                // Use default phases if config doesn't have them
+                this.phaseController.setPhases(this.phaseController.phases);
+            }
+             
             // Notify data loaded
             if (this.options.onDataLoaded) {
                 this.options.onDataLoaded();
@@ -249,9 +271,6 @@ export class SimulationManager {
             
         } catch (error) {
             console.error('Error loading data:', error);
-            // Use sample data if loading fails
-            this.trajectoryManager.generateSampleTrajectory();
-            this.phaseController.setDefaultPhases();
         }
     }
     
@@ -465,5 +484,9 @@ export class SimulationManager {
         this.timeline.dispose();
         this.phaseInfo.dispose();
         this.controls.dispose();
+    }
+
+    getState() {
+        return this.state;
     }
 }

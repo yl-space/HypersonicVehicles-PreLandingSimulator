@@ -46,7 +46,7 @@ export class EntryVehicle {
         
         // Cone shape for aerodynamic body
         const coneGeometry = new THREE.ConeGeometry(5, 8, 16);
-        const coneMaterial = new THREE.MeshPhongMaterial({
+        const coneMaterial = new THREE.MeshStandardMaterial({
             color: 0x8B7355,
             metalness: 0.3,
             roughness: 0.7
@@ -69,7 +69,7 @@ export class EntryVehicle {
     createHeatShield() {
         // Heat shield (bottom protection)
         const shieldGeometry = new THREE.CylinderGeometry(7, 6, 1, 32);
-        const shieldMaterial = new THREE.MeshPhongMaterial({
+        const shieldMaterial = new THREE.MeshStandardMaterial({
             color: 0x2F1B14,
             emissive: 0x000000,
             emissiveIntensity: 0,
@@ -107,7 +107,7 @@ export class EntryVehicle {
         
         // Parachute canopy
         const canopyGeometry = new THREE.ConeGeometry(20, 15, 16, 8, true);
-        const canopyMaterial = new THREE.MeshPhongMaterial({
+        const canopyMaterial = new THREE.MeshStandardMaterial({
             color: 0xff6644,
             side: THREE.DoubleSide,
             transparent: true,
@@ -259,5 +259,25 @@ export class EntryVehicle {
             if (child.geometry) child.geometry.dispose();
             if (child.material) child.material.dispose();
         });
+    }
+
+    setPosition(position) {
+        if (position && position.isVector3) {
+            this.group.position.copy(position);
+        }
+    }
+    
+    triggerPhaseTransition(phaseName) {
+        switch(phaseName) {
+            case 'Parachute Deploy':
+                this.deployParachute();
+                break;
+            case 'Heat Shield Separation':
+                this.ejectHeatShield();
+                break;
+            case 'Powered Descent':
+                this.activateThrusters(true);
+                break;
+        }
     }
 }

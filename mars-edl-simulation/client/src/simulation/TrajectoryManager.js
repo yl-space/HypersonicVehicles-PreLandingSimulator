@@ -300,4 +300,47 @@ export class TrajectoryManager {
         
         this.deflectionMarkersGroup.clear();
     }
+    
+    setTrajectoryData(data) {
+        if (Array.isArray(data)) {
+            this.trajectoryData = data;
+            this.modifiedData = JSON.parse(JSON.stringify(data));
+            this.updateTrajectoryDisplay(0);
+        }
+    }
+
+    getTrajectoryLine() {
+        return this.trajectoryLine || this.futureTrajectory;
+    }
+
+    getTimeFromPosition(position) {
+        // Find closest point on trajectory
+        let closestTime = 0;
+        let minDistance = Infinity;
+        
+        for (const point of this.modifiedData) {
+            const distance = position.distanceTo(point.position);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestTime = point.time;
+            }
+        }
+        
+        return closestTime;
+    }
+
+    updateTrajectoryVisibility(currentTime) {
+        // Adjust opacity based on time
+        if (this.pastTrajectory) {
+            this.pastTrajectory.material.opacity = 0.8;
+        }
+        if (this.futureTrajectory) {
+            this.futureTrajectory.material.opacity = 0.4;
+        }
+    }
+
+    getDataAtTime(time) {
+    return this.getInterpolatedData(time);
+}
+
 }

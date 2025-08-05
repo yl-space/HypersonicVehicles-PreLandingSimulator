@@ -26,7 +26,7 @@ export class DataManager {
         }
         
         try {
-            const response = await fetch(`/data/${filename}`);
+            const response = await fetch(`/assets/data/${filename}`);
             if (!response.ok) {
                 throw new Error(`Failed to load trajectory data: ${response.statusText}`);
             }

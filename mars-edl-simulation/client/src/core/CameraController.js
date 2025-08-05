@@ -6,10 +6,10 @@
 import * as THREE from 'three';
 
 export class CameraController {
-    constructor(renderer) {
+    constructor(camera, renderer) {
+        this.camera = camera;
         this.renderer = renderer;
-        this.camera = null;
-        this.mode = 'FOLLOW'; // FREE, FOLLOW, CINEMATIC
+        this.mode = 'follow'; // follow, orbit, fixed
         this.target = null;
         this.smoothness = 0.05;
         
@@ -18,10 +18,11 @@ export class CameraController {
             distance: 100,
             height: 50,
             angle: 0,
-            cinematicTime: 0
+            cinematicTime: 0,
+            defaultDistance: 10
         };
         
-        // Mouse controls for FREE mode
+        // Mouse controls for orbit mode
         this.mouse = {
             isDown: false,
             lastX: 0,
@@ -30,33 +31,31 @@ export class CameraController {
             deltaY: 0
         };
         
+        // Orbit controls state
+        this.orbit = {
+            theta: 0,
+            phi: Math.PI / 4,
+            radius: 100
+        };
+        
         this.init();
     }
     
     init() {
-        // Create perspective camera
-        this.camera = new THREE.PerspectiveCamera(
-            75,
-            window.innerWidth / window.innerHeight,
-            0.1,
-            100000
-        );
-        
-        this.camera.position.set(1000, 500, 1000);
+        // Set initial camera position
+        this.camera.position.set(100, 50, 100);
+        this.camera.lookAt(0, 0, 0);
         
         // Setup event listeners
         this.setupEventListeners();
-        
-        // Handle resize
-        window.addEventListener('resize', this.handleResize.bind(this));
     }
     
     setupEventListeners() {
         const canvas = this.renderer.domElement;
         
-        // Mouse controls for FREE mode
+        // Mouse controls for orbit mode
         canvas.addEventListener('mousedown', (e) => {
-            if (this.mode === 'FREE') {
+            if (this.mode === 'orbit') {
                 this.mouse.isDown = true;
                 this.mouse.lastX = e.clientX;
                 this.mouse.lastY = e.clientY;
@@ -64,15 +63,16 @@ export class CameraController {
         });
         
         canvas.addEventListener('mousemove', (e) => {
-            if (this.mode === 'FREE' && this.mouse.isDown) {
+            if (this.mode === 'orbit' && this.mouse.isDown) {
                 this.mouse.deltaX = e.clientX - this.mouse.lastX;
                 this.mouse.deltaY = e.clientY - this.mouse.lastY;
                 this.mouse.lastX = e.clientX;
                 this.mouse.lastY = e.clientY;
                 
-                // Update camera rotation
-                this.state.angle += this.mouse.deltaX * 0.01;
-                this.state.height = Math.max(10, Math.min(1000, this.state.height - this.mouse.deltaY));
+                // Update orbit angles
+                this.orbit.theta -= this.mouse.deltaX * 0.01;
+                this.orbit.phi = Math.max(0.1, Math.min(Math.PI - 0.1, 
+                    this.orbit.phi + this.mouse.deltaY * 0.01));
             }
         });
         
@@ -80,19 +80,34 @@ export class CameraController {
             this.mouse.isDown = false;
         });
         
+        // Prevent context menu on right click
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+        
         // Wheel for zoom
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
-            this.state.distance = Math.max(50, Math.min(5000, this.state.distance + e.deltaY * 0.5));
+            const zoomSpeed = 0.1;
+            const delta = e.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
+            
+            if (this.mode === 'orbit') {
+                this.orbit.radius = Math.max(20, Math.min(500, this.orbit.radius * delta));
+            } else {
+                this.state.distance = Math.max(20, Math.min(500, this.state.distance * delta));
+            }
         });
     }
     
     setMode(mode) {
-        this.mode = mode;
+        this.mode = mode.toLowerCase();
         
-        // Reset camera state when switching modes
-        if (mode === 'CINEMATIC') {
-            this.state.cinematicTime = 0;
+        // Initialize orbit position when switching to orbit mode
+        if (mode === 'orbit' && this.target) {
+            const offset = this.camera.position.clone().sub(this.target.position);
+            this.orbit.radius = offset.length();
+            this.orbit.theta = Math.atan2(offset.x, offset.z);
+            this.orbit.phi = Math.acos(offset.y / this.orbit.radius);
         }
     }
     
@@ -100,7 +115,12 @@ export class CameraController {
         this.target = target;
     }
     
-    update(deltaTime, spacecraftData) {
+    setDefaultDistance(distance) {
+        this.state.defaultDistance = distance;
+        this.state.distance = distance;
+    }
+    
+    update(deltaTime, vehicleData) {
         if (!this.target) return;
         
         const targetPos = this.target.position.clone();
@@ -108,50 +128,51 @@ export class CameraController {
         let lookAtPoint = targetPos.clone();
         
         switch (this.mode) {
-            case 'FOLLOW':
-                // Dynamic follow distance based on altitude
-                const followDistance = 50 + (spacecraftData?.altitude || 0) * 0.01;
-                const followHeight = 20 + (spacecraftData?.altitude || 0) * 0.005;
+            case 'follow':
+                // Dynamic follow distance based on altitude if available
+                const altitude = vehicleData?.altitude || 10000;
+                const followDistance = this.state.defaultDistance + Math.sqrt(altitude) * 0.1;
+                const followHeight = this.state.defaultDistance * 0.5 + Math.sqrt(altitude) * 0.05;
                 
-                // Position behind and above spacecraft
+                // Position behind and above vehicle
+                const velocity = vehicleData?.velocity || new THREE.Vector3(0, 0, -1);
+                const forward = velocity.clone().normalize();
+                
                 desiredPosition.copy(targetPos);
+                desiredPosition.sub(forward.multiplyScalar(followDistance));
                 desiredPosition.y += followHeight;
-                desiredPosition.z += followDistance;
                 
-                // Smooth camera movement
-                this.camera.position.lerp(desiredPosition, this.smoothness);
+                // Look ahead of the vehicle
+                lookAtPoint.add(forward.multiplyScalar(20));
                 break;
                 
-            case 'CINEMATIC':
-                // Cinematic camera with smooth orbital motion
-                this.state.cinematicTime += deltaTime * 0.5;
-                
-                const cinematicRadius = 100 + (spacecraftData?.altitude || 0) * 0.02;
-                const verticalOffset = Math.sin(this.state.cinematicTime * 0.3) * 30;
-                
-                desiredPosition.x = targetPos.x + Math.cos(this.state.cinematicTime) * cinematicRadius;
-                desiredPosition.y = targetPos.y + cinematicRadius * 0.5 + verticalOffset;
-                desiredPosition.z = targetPos.z + Math.sin(this.state.cinematicTime) * cinematicRadius;
-                
-                // Smooth camera movement with easing
-                this.camera.position.lerp(desiredPosition, this.smoothness * 0.5);
-                
-                // Look slightly ahead of the spacecraft
-                lookAtPoint.add(this.target.getWorldDirection(new THREE.Vector3()).multiplyScalar(20));
+            case 'orbit':
+                // Spherical coordinate system
+                desiredPosition.x = targetPos.x + this.orbit.radius * Math.sin(this.orbit.phi) * Math.sin(this.orbit.theta);
+                desiredPosition.y = targetPos.y + this.orbit.radius * Math.cos(this.orbit.phi);
+                desiredPosition.z = targetPos.z + this.orbit.radius * Math.sin(this.orbit.phi) * Math.cos(this.orbit.theta);
                 break;
                 
-            case 'FREE':
-                // Free camera with mouse control
-                const radius = this.state.distance;
-                desiredPosition.x = targetPos.x + Math.cos(this.state.angle) * radius;
-                desiredPosition.y = targetPos.y + this.state.height;
-                desiredPosition.z = targetPos.z + Math.sin(this.state.angle) * radius;
+            case 'fixed':
+                // Fixed camera position looking at target
+                desiredPosition.set(150, 100, 150);
+                break;
                 
-                this.camera.position.lerp(desiredPosition, this.smoothness * 2);
+            case 'cinematic':
+                // Cinematic camera movement
+                this.state.cinematicTime += deltaTime;
+                const t = this.state.cinematicTime * 0.1;
+                
+                desiredPosition.x = targetPos.x + Math.sin(t) * 200;
+                desiredPosition.y = targetPos.y + 100 + Math.sin(t * 0.5) * 50;
+                desiredPosition.z = targetPos.z + Math.cos(t) * 200;
                 break;
         }
         
-        // Smooth look at
+        // Smooth camera movement
+        this.camera.position.lerp(desiredPosition, this.smoothness);
+        
+        // Smooth look-at
         const currentLookAt = new THREE.Vector3();
         this.camera.getWorldDirection(currentLookAt);
         currentLookAt.add(this.camera.position);
@@ -186,6 +207,8 @@ export class CameraController {
                 this.camera.position.z = originalPosition.z + offsetZ;
                 
                 requestAnimationFrame(shakeAnimation);
+            } else {
+                this.camera.position.copy(originalPosition);
             }
         };
         
@@ -193,16 +216,13 @@ export class CameraController {
     }
     
     // Zoom control
-    setFOV(fov) {
-        this.camera.fov = Math.max(20, Math.min(120, fov));
+    zoom(direction) {
+        const zoomSpeed = 5;
+        if (direction === 'in') {
+            this.camera.fov = Math.max(20, this.camera.fov - zoomSpeed);
+        } else {
+            this.camera.fov = Math.min(120, this.camera.fov + zoomSpeed);
+        }
         this.camera.updateProjectionMatrix();
-    }
-    
-    zoomIn() {
-        this.setFOV(this.camera.fov - 5);
-    }
-    
-    zoomOut() {
-        this.setFOV(this.camera.fov + 5);
     }
 }
