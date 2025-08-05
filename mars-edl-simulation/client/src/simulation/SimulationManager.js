@@ -1,6 +1,6 @@
 /**
  * SimulationManager.js
- * Main simulation controller that coordinates all components
+ * Main simulation controller with planet switching
  */
 
 import * as THREE from 'three';
@@ -20,7 +20,7 @@ export class SimulationManager {
     constructor(options = {}) {
         this.options = {
             container: document.getElementById('canvas-container'),
-            dataPath: '/data/MSL_position_J2000.csv',
+            dataPath: '/assets/data/MSL_position_J2000.csv',
             autoStart: false,
             showStats: false,
             ...options
@@ -50,7 +50,8 @@ export class SimulationManager {
             isPlaying: false,
             playbackSpeed: 1,
             currentPhase: 0,
-            vehicleData: null
+            vehicleData: null,
+            currentPlanet: 'mars'
         };
         
         // Animation
@@ -69,11 +70,10 @@ export class SimulationManager {
     async init() {
         // Initialize core components
         this.sceneManager = new SceneManager(this.options.container);
-        this.cameraController = new CameraController(this.sceneManager.renderer);
-        
-        // Setup post-processing now that camera is available
-        this.sceneManager.setupPostProcessing(this.cameraController.camera);
-        
+        this.cameraController = new CameraController(
+            this.sceneManager.camera,
+            this.sceneManager.renderer
+        );
         this.trajectoryManager = new TrajectoryManager();
         this.phaseController = new PhaseController();
         this.dataManager = new DataManager();
@@ -90,108 +90,110 @@ export class SimulationManager {
         // Setup event listeners
         this.setupEventListeners();
         
+        // Notify ready
+        if (this.options.onReady) {
+            this.options.onReady();
+        }
+        
         // Start animation loop
         this.animate();
         
-        // Auto-start if requested (after everything is initialized)
+        // Auto-start if requested
         if (this.options.autoStart) {
-            // Ensure UI is fully initialized before playing
-            setTimeout(() => {
-                if (this.timeline && typeof this.timeline.setPlaying === 'function') {
-                    this.play();
-                } else {
-                    console.warn('Timeline not ready for autostart, skipping...');
-                }
-            }, 100);
+            this.play();
         }
     }
     
     createSceneObjects() {
-        // Create Mars
-        this.mars = new Mars();
-        this.sceneManager.scene.add(this.mars.getObject3D());
-        
-        // Create stars
-        this.stars = new Stars();
-        this.sceneManager.scene.add(this.stars.getObject3D());
-        
         // Create entry vehicle
         this.entryVehicle = new EntryVehicle();
-        this.sceneManager.scene.add(this.entryVehicle.getObject3D());
+        this.sceneManager.addToAllScenes(this.entryVehicle.getObject3D());
         
-        // Add trajectory line
-        this.sceneManager.scene.add(this.trajectoryManager.getObject3D());
+        // Add trajectory line to all scenes
+        this.sceneManager.addToAllScenes(this.trajectoryManager.getObject3D());
         
         // Set camera target
         this.cameraController.setTarget(this.entryVehicle.getObject3D());
     }
     
     initializeUI() {
-        try {
-            console.log('Initializing UI components...');
+        // Timeline
+        this.timeline = new Timeline({
+            container: document.getElementById('timeline-container'),
+            totalTime: this.state.totalTime,
+            onTimeUpdate: (time) => this.seekTo(time),
+            onPlayPause: () => this.togglePlayPause()
+        });
+        
+        // Phase info panel
+        this.phaseInfo = new PhaseInfo({
+            container: document.getElementById('phase-info')
+        });
+        
+        // Camera and zoom controls
+        this.controls = new Controls({
+            onCameraMode: (mode) => this.setCameraMode(mode),
+            onZoom: (direction) => this.handleZoom(direction)
+        });
+        
+        // Add planet switching buttons to existing UI
+        this.addPlanetControls();
+    }
+    
+    addPlanetControls() {
+        // Add planet controls to existing UI without disrupting layout
+        const planetControls = document.createElement('div');
+        planetControls.id = 'planet-controls';
+        planetControls.style.cssText = `
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+        `;
+        
+        ['mars', 'earth', 'jupiter'].forEach(planet => {
+            const btn = document.createElement('button');
+            btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''}`;
+            btn.textContent = planet.charAt(0).toUpperCase() + planet.slice(1);
+            btn.style.cssText = `
+                padding: 10px 20px;
+                font-size: 14px;
+                background-color: rgba(255, 255, 255, 0.1);
+                color: white;
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 5px;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                backdrop-filter: blur(10px);
+            `;
             
-            // Timeline
-            const timelineContainer = document.getElementById('timeline-container');
-            if (timelineContainer) {
-                console.log('Creating Timeline component...');
-                this.timeline = new Timeline({
-                    container: timelineContainer,
-                    totalTime: this.state.totalTime,
-                    onTimeUpdate: (time) => this.seekTo(time),
-                    onPlayPause: () => this.togglePlayPause()
-                });
-                console.log('Timeline created successfully:', this.timeline);
-            } else {
-                console.warn('Timeline container not found in DOM');
-                this.timeline = null;
-            }
-            
-            // Phase info panel
-            const phaseContainer = document.getElementById('phase-info');
-            if (phaseContainer) {
-                console.log('Creating PhaseInfo component...');
-                this.phaseInfo = new PhaseInfo({
-                    container: phaseContainer
-                });
-                console.log('PhaseInfo created successfully');
-            } else {
-                console.warn('Phase info container not found in DOM');
-                this.phaseInfo = null;
-            }
-            
-            // Camera and zoom controls
-            console.log('Creating Controls component...');
-            this.controls = new Controls({
-                onCameraMode: (mode) => this.setCameraMode(mode),
-                onZoom: (direction) => this.handleZoom(direction)
-            });
-            console.log('Controls created successfully');
-            
-            // Verify all components are properly initialized
-            const missingComponents = [];
-            if (!this.timeline) missingComponents.push('Timeline');
-            if (!this.phaseInfo) missingComponents.push('PhaseInfo');
-            if (!this.controls) missingComponents.push('Controls');
-            
-            if (missingComponents.length > 0) {
-                console.warn('Some UI components failed to initialize:', missingComponents);
-            } else {
-                console.log('All UI components initialized successfully');
-            }
-            
-        } catch (error) {
-            console.error('Error initializing UI:', error);
-            console.error('Stack trace:', error.stack);
-            
-            // Set components to null on error to prevent further issues
-            this.timeline = null;
-            this.phaseInfo = null;
-            this.controls = null;
-        }
+            btn.addEventListener('click', () => this.switchPlanet(planet));
+            planetControls.appendChild(btn);
+        });
+        
+        document.getElementById('ui-overlay').appendChild(planetControls);
+    }
+    
+    switchPlanet(planetName) {
+        this.state.currentPlanet = planetName;
+        this.sceneManager.switchPlanet(planetName);
+        
+        // Update button states
+        document.querySelectorAll('.planet-btn').forEach(btn => {
+            btn.classList.toggle('active', 
+                btn.textContent.toLowerCase() === planetName);
+        });
     }
     
     async loadData() {
         try {
+            // Notify data loading
+            if (this.options.onDataLoaded) {
+                this.options.onDataLoaded();
+            }
+            
             // Load trajectory data
             await this.trajectoryManager.loadTrajectoryData(this.options.dataPath);
             
@@ -207,134 +209,33 @@ export class SimulationManager {
     }
     
     setupEventListeners() {
-        // Keyboard controls
-        document.addEventListener('keydown', (e) => {
-            switch(e.key) {
-                case ' ':
-                    e.preventDefault();
-                    this.togglePlayPause();
-                    break;
-                case 'ArrowRight':
-                    this.seekTo(Math.min(this.state.currentTime + 5, this.state.totalTime));
-                    break;
-                case 'ArrowLeft':
-                    this.seekTo(Math.max(this.state.currentTime - 5, 0));
-                    break;
-                case 'r':
-                case 'R':
-                    this.reset();
-                    break;
-                case '1':
-                    this.setCameraMode('FOLLOW');
-                    break;
-                case '2':
-                    this.setCameraMode('FREE');
-                    break;
-                case '3':
-                    this.setCameraMode('CINEMATIC');
-                    break;
-            }
-        });
-
-        // Mouse click for deflection
-        this.options.container.addEventListener('mousemove', (e) => this.onMouseMove(e));
-        this.options.container.addEventListener('click', (e) => this.onMouseClick(e));
-        
         // Window resize
-        window.addEventListener('resize', () => {
-            this.handleResize();
+        window.addEventListener('resize', () => this.handleResize());
+        
+        // Mouse events for camera control
+        this.sceneManager.renderer.domElement.addEventListener('mousedown', (e) => {
+            this.onMouseDown(e);
+        });
+        
+        this.sceneManager.renderer.domElement.addEventListener('mousemove', (e) => {
+            this.onMouseMove(e);
+        });
+        
+        this.sceneManager.renderer.domElement.addEventListener('mouseup', (e) => {
+            this.onMouseUp(e);
+        });
+        
+        // Mouse wheel for zoom
+        this.sceneManager.renderer.domElement.addEventListener('wheel', (e) => {
+            this.onMouseWheel(e);
+        });
+        
+        // Click for deflection
+        this.sceneManager.renderer.domElement.addEventListener('click', (e) => {
+            this.onMouseClick(e);
         });
     }
     
-    onMouseMove(event) {
-        const rect = this.options.container.getBoundingClientRect();
-        this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-        
-        // Check hover over future trajectory
-        if (this.trajectoryManager && this.trajectoryManager.futureTrajectory) {
-            this.raycaster.setFromCamera(this.mouse, this.cameraController.camera);
-            const intersects = this.raycaster.intersectObject(this.trajectoryManager.futureTrajectory);
-            
-            this.options.container.style.cursor = 
-                (intersects.length > 0 && this.state.isPlaying) ? 'pointer' : 'default';
-        }
-    }
-
-    onMouseClick(event) {
-        if (!this.clickEnabled || !this.state.isPlaying) return;
-        
-        const now = Date.now();
-        if (now - this.lastClickTime < this.clickCooldown) return;
-        
-        // Apply deflection
-        const deflected = this.trajectoryManager.applyDeflection(
-            this.mouse,
-            this.state.currentTime,
-            this.cameraController.camera
-        );
-        
-        if (deflected) {
-            this.lastClickTime = now;
-            this.showClickFeedback(event.clientX, event.clientY);
-            
-            // Check if vehicle should react
-            const currentDeflection = this.trajectoryManager.deflectionPoints[
-                this.trajectoryManager.deflectionPoints.length - 1
-            ];
-            
-            if (currentDeflection) {
-                const deflectionTime = this.trajectoryManager.modifiedData[
-                    currentDeflection.index
-                ].time; // Note: lowercase 'time' in your data structure
-                
-                if (Math.abs(this.state.currentTime - deflectionTime) < 0.5) {
-                    this.entryVehicle.onDeflection();
-                }
-            }
-        }
-    }
-
-    reset() {
-        this.state.currentTime = 0;
-        this.pause();
-        
-        // Reset trajectory
-        if (this.trajectoryManager) {
-            this.trajectoryManager.reset();
-            this.trajectoryManager.updateTrajectoryDisplay(0);
-        }
-        
-        // Reset vehicle position
-        this.state.vehicleData = this.trajectoryManager.getInterpolatedData(0);
-        if (this.state.vehicleData) {
-            this.entryVehicle.getObject3D().position.copy(this.state.vehicleData.position);
-        }
-        
-        // Update UI
-        this.timeline.setTime(0);
-    }
-
-    showClickFeedback(x, y) {
-        const ripple = document.createElement('div');
-        ripple.style.cssText = `
-            position: fixed;
-            left: ${x}px;
-            top: ${y}px;
-            width: 40px;
-            height: 40px;
-            border: 2px solid #ffff00;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            animation: deflectionRipple 0.6s ease-out;
-            z-index: 1000;
-        `;
-        
-        document.body.appendChild(ripple);
-        setTimeout(() => document.body.removeChild(ripple), 600);
-    }
-
     animate() {
         this.animationId = requestAnimationFrame(() => this.animate());
         
@@ -379,18 +280,9 @@ export class SimulationManager {
             if (currentPhase !== this.state.currentPhase) {
                 this.handlePhaseTransition(currentPhase);
             }
-
-            // ADD: Update trajectory display
-            this.trajectoryManager.updateTrajectoryDisplay(this.state.currentTime);
             
-            // ADD: Check for deflection passage
-            for (const deflection of this.trajectoryManager.deflectionPoints) {
-                const deflectionTime = this.trajectoryManager.modifiedData[deflection.index].time;
-                if (Math.abs(this.state.currentTime - deflectionTime) < 0.5) {
-                    this.entryVehicle.onDeflection();
-                    break;
-                }
-            }
+            // Update trajectory display
+            this.trajectoryManager.updateTrajectoryDisplay(this.state.currentTime);
         }
     }
     
@@ -401,16 +293,11 @@ export class SimulationManager {
         // Update entry vehicle effects
         this.entryVehicle.update(this.state.currentTime, this.state.vehicleData);
         
-        // Update Mars rotation
-        this.mars.update(deltaTime);
-
+        // Update planet rotation
+        this.sceneManager.updatePlanetRotation(deltaTime);
+        
         // Update trajectory visibility
         this.trajectoryManager.updateTrajectoryVisibility(this.state.currentTime);
-
-        // ADD: Animate deflection markers
-        if (this.trajectoryManager) {
-            this.trajectoryManager.animateMarkers(deltaTime);
-        }
         
         // Update scene lighting based on altitude
         if (this.state.vehicleData) {
@@ -421,17 +308,55 @@ export class SimulationManager {
         }
         
         // Update UI
-        if (this.timeline && typeof this.timeline.update === 'function') {
-            this.timeline.update(this.state.currentTime, this.state.isPlaying);
+        this.timeline.update(this.state.currentTime, this.state.isPlaying);
+        this.phaseInfo.update(
+            this.phaseController.phases[this.state.currentPhase],
+            this.state.vehicleData,
+            this.state.currentTime,
+            this.state.totalTime
+        );
+    }
+    
+    onMouseClick(event) {
+        if (!this.clickEnabled || !this.state.isPlaying) return;
+        
+        const now = Date.now();
+        if (now - this.lastClickTime < this.clickCooldown) return;
+        
+        this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        
+        // Apply deflection
+        const deflected = this.trajectoryManager.applyDeflection(
+            this.mouse,
+            this.state.currentTime,
+            this.cameraController.camera
+        );
+        
+        if (deflected) {
+            this.lastClickTime = now;
+            this.showClickFeedback(event.clientX, event.clientY);
         }
-        if (this.phaseInfo && typeof this.phaseInfo.update === 'function') {
-            this.phaseInfo.update(
-                this.phaseController.phases[this.state.currentPhase],
-                this.state.vehicleData,
-                this.state.currentTime,
-                this.state.totalTime
-            );
-        }
+    }
+    
+    showClickFeedback(x, y) {
+        const ripple = document.createElement('div');
+        ripple.style.cssText = `
+            position: fixed;
+            left: ${x}px;
+            top: ${y}px;
+            width: 40px;
+            height: 40px;
+            border: 2px solid #ffff00;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            animation: deflectionRipple 0.6s ease-out;
+            z-index: 1000;
+        `;
+        
+        document.body.appendChild(ripple);
+        setTimeout(() => document.body.removeChild(ripple), 600);
     }
     
     handlePhaseTransition(newPhase) {
@@ -458,76 +383,20 @@ export class SimulationManager {
         }
         
         // Emit phase change event
-        this.emit('phaseChange', phase);
+        if (this.options.onPhaseChange) {
+            this.options.onPhaseChange(phase);
+        }
     }
     
     // Control methods
     play() {
-        try {
-            console.log('Play method called, current state:', this.state.isPlaying);
-            
-            if (this.state.isPlaying) {
-                console.log('Simulation is already playing');
-                return;
-            }
-            
-            console.log('Starting simulation...');
-            this.state.isPlaying = true;
-            this.state.lastTime = performance.now();
-            
-            // Update timeline UI if available
-            if (this.timeline && typeof this.timeline.setPlaying === 'function') {
-                console.log('Updating timeline to playing state');
-                this.timeline.setPlaying(true);
-            } else if (this.timeline) {
-                console.warn('Timeline exists but setPlaying method not available:', typeof this.timeline.setPlaying);
-                console.log('Timeline object methods:', Object.getOwnPropertyNames(this.timeline));
-            } else {
-                console.warn('Timeline not available - UI may not reflect playing state');
-            }
-            
-            // Start the animation loop
-            this.animate();
-            console.log('Animation loop started');
-            
-        } catch (error) {
-            console.error('Error in play method:', error);
-            console.error('Stack trace:', error.stack);
-            // Reset state on error
-            this.state.isPlaying = false;
-        }
+        this.state.isPlaying = true;
+        this.timeline.setPlaying(true);
     }
     
     pause() {
-        try {
-            console.log('Pause method called, current state:', this.state.isPlaying);
-            
-            if (!this.state.isPlaying) {
-                console.log('Simulation is already paused');
-                return;
-            }
-            
-            console.log('Pausing simulation...');
-            this.state.isPlaying = false;
-            
-            // Update timeline UI if available
-            if (this.timeline && typeof this.timeline.setPlaying === 'function') {
-                console.log('Updating timeline to paused state');
-                this.timeline.setPlaying(false);
-            } else if (this.timeline) {
-                console.warn('Timeline exists but setPlaying method not available:', typeof this.timeline.setPlaying);
-            } else {
-                console.warn('Timeline not available - UI may not reflect paused state');
-            }
-            
-            console.log('Simulation paused');
-            
-        } catch (error) {
-            console.error('Error in pause method:', error);
-            console.error('Stack trace:', error.stack);
-            // Ensure paused state on error
-            this.state.isPlaying = false;
-        }
+        this.state.isPlaying = false;
+        this.timeline.setPlaying(false);
     }
     
     togglePlayPause() {
@@ -546,7 +415,7 @@ export class SimulationManager {
         if (this.state.vehicleData) {
             this.entryVehicle.getObject3D().position.copy(this.state.vehicleData.position);
             
-            // ADD: Update trajectory display when seeking
+            // Update trajectory display when seeking
             this.trajectoryManager.updateTrajectoryDisplay(this.state.currentTime);
         }
     }
@@ -574,27 +443,30 @@ export class SimulationManager {
         this.sceneManager.handleResize();
     }
     
-    // Event emitter methods (simplified)
-    emit(event, data) {
-        if (this.options[`on${event.charAt(0).toUpperCase() + event.slice(1)}`]) {
-            this.options[`on${event.charAt(0).toUpperCase() + event.slice(1)}`](data);
-        }
+    // Mouse event handlers
+    onMouseDown(event) {
+        this.cameraController.onMouseDown(event);
     }
     
-    // Cleanup
-    dispose() {
-        cancelAnimationFrame(this.animationId);
+    onMouseMove(event) {
+        this.cameraController.onMouseMove(event);
         
-        // Dispose components
-        this.sceneManager.dispose();
-        this.trajectoryManager.dispose();
-        this.entryVehicle.dispose();
-        this.mars.dispose();
-        this.stars.dispose();
+        // Update cursor
+        this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         
-        // Remove event listeners
-        document.removeEventListener('keydown', this.handleKeydown);
-        window.removeEventListener('resize', this.handleResize);
+        this.sceneManager.renderer.domElement.style.cursor = 
+            this.state.isPlaying ? 'pointer' : 'default';
+    }
+    
+    onMouseUp(event) {
+        this.cameraController.onMouseUp(event);
+    }
+    
+    onMouseWheel(event) {
+        event.preventDefault();
+        const delta = event.deltaY > 0 ? 'out' : 'in';
+        this.handleZoom(delta);
     }
     
     // Public API
@@ -608,5 +480,18 @@ export class SimulationManager {
     
     getCurrentPhase() {
         return this.phaseController.phases[this.state.currentPhase];
+    }
+    
+    // Cleanup
+    dispose() {
+        cancelAnimationFrame(this.animationId);
+        
+        // Dispose components
+        this.sceneManager.dispose();
+        this.trajectoryManager.dispose();
+        this.entryVehicle.dispose();
+        
+        // Remove event listeners
+        window.removeEventListener('resize', this.handleResize);
     }
 }
