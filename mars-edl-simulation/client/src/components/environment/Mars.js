@@ -10,7 +10,7 @@ export class Mars {
         this.clouds = null;
         this.position = new THREE.Vector3(0, 0, 0); // Mars at origin
         
-        this.textureLoader = new THREE.TextureLoader();
+        this.textureLoader = new THREE.TextureLoader();     
     }
     
     async init() {

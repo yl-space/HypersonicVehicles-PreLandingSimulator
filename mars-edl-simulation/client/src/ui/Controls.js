@@ -515,7 +515,7 @@ export class Controls {
             }
             
             .shortcuts-content dd::after {
-                content: '\\A';
+                content: '\\\\A';
                 white-space: pre;
             }
             

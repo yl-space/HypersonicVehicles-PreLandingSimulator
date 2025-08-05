@@ -35,7 +35,7 @@ export class SimulationManager {
         
         // Scene objects
         this.entryVehicle = null;
-        this.Mars = null;
+        this.mars = null;
         this.stars = null;
         
         // UI components
@@ -70,6 +70,10 @@ export class SimulationManager {
         // Initialize core components
         this.sceneManager = new SceneManager(this.options.container);
         this.cameraController = new CameraController(this.sceneManager.renderer);
+        
+        // Setup post-processing now that camera is available
+        this.sceneManager.setupPostProcessing(this.cameraController.camera);
+        
         this.trajectoryManager = new TrajectoryManager();
         this.phaseController = new PhaseController();
         this.dataManager = new DataManager();
@@ -89,16 +93,23 @@ export class SimulationManager {
         // Start animation loop
         this.animate();
         
-        // Auto-start if requested
+        // Auto-start if requested (after everything is initialized)
         if (this.options.autoStart) {
-            this.play();
+            // Ensure UI is fully initialized before playing
+            setTimeout(() => {
+                if (this.timeline && typeof this.timeline.setPlaying === 'function') {
+                    this.play();
+                } else {
+                    console.warn('Timeline not ready for autostart, skipping...');
+                }
+            }, 100);
         }
     }
     
     createSceneObjects() {
         // Create Mars
-        this.Mars = new Mars();
-        this.sceneManager.scene.add(this.Mars.getObject3D());
+        this.mars = new Mars();
+        this.sceneManager.scene.add(this.mars.getObject3D());
         
         // Create stars
         this.stars = new Stars();
@@ -116,24 +127,67 @@ export class SimulationManager {
     }
     
     initializeUI() {
-        // Timeline
-        this.timeline = new Timeline({
-            container: document.getElementById('timeline-container'),
-            totalTime: this.state.totalTime,
-            onTimeUpdate: (time) => this.seekTo(time),
-            onPlayPause: () => this.togglePlayPause()
-        });
-        
-        // Phase info panel
-        this.phaseInfo = new PhaseInfo({
-            container: document.getElementById('phase-info')
-        });
-        
-        // Camera and zoom controls
-        this.controls = new Controls({
-            onCameraMode: (mode) => this.setCameraMode(mode),
-            onZoom: (direction) => this.handleZoom(direction)
-        });
+        try {
+            console.log('Initializing UI components...');
+            
+            // Timeline
+            const timelineContainer = document.getElementById('timeline-container');
+            if (timelineContainer) {
+                console.log('Creating Timeline component...');
+                this.timeline = new Timeline({
+                    container: timelineContainer,
+                    totalTime: this.state.totalTime,
+                    onTimeUpdate: (time) => this.seekTo(time),
+                    onPlayPause: () => this.togglePlayPause()
+                });
+                console.log('Timeline created successfully:', this.timeline);
+            } else {
+                console.warn('Timeline container not found in DOM');
+                this.timeline = null;
+            }
+            
+            // Phase info panel
+            const phaseContainer = document.getElementById('phase-info');
+            if (phaseContainer) {
+                console.log('Creating PhaseInfo component...');
+                this.phaseInfo = new PhaseInfo({
+                    container: phaseContainer
+                });
+                console.log('PhaseInfo created successfully');
+            } else {
+                console.warn('Phase info container not found in DOM');
+                this.phaseInfo = null;
+            }
+            
+            // Camera and zoom controls
+            console.log('Creating Controls component...');
+            this.controls = new Controls({
+                onCameraMode: (mode) => this.setCameraMode(mode),
+                onZoom: (direction) => this.handleZoom(direction)
+            });
+            console.log('Controls created successfully');
+            
+            // Verify all components are properly initialized
+            const missingComponents = [];
+            if (!this.timeline) missingComponents.push('Timeline');
+            if (!this.phaseInfo) missingComponents.push('PhaseInfo');
+            if (!this.controls) missingComponents.push('Controls');
+            
+            if (missingComponents.length > 0) {
+                console.warn('Some UI components failed to initialize:', missingComponents);
+            } else {
+                console.log('All UI components initialized successfully');
+            }
+            
+        } catch (error) {
+            console.error('Error initializing UI:', error);
+            console.error('Stack trace:', error.stack);
+            
+            // Set components to null on error to prevent further issues
+            this.timeline = null;
+            this.phaseInfo = null;
+            this.controls = null;
+        }
     }
     
     async loadData() {
@@ -348,7 +402,7 @@ export class SimulationManager {
         this.entryVehicle.update(this.state.currentTime, this.state.vehicleData);
         
         // Update Mars rotation
-        this.Mars.update(deltaTime);
+        this.mars.update(deltaTime);
 
         // Update trajectory visibility
         this.trajectoryManager.updateTrajectoryVisibility(this.state.currentTime);
@@ -367,13 +421,17 @@ export class SimulationManager {
         }
         
         // Update UI
-        this.timeline.update(this.state.currentTime, this.state.isPlaying);
-        this.phaseInfo.update(
-            this.phaseController.phases[this.state.currentPhase],
-            this.state.vehicleData,
-            this.state.currentTime,
-            this.state.totalTime
-        );
+        if (this.timeline && typeof this.timeline.update === 'function') {
+            this.timeline.update(this.state.currentTime, this.state.isPlaying);
+        }
+        if (this.phaseInfo && typeof this.phaseInfo.update === 'function') {
+            this.phaseInfo.update(
+                this.phaseController.phases[this.state.currentPhase],
+                this.state.vehicleData,
+                this.state.currentTime,
+                this.state.totalTime
+            );
+        }
     }
     
     handlePhaseTransition(newPhase) {
@@ -405,13 +463,71 @@ export class SimulationManager {
     
     // Control methods
     play() {
-        this.state.isPlaying = true;
-        this.timeline.setPlaying(true);
+        try {
+            console.log('Play method called, current state:', this.state.isPlaying);
+            
+            if (this.state.isPlaying) {
+                console.log('Simulation is already playing');
+                return;
+            }
+            
+            console.log('Starting simulation...');
+            this.state.isPlaying = true;
+            this.state.lastTime = performance.now();
+            
+            // Update timeline UI if available
+            if (this.timeline && typeof this.timeline.setPlaying === 'function') {
+                console.log('Updating timeline to playing state');
+                this.timeline.setPlaying(true);
+            } else if (this.timeline) {
+                console.warn('Timeline exists but setPlaying method not available:', typeof this.timeline.setPlaying);
+                console.log('Timeline object methods:', Object.getOwnPropertyNames(this.timeline));
+            } else {
+                console.warn('Timeline not available - UI may not reflect playing state');
+            }
+            
+            // Start the animation loop
+            this.animate();
+            console.log('Animation loop started');
+            
+        } catch (error) {
+            console.error('Error in play method:', error);
+            console.error('Stack trace:', error.stack);
+            // Reset state on error
+            this.state.isPlaying = false;
+        }
     }
     
     pause() {
-        this.state.isPlaying = false;
-        this.timeline.setPlaying(false);
+        try {
+            console.log('Pause method called, current state:', this.state.isPlaying);
+            
+            if (!this.state.isPlaying) {
+                console.log('Simulation is already paused');
+                return;
+            }
+            
+            console.log('Pausing simulation...');
+            this.state.isPlaying = false;
+            
+            // Update timeline UI if available
+            if (this.timeline && typeof this.timeline.setPlaying === 'function') {
+                console.log('Updating timeline to paused state');
+                this.timeline.setPlaying(false);
+            } else if (this.timeline) {
+                console.warn('Timeline exists but setPlaying method not available:', typeof this.timeline.setPlaying);
+            } else {
+                console.warn('Timeline not available - UI may not reflect paused state');
+            }
+            
+            console.log('Simulation paused');
+            
+        } catch (error) {
+            console.error('Error in pause method:', error);
+            console.error('Stack trace:', error.stack);
+            // Ensure paused state on error
+            this.state.isPlaying = false;
+        }
     }
     
     togglePlayPause() {
@@ -473,7 +589,7 @@ export class SimulationManager {
         this.sceneManager.dispose();
         this.trajectoryManager.dispose();
         this.entryVehicle.dispose();
-        this.Mars.dispose();
+        this.mars.dispose();
         this.stars.dispose();
         
         // Remove event listeners

@@ -45,9 +45,6 @@ export class SceneManager {
         
         this.container.appendChild(this.renderer.domElement);
 
-        // Setup post-processing
-        this.setupPostProcessing();
-        
         // Setup lighting
         this.setupLighting();
         
