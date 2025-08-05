@@ -4,9 +4,9 @@
  */
 
 import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 export class SceneManager {
     constructor(container) {
@@ -15,10 +15,10 @@ export class SceneManager {
         this.renderer = null;
         this.lights = {};
         // this.renderer.logarithmicDepthBuffer = true; // For large scale distances
-        this.renderer.outputEncoding = THREE.sRGBEncoding;
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 0.8;
-        this.composer = null;
+        // this.renderer.outputEncoding = THREE.sRGBEncoding;
+        // this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        // this.renderer.toneMappingExposure = 0.8;
+        // this.composer = null;
         this.init();
     }
     
@@ -32,7 +32,7 @@ export class SceneManager {
             antialias: true,
             alpha: true,
             powerPreference: "high-performance",
-            logarithmicDepthBuffer: true
+            logarithmicDepthBuffer: true  // Add here
         });
         
         this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -41,8 +41,7 @@ export class SceneManager {
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.outputEncoding = THREE.sRGBEncoding;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 0.8;
-
+        this.renderer.toneMappingExposure = 0.8;  // Add here after renderer is created
         
         this.container.appendChild(this.renderer.domElement);
 
@@ -82,10 +81,10 @@ export class SceneManager {
         
         this.scene.add(this.lights.sun);
         
-        // Jupiter surface reflection light (subtle orange)
-        this.lights.jupiterReflection = new THREE.DirectionalLight(0xB87333, 0.2);
-        this.lights.jupiterReflection.position.set(-2000, -5000, -2000);
-        this.scene.add(this.lights.jupiterReflection);
+        // Mars surface reflection light (subtle orange)
+        this.lights.MarsReflection = new THREE.DirectionalLight(0xB87333, 0.2);
+        this.lights.MarsReflection.position.set(-2000, -5000, -2000);
+        this.scene.add(this.lights.MarsReflection);
         // Hemisphere light for ambient effect
         const hemiLight = new THREE.HemisphereLight(0xff6b4a, 0x000033, 0.5);
         this.scene.add(hemiLight); 
@@ -107,11 +106,14 @@ export class SceneManager {
     }
     
     render(camera) {
-        // this.renderer.render(this.scene, camera);
-        if (this.composer) {
+        if (this.composer && camera) {
+            // Set up post-processing with camera if not done yet
+            if (this.composer.passes.length === 0) {
+                this.setupPostProcessingWithCamera(camera);
+            }
             this.composer.render();
         } else {
-            this.renderer.render(this.scene, this.camera);
+            this.renderer.render(this.scene, camera);
         }
     }
     
@@ -124,14 +126,14 @@ export class SceneManager {
         // Adjust sun intensity based on atmosphere
         this.lights.sun.intensity = 1.2 - atmosphereEffect * 0.2;
         
-        // Increase Jupiter reflection when closer to surface
-        this.lights.jupiterReflection.intensity = 0.2 + (1 - atmosphereEffect) * 0.3;
+        // Increase Mars reflection when closer to surface
+        this.lights.MarsReflection.intensity = 0.2 + (1 - atmosphereEffect) * 0.3;
     }
     // Post-processing setup
-    setupPostProcessing() {
+    setupPostProcessing(camera) {
     this.composer = new EffectComposer(this.renderer);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
-    
+    this.composer.addPass(new RenderPass(this.scene, camera));
+
     const bloomPass = new UnrealBloomPass(
         new THREE.Vector2(window.innerWidth, window.innerHeight),
         0.5,  // strength

@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 export class HeatShield {
     constructor() {
         this.mesh = new THREE.Group();

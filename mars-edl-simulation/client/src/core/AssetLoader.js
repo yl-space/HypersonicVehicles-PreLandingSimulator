@@ -102,10 +102,10 @@ export class AssetLoader {
     }
     
     /**
-     * Create procedural Jupiter texture
+     * Create procedural Mars texture
      */
-    createJupiterTexture(size = 2048) {
-        const cacheKey = 'texture_jupiter_procedural';
+    createMarsTexture(size = 2048) {
+        const cacheKey = 'texture_Mars_procedural';
         
         if (this.cache.has(cacheKey)) {
             return this.cache.get(cacheKey);
@@ -128,7 +128,7 @@ export class AssetLoader {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         // Add surface features
-        this.addJupiterFeatures(ctx, canvas.width, canvas.height);
+        this.addMarsFeatures(ctx, canvas.width, canvas.height);
         
         // Create texture
         const texture = new THREE.CanvasTexture(canvas);
@@ -139,7 +139,7 @@ export class AssetLoader {
         return texture;
     }
     
-    addJupiterFeatures(ctx, width, height) {
+    addMarsFeatures(ctx, width, height) {
         // Add craters
         for (let i = 0; i < 200; i++) {
             const x = Math.random() * width;
@@ -235,7 +235,7 @@ export class AssetLoader {
      * Create environment map
      */
     createEnvironmentMap() {
-        const cacheKey = 'envmap_jupiter';
+        const cacheKey = 'envmap_Mars';
         
         if (this.cache.has(cacheKey)) {
             return this.cache.get(cacheKey);
@@ -333,7 +333,7 @@ export class AssetLoader {
         
         // Preload textures
         const texturePromises = [
-            this.createJupiterTexture(),
+            this.createMarsTexture(),
             this.createHeatShieldTexture(),
             this.createEnvironmentMap()
         ];

@@ -1,6 +1,6 @@
 /**
  * EntryVehicle.js
- * Jupiter Entry Vehicle with heat shield, backshell, and parachute
+ * Mars Entry Vehicle with heat shield, backshell, and parachute
  */
 
 import * as THREE from 'three';
@@ -10,6 +10,7 @@ export class EntryVehicle {
         this.group = new THREE.Group();
         this.components = {};
         this.effects = {};
+        this.lastDeflectionTime = 0; // Last time deflection effect was triggered
         
         // Vehicle state
         this.state = {
@@ -288,6 +289,7 @@ export class EntryVehicle {
 
     onDeflection() {
         this.state.isDeflected = true;
+        this.lastDeflectionTime = Date.now();
         const flashDuration = 500;
         const startTime = Date.now();
         

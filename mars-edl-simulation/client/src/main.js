@@ -1,12 +1,12 @@
 /**
  * main.js
- * Main entry point for Jupiter EDL Simulation
+ * Main entry point for Mars EDL Simulation
  */
 
 import { SimulationManager } from './simulation/SimulationManager.js';
 
 // Global app state
-window.JupiterEDL = {
+window.MarsEDL = {
     simulation: null,
     config: {
         debug: false,
@@ -49,7 +49,7 @@ async function init() {
         });
         
         // Store reference
-        window.JupiterEDL.simulation = simulation;
+        window.MarsEDL.simulation = simulation;
         
         // Setup global controls
         setupGlobalControls();
@@ -141,8 +141,8 @@ function showWelcomeDialog() {
     dialog.innerHTML = `
         <div class="dialog-overlay"></div>
         <div class="dialog-content">
-            <h2>Jupiter Entry, Descent & Landing Simulation</h2>
-            <p>Experience the "7 Minutes of Terror" as we simulate the Jupiter Science Laboratory's entry into the Martian atmosphere.</p>
+            <h2>Mars Entry, Descent & Landing Simulation</h2>
+            <p>Experience the "7 Minutes of Terror" as we simulate the Mars Science Laboratory's entry into the Martian atmosphere.</p>
             
             <div class="dialog-features">
                 <div class="feature">
@@ -196,13 +196,13 @@ window.closeWelcomeDialog = function() {
     const dontShowAgain = document.getElementById('dont-show-again').checked;
     
     if (dontShowAgain) {
-        localStorage.setItem('jupiterEDL_hideWelcome', 'true');
+        localStorage.setItem('MarsEDL_hideWelcome', 'true');
     }
     
     dialog.classList.remove('visible');
     setTimeout(() => {
         dialog.remove();
-        window.JupiterEDL.simulation.play();
+        window.MarsEDL.simulation.play();
     }, 300);
 };
 
@@ -210,7 +210,7 @@ window.closeWelcomeDialog = function() {
  * Check if user has seen welcome
  */
 function hasSeenWelcome() {
-    return localStorage.getItem('jupiterEDL_hideWelcome') === 'true';
+    return localStorage.getItem('MarsEDL_hideWelcome') === 'true';
 }
 
 /**
@@ -268,7 +268,7 @@ function setupGlobalControls() {
     });
     
     // Performance monitoring
-    if (window.JupiterEDL.config.debug) {
+    if (window.MarsEDL.config.debug) {
         setupPerformanceMonitor();
     }
     
@@ -283,8 +283,8 @@ function setupGlobalControls() {
     
     // Visibility change handling
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden && window.JupiterEDL.simulation) {
-            window.JupiterEDL.simulation.pause();
+        if (document.hidden && window.MarsEDL.simulation) {
+            window.MarsEDL.simulation.pause();
         }
     });
 }
@@ -339,7 +339,7 @@ function setupPerformanceMonitor() {
             monitor.innerHTML = `
                 FPS: ${fps}<br>
                 Memory: ${memory}<br>
-                Time: ${window.JupiterEDL.simulation?.state.currentTime.toFixed(1)}s
+                Time: ${window.MarsEDL.simulation?.state.currentTime.toFixed(1)}s
             `;
             
             frameCount = 0;
@@ -356,9 +356,9 @@ function setupPerformanceMonitor() {
  * Replay simulation
  */
 window.replaySimulation = function() {
-    if (window.JupiterEDL.simulation) {
-        window.JupiterEDL.simulation.seekTo(0);
-        window.JupiterEDL.simulation.play();
+    if (window.MarsEDL.simulation) {
+        window.MarsEDL.simulation.seekTo(0);
+        window.MarsEDL.simulation.play();
         
         // Close dialog
         const dialog = document.querySelector('.completion-dialog');
@@ -373,15 +373,15 @@ window.replaySimulation = function() {
  * Export telemetry data
  */
 window.exportTelemetry = function() {
-    if (window.JupiterEDL.simulation) {
-        const data = window.JupiterEDL.simulation.dataManager.exportSimulationData(
-            window.JupiterEDL.simulation.getState(),
+    if (window.MarsEDL.simulation) {
+        const data = window.MarsEDL.simulation.dataManager.exportSimulationData(
+            window.MarsEDL.simulation.getState(),
             'json'
         );
         
-        window.JupiterEDL.simulation.dataManager.downloadData(
+        window.MarsEDL.simulation.dataManager.downloadData(
             data,
-            `jupiter_edl_telemetry_${Date.now()}.json`,
+            `Mars_edl_telemetry_${Date.now()}.json`,
             'application/json'
         );
     }
@@ -405,7 +405,7 @@ function logEvent(eventName, data = {}) {
     }
     
     // Console log in debug mode
-    if (window.JupiterEDL.config.debug) {
+    if (window.MarsEDL.config.debug) {
         console.log('Event:', eventName, data);
     }
 }
@@ -625,3 +625,4 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
+

@@ -1,4 +1,4 @@
--- JupiterEDL Simulation Database Schema
+-- MarsEDL Simulation Database Schema
 -- PostgreSQL initialization script
 
 -- Create extension for UUID generation
@@ -11,7 +11,7 @@ CREATE TABLE missions (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     vehicle_type VARCHAR(100),
-    planet VARCHAR(50) DEFAULT 'jupiter',
+    planet VARCHAR(50) DEFAULT 'Mars',
     launch_date DATE,
     landing_date DATE,
     config JSONB NOT NULL,
@@ -135,10 +135,10 @@ CREATE TRIGGER update_trajectories_updated_at BEFORE UPDATE ON trajectories
 INSERT INTO missions (mission_id, name, description, vehicle_type, planet, launch_date, landing_date, config)
 VALUES (
     'msl',
-    'JupiterScience Laboratory',
-    'NASA''s Curiosity rover mission to explore Gale Crater on jupiter',
+    'MarsScience Laboratory',
+    'NASA''s Curiosity rover mission to explore Gale Crater on Mars',
     'msl_aeroshell',
-    'jupiter',
+    'Mars',
     '2011-11-26',
     '2012-08-06',
     '{
@@ -182,7 +182,7 @@ VALUES (
 
 -- Create read-only user for analytics
 CREATE USER edl_readonly WITH PASSWORD 'readonly_password';
-GRANT CONNECT ON DATABASE jupiter_edl TO edl_readonly;
+GRANT CONNECT ON DATABASE Mars_edl TO edl_readonly;
 GRANT USAGE ON SCHEMA public TO edl_readonly;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO edl_readonly;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO edl_readonly;

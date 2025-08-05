@@ -357,7 +357,8 @@
     {
         "imports": {
             "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+            "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/",
+            "three/examples/jsm/": "https://unpkg.com/three@0.170.0/examples/jsm/"
         }
     }
     </script>
@@ -374,6 +375,18 @@
             loadingStatus.textContent = status;
         };
         
+        // Add the missing hideLoadingScreen function
+        function hideLoadingScreen() {
+            const loader = document.getElementById('loading-screen');
+            if (loader) {
+                loader.style.transition = 'opacity 0.5s';
+                loader.style.opacity = '0';
+                setTimeout(() => {
+                    loader.style.display = 'none';
+                }, 500);
+            }
+        }
+        
         // Loading stages
         setTimeout(() => updateLoading(20, 'Loading Three.js...'), 100);
         setTimeout(() => updateLoading(40, 'Creating scene...'), 500);
@@ -382,7 +395,10 @@
         setTimeout(() => updateLoading(100, 'Ready!'), 2000);
         
         // Import main application
-        import('./src/main.js').catch(error => {
+        import("./src/main.js").then((module) => {
+            console.log('Main module loaded successfully:', module);
+            // Main.js will handle hiding the loading screen
+        }).catch(error => {
             console.error('Failed to load application:', error);
             document.getElementById('loading-screen').innerHTML = `
                 <div class="no-webgl">
@@ -404,7 +420,5 @@
         });
     </script>
 
-    <!-- Analytics (optional) - Disabled due to CSP -->
-    <!-- To enable analytics, configure CSP in server.js to allow Google Analytics -->
 </body>
 </html>

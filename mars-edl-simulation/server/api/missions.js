@@ -10,7 +10,7 @@ const router = express.Router();
 const missions = {
     msl: {
         id: 'msl',
-        name: 'Jupiter Science Laboratory',
+        name: 'Mars Science Laboratory',
         vehicle: 'Curiosity Rover',
         launchDate: '2011-11-26',
         landingDate: '2012-08-06',
@@ -112,7 +112,7 @@ const missions = {
     
     perseverance: {
         id: 'perseverance',
-        name: 'Jupiter 2020',
+        name: 'Mars 2020',
         vehicle: 'Perseverance Rover',
         launchDate: '2020-07-30',
         landingDate: '2021-02-18',

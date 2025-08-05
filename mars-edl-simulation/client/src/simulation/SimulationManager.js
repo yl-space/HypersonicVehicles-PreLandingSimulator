@@ -7,10 +7,10 @@ import * as THREE from 'three';
 import { SceneManager } from '../core/SceneManager.js';
 import { CameraController } from '../core/CameraController.js';
 import { EntryVehicle } from '../components/spacecraft/EntryVehicle.js';
-import { Jupiter } from '../components/environment/Jupiter.js';
+import { Mars } from '../components/environment/Mars.js';
 import { Stars } from '../components/environment/Stars.js';
-import { TrajectoryManager } from '../simulation/TrajectoryManager.js';
-import { PhaseController } from '../simulation/PhaseController.js';
+import { TrajectoryManager } from './TrajectoryManager.js';
+import { PhaseController } from './PhaseController.js';
 import { Timeline } from '../ui/Timeline.js';
 import { PhaseInfo } from '../ui/PhaseInfo.js';
 import { Controls } from '../ui/Controls.js';
@@ -35,7 +35,7 @@ export class SimulationManager {
         
         // Scene objects
         this.entryVehicle = null;
-        this.jupiter = null;
+        this.Mars = null;
         this.stars = null;
         
         // UI components
@@ -96,9 +96,9 @@ export class SimulationManager {
     }
     
     createSceneObjects() {
-        // Create Jupiter
-        this.jupiter = new Jupiter();
-        this.sceneManager.scene.add(this.jupiter.getObject3D());
+        // Create Mars
+        this.Mars = new Mars();
+        this.sceneManager.scene.add(this.Mars.getObject3D());
         
         // Create stars
         this.stars = new Stars();
@@ -347,8 +347,8 @@ export class SimulationManager {
         // Update entry vehicle effects
         this.entryVehicle.update(this.state.currentTime, this.state.vehicleData);
         
-        // Update Jupiter rotation
-        this.jupiter.update(deltaTime);
+        // Update Mars rotation
+        this.Mars.update(deltaTime);
 
         // Update trajectory visibility
         this.trajectoryManager.updateTrajectoryVisibility(this.state.currentTime);
@@ -473,7 +473,7 @@ export class SimulationManager {
         this.sceneManager.dispose();
         this.trajectoryManager.dispose();
         this.entryVehicle.dispose();
-        this.jupiter.dispose();
+        this.Mars.dispose();
         this.stars.dispose();
         
         // Remove event listeners

@@ -11,7 +11,7 @@ export class TrajectoryManager {
         this.trajectoryLine = null;
         this.currentIndex = 0;
         this.totalTime = 260.65;
-        this.jupiterRadius = 3389.5; // km
+        this.MarsRadius = 3389.5; // km
         // this.modifiedData = JSON.parse(JSON.stringify(trajectoryData)); // Deep copy
         this.modifiedData = [];
         this.deflectionPoints = [];
@@ -37,9 +37,9 @@ export class TrajectoryManager {
         const theta = this.landingSite.lon * Math.PI / 180;
         
         this.landingSite.position = new THREE.Vector3(
-            this.jupiterRadius * Math.sin(phi) * Math.cos(theta),
-            this.jupiterRadius * Math.cos(phi),
-            this.jupiterRadius * Math.sin(phi) * Math.sin(theta)
+            this.MarsRadius * Math.sin(phi) * Math.cos(theta),
+            this.MarsRadius * Math.cos(phi),
+            this.MarsRadius * Math.sin(phi) * Math.sin(theta)
         );
         
         // Create trajectory line
@@ -76,7 +76,7 @@ export class TrajectoryManager {
         this.trajectoryLine = new THREE.Line(geometry, material);
         this.trajectoryGroup.add(this.pastTrajectory);
         this.trajectoryGroup.add(this.futureTrajectory);
-        
+        this.trajectoryGroup.add(this.trajectoryLine);
     }
 
     updateTrajectoryDisplay(currentTime) {
@@ -140,13 +140,10 @@ export class TrajectoryManager {
         let minDistance = Infinity;
         
         for (let i = 0; i < this.modifiedData.length; i++) {
-            if (this.modifiedData[i].time < currentTime) continue;
+            if (this.modifiedData[i].time < currentTime) continue;  // ← Changed from .Time to .time
             
-            const point = new THREE.Vector3(
-                this.modifiedData[i].x,
-                this.modifiedData[i].y,
-                this.modifiedData[i].z
-            );
+            // Also need to use position object, not x,y,z directly
+            const point = this.modifiedData[i].position;
             
             const distance = point.distanceTo(hitPoint);
             if (distance < minDistance && distance < 50000) {
@@ -163,6 +160,42 @@ export class TrajectoryManager {
         
         return true;
     }
+    // applyDeflection(mouseCoords, currentTime, camera) {
+    //     const raycaster = new THREE.Raycaster();
+    //     raycaster.setFromCamera(mouseCoords, camera);
+        
+    //     const intersects = raycaster.intersectObject(this.futureTrajectory);
+    //     if (intersects.length === 0) return false;
+        
+    //     // Find closest trajectory point
+    //     const hitPoint = intersects[0].point;
+    //     let deflectionIndex = -1;
+    //     let minDistance = Infinity;
+        
+    //     for (let i = 0; i < this.modifiedData.length; i++) {
+    //         if (this.modifiedData[i].time < currentTime) continue;
+            
+    //         const point = new THREE.Vector3(
+    //             this.modifiedData[i].x,
+    //             this.modifiedData[i].y,
+    //             this.modifiedData[i].z
+    //         );
+            
+    //         const distance = point.distanceTo(hitPoint);
+    //         if (distance < minDistance && distance < 50000) {
+    //             minDistance = distance;
+    //             deflectionIndex = i;
+    //         }
+    //     }
+        
+    //     if (deflectionIndex === -1) return false;
+        
+    //     // Perform deflection
+    //     this.performDeflection(deflectionIndex);
+    //     this.addDeflectionMarker(hitPoint, deflectionIndex);
+        
+    //     return true;
+    // }
 
     // 5. Add deflection calculation:
     performDeflection(startIndex) {
@@ -194,7 +227,7 @@ export class TrajectoryManager {
             
             // Update the data structure
             this.modifiedData[i].position = point;
-            this.modifiedData[i].altitude = point.length() - this.jupiterRadius;
+            this.modifiedData[i].altitude = point.length() - this.MarsRadius;
         }
         
         this.deflectionPoints.push({
@@ -269,7 +302,7 @@ export class TrajectoryManager {
                     
                     // Calculate altitude and velocity
                     const position = new THREE.Vector3(x, y, z);
-                    const altitude = position.length() - this.jupiterRadius;
+                    const altitude = position.length() - this.MarsRadius;
                     
                     // Calculate velocity (approximate from position changes)
                     let velocity = 0;
@@ -281,14 +314,14 @@ export class TrajectoryManager {
                     }
                     
                     // Transform from J2000 to Mars-centered coordinates
-                    const jupiterPosition = this.transformJ2000ToMars(position, time);
+                    const MarsPosition = this.transformJ2000ToMars(position, time);
                     
                     this.trajectoryData.push({
                         time,
-                        position: jupiterPosition,
+                        position: MarsPosition,
                         altitude,
                         velocity,
-                        distanceToLanding: jupiterPosition.distanceTo(this.landingSite.position)
+                        distanceToLanding: MarsPosition.distanceTo(this.landingSite.position)
                     });
                 }
             }
@@ -327,7 +360,7 @@ export class TrajectoryManager {
             
             // Position on curved path
             const pathAngle = entryAngle * (1 - progress);
-            const radius = this.jupiterRadius + actualAltitude;
+            const radius = this.MarsRadius + actualAltitude;
             
             const x = Math.cos(pathAngle) * radius;
             const y = actualAltitude * 0.1 * Math.sin(progress * Math.PI);
@@ -354,15 +387,15 @@ export class TrajectoryManager {
     transformJ2000ToMars(j2000Position, time) {
         // Simplified transformation - in production, use proper SPICE kernels
         // For now, apply a rotation based on Mars orientation
-        const jupiterRotation = time * 0.001; // Simplified Mars rotation
+        const MarsRotation = time * 0.001; // Simplified Mars rotation
         
         const rotationMatrix = new THREE.Matrix4();
-        rotationMatrix.makeRotationY(jupiterRotation);
+        rotationMatrix.makeRotationY(MarsRotation);
         
-        const jupiterPosition = j2000Position.clone();
-        jupiterPosition.applyMatrix4(rotationMatrix);
+        const MarsPosition = j2000Position.clone();
+        MarsPosition.applyMatrix4(rotationMatrix);
         
-        return jupiterPosition;
+        return MarsPosition;
     }
     
     updateTrajectoryLine() {
@@ -480,27 +513,27 @@ export class TrajectoryManager {
     }
     
     getObject3D() {
-        return this.trajectoryLine;
+        return this.trajectoryGroup;
     }
     
     dispose() {
-        if (this.trajectoryLine) {
-            this.trajectoryLine.geometry.dispose();
-            this.trajectoryLine.material.dispose();
+        if (this.trajectoryGroup) {
+            this.trajectoryGroup.removeFromParent();
         }
+        this.trajectoryLine.material.dispose();
     }
 
     reset() {
-    this.modifiedData = JSON.parse(JSON.stringify(this.trajectoryData));
-    
-    // Clear markers
-    this.deflectionMarkers.forEach(marker => {
-        this.trajectoryGroup.remove(marker);
-        if (marker.geometry) marker.geometry.dispose();
-        if (marker.material) marker.material.dispose();
-    });
-    
-    this.deflectionMarkers = [];
-    this.deflectionPoints = [];
+        this.modifiedData = JSON.parse(JSON.stringify(this.trajectoryData));
+        
+        // Clear markers
+        this.deflectionMarkers.forEach(marker => {
+            this.trajectoryGroup.remove(marker);
+            if (marker.geometry) marker.geometry.dispose();
+            if (marker.material) marker.material.dispose();
+        });
+        
+        this.deflectionMarkers = [];
+        this.deflectionPoints = [];
     }
 }

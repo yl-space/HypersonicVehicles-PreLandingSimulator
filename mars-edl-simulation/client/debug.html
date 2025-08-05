@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Test</title>
+</head>
+<body>
+    <div id="status">Testing...</div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/",
+            "three/examples/jsm/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        const statusDiv = document.getElementById('status');
+        
+        try {
+            statusDiv.innerHTML = 'Testing Three.js import...';
+            const THREE = await import('three');
+            console.log('Three.js loaded:', THREE);
+            statusDiv.innerHTML = 'Three.js OK. Testing postprocessing...';
+            
+            const { EffectComposer } = await import('three/examples/jsm/postprocessing/EffectComposer.js');
+            console.log('EffectComposer loaded:', EffectComposer);
+            statusDiv.innerHTML = 'Postprocessing OK. Testing simple module...';
+            
+            const testModule = await import('./src/test-module.js');
+            console.log('Test module loaded:', testModule);
+            statusDiv.innerHTML = 'Simple module OK. Testing main.js...';
+            
+            const mainModule = await import('./src/main.js');
+            console.log('Main module loaded:', mainModule);
+            statusDiv.innerHTML = 'All imports successful!';
+            
+        } catch (error) {
+            console.error('Import failed:', error);
+            statusDiv.innerHTML = `Import failed: ${error.message}<br>Check console for details.`;
+        }
+    </script>
+</body>
+</html>

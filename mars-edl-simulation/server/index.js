@@ -1,5 +1,5 @@
 // /**
-//  * JupiterEDL Simulation Server - CSP Fixed for Three.js
+//  * MarsEDL Simulation Server - CSP Fixed for Three.js
 //  */
 
 // import express from 'express';
@@ -111,7 +111,7 @@
 //     async initializeData() {
 //         const mslConfig = {
 //             id: 'msl',
-//             name: 'JupiterScience Laboratory',
+//             name: 'MarsScience Laboratory',
 //             phases: [
 //                 { name: 'Entry Interface', startTime: 0, altitude: 132000, description: 'Atmospheric entry begins' },
 //                 { name: 'Peak Heating', startTime: 80, altitude: 60000, description: 'Maximum thermal stress' },
@@ -131,7 +131,7 @@
 //             await this.initializeData();
 
 //             this.server = this.app.listen(this.port, () => {
-//                 logger.info(`🚀 JupiterEDL Server running on port ${this.port}`);
+//                 logger.info(`🚀 MarsEDL Server running on port ${this.port}`);
 //                 logger.info(`📡 Access: http://localhost:${this.port}`);
 //             });
 
