@@ -110,7 +110,10 @@ export class SimulationManager {
         this.sceneManager.addToAllScenes(this.entryVehicle.getObject3D());
         
         // Add trajectory line to all scenes
-        this.sceneManager.addToAllScenes(this.trajectoryManager.getObject3D());
+        const trajectoryObject = this.trajectoryManager.getObject3D();
+        if (trajectoryObject) {
+            this.sceneManager.addToAllScenes(trajectoryObject);
+        }
         
         // Set camera target
         this.cameraController.setTarget(this.entryVehicle.getObject3D());
@@ -141,6 +144,9 @@ export class SimulationManager {
     }
     
     addPlanetControls() {
+        // Check if planet controls already exist
+        if (document.getElementById('planet-controls')) return;
+        
         // Add planet controls to existing UI without disrupting layout
         const planetControls = document.createElement('div');
         planetControls.id = 'planet-controls';
@@ -167,13 +173,41 @@ export class SimulationManager {
                 cursor: pointer;
                 transition: all 0.3s ease;
                 backdrop-filter: blur(10px);
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             `;
+            
+            // Add hover effect
+            btn.addEventListener('mouseenter', () => {
+                if (!btn.classList.contains('active')) {
+                    btn.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                }
+            });
+            
+            btn.addEventListener('mouseleave', () => {
+                if (!btn.classList.contains('active')) {
+                    btn.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                }
+            });
             
             btn.addEventListener('click', () => this.switchPlanet(planet));
             planetControls.appendChild(btn);
         });
         
-        document.getElementById('ui-overlay').appendChild(planetControls);
+        // Add CSS for active state
+        const style = document.createElement('style');
+        style.textContent = `
+            .planet-btn.active {
+                background-color: rgba(255, 107, 107, 0.5) !important;
+                border-color: rgba(255, 107, 107, 0.8) !important;
+                font-weight: 600;
+            }
+        `;
+        document.head.appendChild(style);
+        
+        const uiOverlay = document.getElementById('ui-overlay');
+        if (uiOverlay) {
+            uiOverlay.appendChild(planetControls);
+        }
     }
     
     switchPlanet(planetName) {
@@ -185,26 +219,39 @@ export class SimulationManager {
             btn.classList.toggle('active', 
                 btn.textContent.toLowerCase() === planetName);
         });
+        
+        // Adjust camera for different planet sizes
+        const cameraDistances = {
+            mars: 10,
+            earth: 15,
+            jupiter: 40
+        };
+        
+        if (cameraDistances[planetName]) {
+            this.cameraController.setDefaultDistance(cameraDistances[planetName]);
+        }
     }
     
     async loadData() {
         try {
-            // Notify data loading
-            if (this.options.onDataLoaded) {
-                this.options.onDataLoaded();
-            }
-            
             // Load trajectory data
-            await this.trajectoryManager.loadTrajectoryData(this.options.dataPath);
+            const trajectoryData = await this.dataManager.loadTrajectoryData(this.options.dataPath);
+            this.trajectoryManager.setTrajectoryData(trajectoryData);
             
             // Load mission configuration
             const missionConfig = await this.dataManager.loadMissionConfig();
             this.phaseController.setPhases(missionConfig.phases);
             
+            // Notify data loaded
+            if (this.options.onDataLoaded) {
+                this.options.onDataLoaded();
+            }
+            
         } catch (error) {
             console.error('Error loading data:', error);
             // Use sample data if loading fails
             this.trajectoryManager.generateSampleTrajectory();
+            this.phaseController.setDefaultPhases();
         }
     }
     
@@ -212,28 +259,35 @@ export class SimulationManager {
         // Window resize
         window.addEventListener('resize', () => this.handleResize());
         
-        // Mouse events for camera control
-        this.sceneManager.renderer.domElement.addEventListener('mousedown', (e) => {
-            this.onMouseDown(e);
-        });
+        // Mouse click for trajectory interaction
+        this.sceneManager.renderer.domElement.addEventListener('click', (e) => this.onMouseClick(e));
         
-        this.sceneManager.renderer.domElement.addEventListener('mousemove', (e) => {
-            this.onMouseMove(e);
-        });
-        
-        this.sceneManager.renderer.domElement.addEventListener('mouseup', (e) => {
-            this.onMouseUp(e);
-        });
-        
-        // Mouse wheel for zoom
-        this.sceneManager.renderer.domElement.addEventListener('wheel', (e) => {
-            this.onMouseWheel(e);
-        });
-        
-        // Click for deflection
-        this.sceneManager.renderer.domElement.addEventListener('click', (e) => {
-            this.onMouseClick(e);
-        });
+        // Keyboard controls
+        window.addEventListener('keydown', (e) => this.handleKeyPress(e));
+    }
+    
+    handleKeyPress(event) {
+        switch(event.key) {
+            case ' ':
+                event.preventDefault();
+                this.togglePlayPause();
+                break;
+            case 'ArrowRight':
+                this.seekTo(Math.min(this.state.currentTime + 5, this.state.totalTime));
+                break;
+            case 'ArrowLeft':
+                this.seekTo(Math.max(this.state.currentTime - 5, 0));
+                break;
+            case '1':
+                this.setCameraMode('follow');
+                break;
+            case '2':
+                this.setCameraMode('orbit');
+                break;
+            case '3':
+                this.setCameraMode('fixed');
+                break;
+        }
     }
     
     animate() {
@@ -241,36 +295,31 @@ export class SimulationManager {
         
         const deltaTime = this.clock.getDelta();
         
-        // Update simulation time
         if (this.state.isPlaying) {
             this.updateSimulation(deltaTime);
         }
         
-        // Update components
         this.updateComponents(deltaTime);
-        
-        // Render
         this.sceneManager.render(this.cameraController.camera);
     }
     
     updateSimulation(deltaTime) {
-        // Update time
+        // Update simulation time
         this.state.currentTime += deltaTime * this.state.playbackSpeed;
         
-        // Check bounds
         if (this.state.currentTime >= this.state.totalTime) {
             this.state.currentTime = this.state.totalTime;
             this.pause();
         }
         
-        // Get current vehicle data
-        this.state.vehicleData = this.trajectoryManager.getInterpolatedData(this.state.currentTime);
+        // Get vehicle data at current time
+        this.state.vehicleData = this.trajectoryManager.getDataAtTime(this.state.currentTime);
         
         if (this.state.vehicleData) {
             // Update vehicle position
-            this.entryVehicle.getObject3D().position.copy(this.state.vehicleData.position);
+            this.entryVehicle.setPosition(this.state.vehicleData.position);
             
-            // Orient vehicle along velocity vector
+            // Update vehicle rotation based on velocity
             const velocityVector = this.trajectoryManager.getVelocityVector(this.state.currentTime);
             const lookAtPoint = this.state.vehicleData.position.clone().add(velocityVector);
             this.entryVehicle.getObject3D().lookAt(lookAtPoint);
@@ -317,6 +366,21 @@ export class SimulationManager {
         );
     }
     
+    handlePhaseTransition(newPhase) {
+        this.state.currentPhase = newPhase;
+        
+        // Trigger phase-specific effects
+        const phase = this.phaseController.phases[newPhase];
+        if (phase) {
+            this.entryVehicle.triggerPhaseTransition(phase.name);
+            
+            // Update camera mode based on phase
+            if (phase.cameraMode) {
+                this.cameraController.setMode(phase.cameraMode);
+            }
+        }
+    }
+    
     onMouseClick(event) {
         if (!this.clickEnabled || !this.state.isPlaying) return;
         
@@ -326,77 +390,31 @@ export class SimulationManager {
         this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         
-        // Apply deflection
-        const deflected = this.trajectoryManager.applyDeflection(
-            this.mouse,
-            this.state.currentTime,
-            this.cameraController.camera
-        );
+        this.raycaster.setFromCamera(this.mouse, this.cameraController.camera);
         
-        if (deflected) {
-            this.lastClickTime = now;
-            this.showClickFeedback(event.clientX, event.clientY);
-        }
-    }
-    
-    showClickFeedback(x, y) {
-        const ripple = document.createElement('div');
-        ripple.style.cssText = `
-            position: fixed;
-            left: ${x}px;
-            top: ${y}px;
-            width: 40px;
-            height: 40px;
-            border: 2px solid #ffff00;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            animation: deflectionRipple 0.6s ease-out;
-            z-index: 1000;
-        `;
-        
-        document.body.appendChild(ripple);
-        setTimeout(() => document.body.removeChild(ripple), 600);
-    }
-    
-    handlePhaseTransition(newPhase) {
-        this.state.currentPhase = newPhase;
-        const phase = this.phaseController.phases[newPhase];
-        
-        console.log(`Phase transition: ${phase.name}`);
-        
-        // Handle phase-specific events
-        switch(phase.name) {
-            case 'Parachute Deploy':
-                this.entryVehicle.deployParachute();
-                this.cameraController.shake(2, 0.5);
-                break;
+        const trajectoryLine = this.trajectoryManager.getTrajectoryLine();
+        if (trajectoryLine) {
+            const intersects = this.raycaster.intersectObject(trajectoryLine);
+            
+            if (intersects.length > 0) {
+                const clickedPoint = intersects[0].point;
+                const clickedTime = this.trajectoryManager.getTimeFromPosition(clickedPoint);
                 
-            case 'Heat Shield Separation':
-                this.entryVehicle.ejectHeatShield();
-                this.cameraController.shake(1, 0.3);
-                break;
-                
-            case 'Powered Descent':
-                this.entryVehicle.activateThrusters(true);
-                break;
-        }
-        
-        // Emit phase change event
-        if (this.options.onPhaseChange) {
-            this.options.onPhaseChange(phase);
+                if (clickedTime !== null) {
+                    this.seekTo(clickedTime);
+                    this.lastClickTime = now;
+                }
+            }
         }
     }
     
-    // Control methods
     play() {
         this.state.isPlaying = true;
-        this.timeline.setPlaying(true);
+        this.clock.start();
     }
     
     pause() {
         this.state.isPlaying = false;
-        this.timeline.setPlaying(false);
     }
     
     togglePlayPause() {
@@ -409,89 +427,43 @@ export class SimulationManager {
     
     seekTo(time) {
         this.state.currentTime = Math.max(0, Math.min(time, this.state.totalTime));
-        this.timeline.setTime(this.state.currentTime);
-        
-        this.state.vehicleData = this.trajectoryManager.getInterpolatedData(this.state.currentTime);
-        if (this.state.vehicleData) {
-            this.entryVehicle.getObject3D().position.copy(this.state.vehicleData.position);
-            
-            // Update trajectory display when seeking
-            this.trajectoryManager.updateTrajectoryDisplay(this.state.currentTime);
-        }
+        this.updateSimulation(0);
     }
     
     setPlaybackSpeed(speed) {
         this.state.playbackSpeed = speed;
-        this.timeline.setPlaybackSpeed(speed);
     }
     
     setCameraMode(mode) {
         this.cameraController.setMode(mode);
-        this.controls.setActiveCamera(mode);
     }
     
     handleZoom(direction) {
-        if (direction === 'in') {
-            this.cameraController.zoomIn();
-        } else {
-            this.cameraController.zoomOut();
-        }
+        this.cameraController.zoom(direction);
     }
     
     handleResize() {
-        this.cameraController.handleResize();
         this.sceneManager.handleResize();
+        this.cameraController.handleResize();
     }
     
-    // Mouse event handlers
-    onMouseDown(event) {
-        this.cameraController.onMouseDown(event);
-    }
-    
-    onMouseMove(event) {
-        this.cameraController.onMouseMove(event);
-        
-        // Update cursor
-        this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-        
-        this.sceneManager.renderer.domElement.style.cursor = 
-            this.state.isPlaying ? 'pointer' : 'default';
-    }
-    
-    onMouseUp(event) {
-        this.cameraController.onMouseUp(event);
-    }
-    
-    onMouseWheel(event) {
-        event.preventDefault();
-        const delta = event.deltaY > 0 ? 'out' : 'in';
-        this.handleZoom(delta);
-    }
-    
-    // Public API
-    getState() {
-        return { ...this.state };
-    }
-    
-    getVehicleData() {
-        return this.state.vehicleData;
-    }
-    
-    getCurrentPhase() {
-        return this.phaseController.phases[this.state.currentPhase];
-    }
-    
-    // Cleanup
     dispose() {
-        cancelAnimationFrame(this.animationId);
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+        }
+        
+        // Clean up event listeners
+        window.removeEventListener('resize', () => this.handleResize());
+        window.removeEventListener('keydown', (e) => this.handleKeyPress(e));
         
         // Dispose components
         this.sceneManager.dispose();
-        this.trajectoryManager.dispose();
         this.entryVehicle.dispose();
+        this.trajectoryManager.dispose();
         
-        // Remove event listeners
-        window.removeEventListener('resize', this.handleResize);
+        // Dispose UI
+        this.timeline.dispose();
+        this.phaseInfo.dispose();
+        this.controls.dispose();
     }
 }
