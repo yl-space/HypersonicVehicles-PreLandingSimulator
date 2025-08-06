@@ -47,9 +47,11 @@ export class SceneManager {
             45,
             window.innerWidth / window.innerHeight,
             0.1,
-            1000
+            10000
         );
-        this.camera.position.z = 10;
+        // Position camera to see trajectory from side
+        this.camera.position.set(50, 20, 50);
+        this.camera.lookAt(0, 0, 0);
 
         // Create starfield
         this.createStarfield();
@@ -100,7 +102,7 @@ export class SceneManager {
         marsNormalTex.wrapS = THREE.RepeatWrapping;
         marsNormalTex.wrapT = THREE.RepeatWrapping;
 
-        const marsGeometry = new THREE.SphereGeometry(1, 64, 64);
+        const marsGeometry = new THREE.SphereGeometry(3, 64, 64);
         const marsMaterial = new THREE.MeshPhysicalMaterial({
             map: marsColorTex,
             normalMap: marsNormalTex,
@@ -113,6 +115,7 @@ export class SceneManager {
         
         const mars = new THREE.Mesh(marsGeometry, marsMaterial);
         mars.position.set(0, 0, 0);
+        mars.rotation.x = Math.PI / 2;
         marsScene.add(mars);
         this.planets.mars = mars;
 

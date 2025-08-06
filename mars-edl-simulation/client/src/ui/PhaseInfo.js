@@ -329,19 +329,40 @@ export class PhaseInfo {
             this.animatePhaseChange(phase);
         }
         
-        // Update telemetry
+        // Update telemetry with proper NaN and velocity handling
         if (vehicleData) {
-            // Distance
-            const distanceMiles = vehicleData.distanceToLanding * 0.621371;
-            this.elements.distance.textContent = distanceMiles.toFixed(2);
+            // Distance - handle NaN
+            const distanceMiles = (vehicleData.distanceToLanding || 0) * 0.621371;
+            this.elements.distance.textContent = isNaN(distanceMiles) ? '0.00' : distanceMiles.toFixed(2);
             
-            // Altitude
-            const altitudeMiles = vehicleData.altitude * 0.621371;
-            this.elements.altitude.textContent = `${altitudeMiles.toFixed(2)} miles`;
+            // Altitude - handle NaN
+            const altitudeMiles = (vehicleData.altitude || 0) * 0.621371;
+            this.elements.altitude.textContent = isNaN(altitudeMiles) ? '0.00 miles' : `${altitudeMiles.toFixed(2)} miles`;
             
-            // Velocity
-            const velocityMph = vehicleData.velocity * 0.621371;
-            this.elements.velocity.textContent = `${velocityMph.toFixed(2).toLocaleString()} mph`;
+            // Velocity - handle different formats (Vector3, scalar, or velocityMagnitude)
+            let velocityValue = 0;
+            
+            // First check for velocityMagnitude property (preferred)
+            if (typeof vehicleData.velocityMagnitude === 'number' && !isNaN(vehicleData.velocityMagnitude)) {
+                velocityValue = vehicleData.velocityMagnitude;
+            }
+            // Then check if velocity is a scalar number
+            else if (typeof vehicleData.velocity === 'number' && !isNaN(vehicleData.velocity)) {
+                velocityValue = Math.abs(vehicleData.velocity);
+            }
+            // Check if velocity is a Vector3 object
+            else if (vehicleData.velocity && typeof vehicleData.velocity === 'object') {
+                if (typeof vehicleData.velocity.length === 'function') {
+                    velocityValue = vehicleData.velocity.length() * 100000; // Scale up if Vector3
+                } else if (typeof vehicleData.velocity.x === 'number') {
+                    // Calculate magnitude manually if needed
+                    const v = vehicleData.velocity;
+                    velocityValue = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) * 100000;
+                }
+            }
+            
+            const velocityMph = velocityValue * 0.621371;
+            this.elements.velocity.textContent = isNaN(velocityMph) ? '0 mph' : `${Math.round(velocityMph).toLocaleString()} mph`;
             
             // Additional telemetry
             this.updateAdditionalTelemetry(vehicleData, phase);
@@ -391,21 +412,35 @@ export class PhaseInfo {
     }
     
     updateAdditionalTelemetry(vehicleData, phase) {
+        // Extract velocity magnitude properly
+        let velocity = 0;
+        
+        if (typeof vehicleData.velocityMagnitude === 'number' && !isNaN(vehicleData.velocityMagnitude)) {
+            velocity = vehicleData.velocityMagnitude;
+        } else if (typeof vehicleData.velocity === 'number' && !isNaN(vehicleData.velocity)) {
+            velocity = Math.abs(vehicleData.velocity);
+        } else if (vehicleData.velocity && typeof vehicleData.velocity === 'object') {
+            if (typeof vehicleData.velocity.length === 'function') {
+                velocity = vehicleData.velocity.length() * 100000;
+            }
+        }
+        
         // G-Force calculation (simplified)
-        const gForce = Math.min(vehicleData.velocity / 5000, 8);
-        this.elements.gforce.textContent = `${gForce.toFixed(1)}g`;
+        const gForce = Math.min(velocity / 5000, 8);
+        this.elements.gforce.textContent = isNaN(gForce) ? '0.0g' : `${gForce.toFixed(1)}g`;
         
         // Heat shield temperature (based on velocity)
-        const temp = Math.min(vehicleData.velocity * 0.15, 2000);
-        this.elements.heat.textContent = `${Math.round(temp)}°C`;
+        const temp = Math.min(velocity * 0.15, 2000);
+        this.elements.heat.textContent = isNaN(temp) ? '0°C' : `${Math.round(temp)}°C`;
         
         // Mach number (simplified)
-        const mach = vehicleData.velocity / 343; // Speed of sound approximation
-        this.elements.mach.textContent = mach.toFixed(1);
+        const mach = velocity / 343; // Speed of sound approximation
+        this.elements.mach.textContent = isNaN(mach) ? '0.0' : mach.toFixed(1);
         
         // Drag force (simplified)
-        const drag = (vehicleData.velocity / 100) * (1 - vehicleData.altitude / 132);
-        this.elements.drag.textContent = `${drag.toFixed(1)} kN`;
+        const altitude = vehicleData.altitude || 0;
+        const drag = (velocity / 100) * (1 - altitude / 132);
+        this.elements.drag.textContent = isNaN(drag) ? '0.0 kN' : `${drag.toFixed(1)} kN`;
         
         // Color code values based on severity
         this.colorCodeValue(this.elements.gforce, gForce, 4, 6);
@@ -414,6 +449,8 @@ export class PhaseInfo {
     }
     
     colorCodeValue(element, value, warningThreshold, dangerThreshold) {
+        if (!element || isNaN(value)) return;
+        
         element.style.color = value > dangerThreshold ? '#ff3333' :
                              value > warningThreshold ? '#ff9933' : '#00ff66';
     }
@@ -455,5 +492,16 @@ export class PhaseInfo {
             alert.style.animation = 'alertSlide 0.5s ease-out reverse';
             setTimeout(() => alert.remove(), 500);
         }, 3000);
+    }
+    
+    dispose() {
+        // Clean up event listeners and DOM
+        if (this.options.container) {
+            this.options.container.innerHTML = '';
+        }
+        
+        // Clear references
+        this.elements = {};
+        this.currentPhase = null;
     }
 }

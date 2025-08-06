@@ -41,11 +41,10 @@ export class EntryVehicle {
     }
     
     createCapsule() {
-        // Main capsule body
         const capsuleGroup = new THREE.Group();
         
-        // Cone shape for aerodynamic body
-        const coneGeometry = new THREE.ConeGeometry(5, 8, 16);
+        // SCALED DOWN: Reduced from 5 to 0.5
+        const coneGeometry = new THREE.ConeGeometry(0.5, 0.8, 16);
         const coneMaterial = new THREE.MeshStandardMaterial({
             color: 0x8B7355,
             metalness: 0.3,
@@ -54,11 +53,10 @@ export class EntryVehicle {
         
         const cone = new THREE.Mesh(coneGeometry, coneMaterial);
         cone.rotation.x = Math.PI;
-        cone.position.y = 4;
+        cone.position.y = 0.4;
         capsuleGroup.add(cone);
         
-        // Cylindrical section
-        const cylinderGeometry = new THREE.CylinderGeometry(5, 5, 4, 16);
+        const cylinderGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.4, 16);
         const cylinder = new THREE.Mesh(cylinderGeometry, coneMaterial);
         capsuleGroup.add(cylinder);
         
@@ -67,8 +65,8 @@ export class EntryVehicle {
     }
     
     createHeatShield() {
-        // Heat shield (bottom protection)
-        const shieldGeometry = new THREE.CylinderGeometry(7, 6, 1, 32);
+
+        const shieldGeometry = new THREE.CylinderGeometry(0.7, 0.6, 0.1, 32);
         const shieldMaterial = new THREE.MeshStandardMaterial({
             color: 0x2F1B14,
             emissive: 0x000000,
@@ -78,7 +76,7 @@ export class EntryVehicle {
         });
         
         const shield = new THREE.Mesh(shieldGeometry, shieldMaterial);
-        shield.position.y = -2.5;
+        shield.position.y = -0.25;
         
         this.components.heatShield = shield;
         this.group.add(shield);
@@ -88,7 +86,7 @@ export class EntryVehicle {
         const backshellGroup = new THREE.Group();
         
         // Conical backshell
-        const shellGeometry = new THREE.ConeGeometry(5.5, 6, 16);
+        const shellGeometry = new THREE.ConeGeometry(0.55, 0.6, 16);
         const shellMaterial = new THREE.MeshStandardMaterial({
             color: 0xaaaaaa,
             metalness: 0.2,
@@ -106,7 +104,7 @@ export class EntryVehicle {
         const parachuteGroup = new THREE.Group();
         
         // Parachute canopy
-        const canopyGeometry = new THREE.ConeGeometry(20, 15, 16, 8, true);
+        const canopyGeometry = new THREE.ConeGeometry(2, 1.5, 16, 8, true);
         const canopyMaterial = new THREE.MeshStandardMaterial({
             color: 0xff6644,
             side: THREE.DoubleSide,
@@ -128,7 +126,7 @@ export class EntryVehicle {
     
     createEffects() {
         // Heat glow effect
-        const glowGeometry = new THREE.SphereGeometry(10, 32, 32);
+        const glowGeometry = new THREE.SphereGeometry(1, 32, 32);
         const glowMaterial = new THREE.MeshBasicMaterial({
             color: 0xff6600,
             transparent: true,

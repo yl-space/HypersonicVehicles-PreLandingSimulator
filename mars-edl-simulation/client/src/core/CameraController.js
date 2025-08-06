@@ -129,19 +129,15 @@ export class CameraController {
         
         switch (this.mode) {
             case 'follow':
-                // Dynamic follow distance based on altitude if available
                 const altitude = vehicleData?.altitude || 10000;
-                const followDistance = this.state.defaultDistance + Math.sqrt(altitude) * 0.1;
-                const followHeight = this.state.defaultDistance * 0.5 + Math.sqrt(altitude) * 0.05;
+                const followDistance = 10 + Math.sqrt(altitude) * 0.01;
+                const followHeight = 5 + Math.sqrt(altitude) * 0.005;
                 
-                // Position behind and above vehicle
+                // Handle velocity properly
                 let velocity;
                 if (vehicleData?.velocity) {
                     if (vehicleData.velocity instanceof THREE.Vector3) {
-                        velocity = vehicleData.velocity;
-                    } else if (typeof vehicleData.velocity === 'number') {
-                        // Convert scalar velocity to Vector3 (downward direction)
-                        velocity = new THREE.Vector3(0, -vehicleData.velocity, 0);
+                        velocity = vehicleData.velocity.clone();
                     } else {
                         velocity = new THREE.Vector3(0, -1, 0);
                     }
@@ -149,43 +145,40 @@ export class CameraController {
                     velocity = new THREE.Vector3(0, -1, 0);
                 }
                 
-                const forward = velocity.clone().normalize();
+                const forward = velocity.normalize();
                 
                 desiredPosition.copy(targetPos);
                 desiredPosition.sub(forward.multiplyScalar(followDistance));
                 desiredPosition.y += followHeight;
                 
-                // Look ahead of the vehicle
-                lookAtPoint.add(forward.multiplyScalar(20));
+                lookAtPoint.add(forward.multiplyScalar(2));
                 break;
                 
             case 'orbit':
-                // Spherical coordinate system
-                desiredPosition.x = targetPos.x + this.orbit.radius * Math.sin(this.orbit.phi) * Math.sin(this.orbit.theta);
-                desiredPosition.y = targetPos.y + this.orbit.radius * Math.cos(this.orbit.phi);
-                desiredPosition.z = targetPos.z + this.orbit.radius * Math.sin(this.orbit.phi) * Math.cos(this.orbit.theta);
+                // Fixed: Use FREE mode for orbit
+                this.mode = 'free';
                 break;
                 
+            case 'free':
+                // Let orbit controls handle it
+                return;
+                
             case 'fixed':
-                // Fixed camera position looking at target
-                desiredPosition.set(150, 100, 150);
+                desiredPosition.set(50, 20, 50);
                 break;
                 
             case 'cinematic':
-                // Cinematic camera movement
                 this.state.cinematicTime += deltaTime;
                 const t = this.state.cinematicTime * 0.1;
                 
-                desiredPosition.x = targetPos.x + Math.sin(t) * 200;
-                desiredPosition.y = targetPos.y + 100 + Math.sin(t * 0.5) * 50;
-                desiredPosition.z = targetPos.z + Math.cos(t) * 200;
+                desiredPosition.x = targetPos.x + Math.sin(t) * 30;
+                desiredPosition.y = targetPos.y + 15 + Math.sin(t * 0.5) * 5;
+                desiredPosition.z = targetPos.z + Math.cos(t) * 30;
                 break;
         }
         
-        // Smooth camera movement
         this.camera.position.lerp(desiredPosition, this.smoothness);
         
-        // Smooth look-at
         const currentLookAt = new THREE.Vector3();
         this.camera.getWorldDirection(currentLookAt);
         currentLookAt.add(this.camera.position);
