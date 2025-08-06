@@ -135,7 +135,20 @@ export class CameraController {
                 const followHeight = this.state.defaultDistance * 0.5 + Math.sqrt(altitude) * 0.05;
                 
                 // Position behind and above vehicle
-                const velocity = vehicleData?.velocity || new THREE.Vector3(0, 0, -1);
+                let velocity;
+                if (vehicleData?.velocity) {
+                    if (vehicleData.velocity instanceof THREE.Vector3) {
+                        velocity = vehicleData.velocity;
+                    } else if (typeof vehicleData.velocity === 'number') {
+                        // Convert scalar velocity to Vector3 (downward direction)
+                        velocity = new THREE.Vector3(0, -vehicleData.velocity, 0);
+                    } else {
+                        velocity = new THREE.Vector3(0, -1, 0);
+                    }
+                } else {
+                    velocity = new THREE.Vector3(0, -1, 0);
+                }
+                
                 const forward = velocity.clone().normalize();
                 
                 desiredPosition.copy(targetPos);

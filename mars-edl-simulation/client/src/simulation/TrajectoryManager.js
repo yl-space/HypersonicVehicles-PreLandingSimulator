@@ -1,5 +1,5 @@
 /**
- * TrajectoryManager.js
+ * TrajectoryManager.js - FIXED VERSION
  * Handles trajectory data loading, interpolation, and deflection
  */
 
@@ -54,14 +54,14 @@ export class TrajectoryManager {
     }
 
     deepCopyTrajectoryData(data) {
-    return data.map(point => ({
-        time: point.time,
-        position: point.position.clone(), // Properly clone Vector3
-        altitude: point.altitude,
-        velocity: point.velocity,
-        distanceToLanding: point.distanceToLanding
-    }));
-}
+        return data.map(point => ({
+            time: point.time,
+            position: point.position.clone(),
+            altitude: point.altitude,
+            velocity: point.velocity instanceof THREE.Vector3 ? point.velocity.clone() : new THREE.Vector3(0, -point.velocity, 0),
+            distanceToLanding: point.distanceToLanding
+        }));
+    }
     
     async loadTrajectoryData(filename) {
         try {
@@ -70,6 +70,7 @@ export class TrajectoryManager {
             const lines = csvText.trim().split('\n');
             
             this.trajectoryData = [];
+            let prevPosition = null;
             
             // Skip header
             for (let i = 1; i < lines.length; i++) {
@@ -80,20 +81,32 @@ export class TrajectoryManager {
                     const altitude = position.length() - this.marsRadius;
                     
                     // Scale down for visualization
-                    position.multiplyScalar(0.000001); // Adjust scale as needed
+                    position.multiplyScalar(0.000001);
+                    
+                    // Calculate velocity as Vector3
+                    let velocityVector = new THREE.Vector3(0, -1, 0);
+                    if (prevPosition && i > 1) {
+                        const prevTime = this.trajectoryData[this.trajectoryData.length - 1].time;
+                        const dt = time - prevTime;
+                        if (dt > 0) {
+                            velocityVector = position.clone().sub(prevPosition).divideScalar(dt);
+                        }
+                    }
                     
                     this.trajectoryData.push({
                         time,
                         position,
                         altitude,
-                        velocity: 0, // Calculate if needed
+                        velocity: velocityVector,
                         distanceToLanding: 0
                     });
+                    
+                    prevPosition = position.clone();
                 }
             }
             
             // Initialize modified data as copy
-            this.modifiedData = JSON.parse(JSON.stringify(this.trajectoryData));
+            this.modifiedData = this.deepCopyTrajectoryData(this.trajectoryData);
             
             this.updateTrajectoryDisplay(0);
             console.log(`Loaded ${this.trajectoryData.length} trajectory points`);
@@ -109,6 +122,7 @@ export class TrajectoryManager {
         const timeStep = this.totalTime / numPoints;
         
         this.trajectoryData = [];
+        let prevPosition = null;
         
         for (let i = 0; i < numPoints; i++) {
             const t = i * timeStep;
@@ -121,22 +135,117 @@ export class TrajectoryManager {
             const y = 3 * (1 - t / this.totalTime) - 1;
             
             const position = new THREE.Vector3(x, y, z);
-            const altitude = (1 - t / this.totalTime) * 132000; // meters
+            const altitude = (1 - t / this.totalTime) * 132000;
+            
+            // Calculate velocity as Vector3
+            let velocityVector = new THREE.Vector3(0, -1, 0);
+            if (prevPosition && i > 0) {
+                velocityVector = position.clone().sub(prevPosition).divideScalar(timeStep);
+            }
             
             this.trajectoryData.push({
                 time: t,
                 position,
                 altitude,
-                velocity: 5900 * (1 - t / this.totalTime),
+                velocity: velocityVector,
                 distanceToLanding: radius * 1000
             });
+            
+            prevPosition = position.clone();
         }
         
         this.modifiedData = this.deepCopyTrajectoryData(this.trajectoryData);
         this.updateTrajectoryDisplay(0);
     }
     
+    updateTrajectoryDisplay(currentTime) {
+        if (this.modifiedData.length < 2) return;
+        
+        // Find current position in trajectory
+        let currentIndex = 0;
+        for (let i = 0; i < this.modifiedData.length - 1; i++) {
+            if (this.modifiedData[i].time <= currentTime && this.modifiedData[i + 1].time > currentTime) {
+                currentIndex = i;
+                break;
+            }
+        }
+        
+        // Update past trajectory
+        const pastPoints = [];
+        for (let i = 0; i <= Math.min(currentIndex, this.modifiedData.length - 1); i++) {
+            pastPoints.push(this.modifiedData[i].position);
+        }
+        
+        if (pastPoints.length > 1) {
+            this.pastTrajectory.geometry.setFromPoints(pastPoints);
+        } else {
+            // Create empty geometry if not enough points
+            this.pastTrajectory.geometry.setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0.001, 0)
+            ]);
+        }
+        
+        // Update future trajectory
+        const futurePoints = [];
+        for (let i = Math.max(0, currentIndex); i < this.modifiedData.length; i++) {
+            futurePoints.push(this.modifiedData[i].position);
+        }
+        
+        if (futurePoints.length > 1) {
+            this.futureTrajectory.geometry.setFromPoints(futurePoints);
+        } else {
+            // Create empty geometry if not enough points
+            this.futureTrajectory.geometry.setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0.001, 0)
+            ]);
+        }
+    }
+    
+    getInterpolatedData(time) {
+        if (this.modifiedData.length === 0) return null;
+        
+        time = Math.max(0, Math.min(time, this.totalTime));
+        
+        // Find surrounding points
+        let i = 0;
+        while (i < this.modifiedData.length - 1 && this.modifiedData[i].time < time) {
+            i++;
+        }
+        
+        if (i === 0) return this.modifiedData[0];
+        if (i >= this.modifiedData.length) return this.modifiedData[this.modifiedData.length - 1];
+        
+        // Interpolate between points
+        const d1 = this.modifiedData[i - 1];
+        const d2 = this.modifiedData[i];
+        const t = (time - d1.time) / (d2.time - d1.time);
+        
+        return {
+            time,
+            position: d1.position.clone().lerp(d2.position.clone(), t),
+            altitude: d1.altitude + (d2.altitude - d1.altitude) * t,
+            velocity: d1.velocity.clone().lerp(d2.velocity.clone(), t),
+            distanceToLanding: d1.distanceToLanding + (d2.distanceToLanding - d1.distanceToLanding) * t
+        };
+    }
+    
+    getVelocityVector(time) {
+        const dt = 0.1;
+        const currentData = this.getInterpolatedData(time);
+        const futureData = this.getInterpolatedData(time + dt);
+        
+        if (!currentData || !futureData) return new THREE.Vector3(0, -1, 0);
+        
+        return futureData.position.clone().sub(currentData.position).normalize();
+    }
+    
+    // ... rest of the methods remain the same ...
+    
     applyDeflection(mousePos, currentTime, camera) {
+        if (this.modifiedData.length < 2) return false;
+        
         // Find the closest trajectory point to current time
         let closestIndex = 0;
         let minTimeDiff = Infinity;
@@ -150,7 +259,7 @@ export class TrajectoryManager {
         }
         
         // Apply 10% downward deflection from this point forward
-        const deflectionAngle = 0.1; // 10% deflection
+        const deflectionAngle = 0.1;
         
         // Create deflection marker
         this.addDeflectionMarker(this.modifiedData[closestIndex].position.clone());
@@ -182,7 +291,8 @@ export class TrajectoryManager {
             // Update with new Vector3 object
             this.modifiedData[i] = {
                 ...this.modifiedData[i],
-                position: newPosition
+                position: newPosition,
+                velocity: this.modifiedData[i].velocity.clone()
             };
         }
         
@@ -216,75 +326,6 @@ export class TrajectoryManager {
         this.deflectionMarkersGroup.add(marker);
     }
     
-    updateTrajectoryDisplay(currentTime) {
-        // Find current position in trajectory
-        let currentIndex = 0;
-        for (let i = 0; i < this.modifiedData.length - 1; i++) {
-            if (this.modifiedData[i].time <= currentTime && this.modifiedData[i + 1].time > currentTime) {
-                currentIndex = i;
-                break;
-            }
-        }
-        
-        // Update past trajectory
-        const pastPoints = [];
-        for (let i = 0; i <= currentIndex; i++) {
-            pastPoints.push(this.modifiedData[i].position);
-        }
-        
-        if (pastPoints.length > 1) {
-            this.pastTrajectory.geometry.setFromPoints(pastPoints);
-        }
-        
-        // Update future trajectory
-        const futurePoints = [];
-        for (let i = currentIndex; i < this.modifiedData.length; i++) {
-            futurePoints.push(this.modifiedData[i].position);
-        }
-        
-        if (futurePoints.length > 1) {
-            this.futureTrajectory.geometry.setFromPoints(futurePoints);
-        }
-    }
-    
-    getInterpolatedData(time) {
-        if (this.modifiedData.length === 0) return null;
-        
-        time = Math.max(0, Math.min(time, this.totalTime));
-        
-        // Find surrounding points
-        let i = 0;
-        while (i < this.modifiedData.length - 1 && this.modifiedData[i].time < time) {
-            i++;
-        }
-        
-        if (i === 0) return this.modifiedData[0];
-        if (i >= this.modifiedData.length) return this.modifiedData[this.modifiedData.length - 1];
-        
-        // Interpolate between points
-        const d1 = this.modifiedData[i - 1];
-        const d2 = this.modifiedData[i];
-        const t = (time - d1.time) / (d2.time - d1.time);
-        
-        return {
-            time,
-            position: d1.position.clone().lerp(d2.position.clone(), t),
-            altitude: d1.altitude + (d2.altitude - d1.altitude) * t,
-            velocity: d1.velocity + (d2.velocity - d1.velocity) * t,
-            distanceToLanding: d1.distanceToLanding + (d2.distanceToLanding - d1.distanceToLanding) * t
-        };
-    }
-    
-    getVelocityVector(time) {
-        const dt = 0.1;
-        const currentData = this.getInterpolatedData(time);
-        const futureData = this.getInterpolatedData(time + dt);
-        
-        if (!currentData || !futureData) return new THREE.Vector3(0, -1, 0);
-        
-        return futureData.position.clone().sub(currentData.position).normalize();
-    }
-    
     reset() {
         // Reset modified data to original
         this.modifiedData = this.deepCopyTrajectoryData(this.trajectoryData);
@@ -295,10 +336,61 @@ export class TrajectoryManager {
         
         // Reset display
         this.updateTrajectoryDisplay(0);
-    } 
+    }
     
     getObject3D() {
         return this.group;
+    }
+    
+    getTrajectoryLine() {
+        return this.trajectoryLine || this.futureTrajectory;
+    }
+    
+    getTimeFromPosition(position) {
+        if (this.modifiedData.length === 0) return 0;
+        
+        let closestTime = 0;
+        let minDistance = Infinity;
+        
+        for (const point of this.modifiedData) {
+            const distance = position.distanceTo(point.position);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestTime = point.time;
+            }
+        }
+        
+        return closestTime;
+    }
+    
+    updateTrajectoryVisibility(currentTime) {
+        if (this.pastTrajectory) {
+            this.pastTrajectory.material.opacity = 0.8;
+        }
+        if (this.futureTrajectory) {
+            this.futureTrajectory.material.opacity = 0.4;
+        }
+    }
+    
+    getDataAtTime(time) {
+        return this.getInterpolatedData(time);
+    }
+    
+    setTrajectoryData(data) {
+        if (Array.isArray(data)) {
+            // Ensure all positions and velocities are Vector3 objects
+            this.trajectoryData = data.map(point => ({
+                ...point,
+                position: point.position instanceof THREE.Vector3 
+                    ? point.position 
+                    : new THREE.Vector3(point.position.x, point.position.y, point.position.z),
+                velocity: point.velocity instanceof THREE.Vector3
+                    ? point.velocity
+                    : new THREE.Vector3(0, -point.velocity || -1, 0)
+            }));
+            this.modifiedData = this.deepCopyTrajectoryData(this.trajectoryData);
+            this.updateTrajectoryDisplay(0);
+        }
     }
     
     dispose() {
@@ -314,53 +406,4 @@ export class TrajectoryManager {
         
         this.deflectionMarkersGroup.clear();
     }
-    
-    setTrajectoryData(data) {
-        if (Array.isArray(data)) {
-            // Ensure all positions are Vector3 objects
-            this.trajectoryData = data.map(point => ({
-                ...point,
-                position: point.position instanceof THREE.Vector3 
-                    ? point.position 
-                    : new THREE.Vector3(point.position.x, point.position.y, point.position.z)
-            }));
-            this.modifiedData = this.deepCopyTrajectoryData(this.trajectoryData);
-            this.updateTrajectoryDisplay(0);
-        }
-    }
-
-    getTrajectoryLine() {
-        return this.trajectoryLine || this.futureTrajectory;
-    }
-
-    getTimeFromPosition(position) {
-        // Find closest point on trajectory
-        let closestTime = 0;
-        let minDistance = Infinity;
-        
-        for (const point of this.modifiedData) {
-            const distance = position.distanceTo(point.position);
-            if (distance < minDistance) {
-                minDistance = distance;
-                closestTime = point.time;
-            }
-        }
-        
-        return closestTime;
-    }
-
-    updateTrajectoryVisibility(currentTime) {
-        // Adjust opacity based on time
-        if (this.pastTrajectory) {
-            this.pastTrajectory.material.opacity = 0.8;
-        }
-        if (this.futureTrajectory) {
-            this.futureTrajectory.material.opacity = 0.4;
-        }
-    }
-
-    getDataAtTime(time) {
-    return this.getInterpolatedData(time);
-}
-
 }
