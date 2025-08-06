@@ -195,7 +195,7 @@ export class CameraController {
         this.camera.updateProjectionMatrix();
     }
     
-    // Camera shake effect for dramatic moments
+    // Camera shake effect for dramatic momen
     shake(intensity = 1, duration = 0.5) {
         const startTime = Date.now();
         const originalPosition = this.camera.position.clone();
