@@ -9,7 +9,7 @@ export class CameraController {
     constructor(camera, renderer) {
         this.camera = camera;
         this.renderer = renderer;
-        this.mode = 'follow'; // follow, orbit, freestyle
+        this.mode = 'freestyle'; // freestyle allows free 3D movement
         this.target = null;
         this.smoothness = 0.05;
         
