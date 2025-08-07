@@ -155,16 +155,35 @@ export class CameraController {
                 break;
                 
             case 'orbit':
-                // Fixed: Use FREE mode for orbit
-                this.mode = 'free';
+                // Orbit mode using mouse controls
+                if (this.target) {
+                    const spherical = new THREE.Spherical();
+                    spherical.setFromVector3(this.camera.position.clone().sub(this.target.position));
+                    
+                    spherical.theta = this.orbit.theta;
+                    spherical.phi = this.orbit.phi;
+                    spherical.radius = this.orbit.radius;
+                    
+                    desiredPosition.copy(this.target.position);
+                    desiredPosition.add(new THREE.Vector3().setFromSpherical(spherical));
+                    lookAtPoint = this.target.position.clone();
+                }
                 break;
                 
-            case 'free':
-                // Let orbit controls handle it
-                return;
+            case 'freestyle':
+                // Freestyle mode - manual orbit controls around current position
+                const center = this.target ? this.target.position : new THREE.Vector3(0, 0, 0);
                 
-            case 'fixed':
-                desiredPosition.set(50, 20, 50);
+                const spherical = new THREE.Spherical();
+                spherical.setFromVector3(this.camera.position.clone().sub(center));
+                
+                spherical.theta = this.orbit.theta;
+                spherical.phi = this.orbit.phi;
+                spherical.radius = this.orbit.radius;
+                
+                desiredPosition.copy(center);
+                desiredPosition.add(new THREE.Vector3().setFromSpherical(spherical));
+                lookAtPoint = center.clone();
                 break;
                 
             case 'cinematic':
