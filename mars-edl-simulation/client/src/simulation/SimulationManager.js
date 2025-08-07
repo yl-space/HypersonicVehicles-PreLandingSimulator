@@ -15,6 +15,7 @@ import { Timeline } from '../ui/Timeline.js';
 import { PhaseInfo } from '../ui/PhaseInfo.js';
 import { Controls } from '../ui/Controls.js';
 import { DataManager } from '../data/DataManager.js';
+import { CoordinateAxes } from '../components/helpers/CoordinateAxes.js';
 
 export class SimulationManager {
     constructor(options = {}) {
