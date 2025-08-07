@@ -6,12 +6,14 @@
 import * as THREE from 'three';
 
 export class CoordinateAxes {
-    constructor(size = 1000000) { // 1,000 km default size
+    constructor(size = 5000000, lineWidth = 3) { // 5,000 km default for Mars-scale visualization
         this.size = size;
+        this.lineWidth = lineWidth;
         this.group = new THREE.Group();
         this.group.name = 'CoordinateAxes';
         
         this.createAxes();
+        this.createArrowHeads();
         this.createLabels();
     }
     
