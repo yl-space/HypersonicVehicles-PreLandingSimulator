@@ -76,11 +76,11 @@ export class TrajectoryManager {
                     const rawPosition = new THREE.Vector3(x, y, z);
                     const altitude = rawPosition.length() - this.marsRadius * 1000; // Convert to meters
                     
-                    // Better scaling for visualization
+                    // Option B: Consistent Large Scale - No scaling
                     const position = new THREE.Vector3(
-                        x * 0.00001,  // Increased scale for better visibility
-                        y * 0.00001,
-                        z * 0.00001
+                        x,  // Full scale - meters from Mars center
+                        y,
+                        z
                     );
                     
                     let velocityVector = new THREE.Vector3(0, -1, 0);
