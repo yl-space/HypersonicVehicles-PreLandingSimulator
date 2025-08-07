@@ -18,38 +18,102 @@ export class CoordinateAxes {
     }
     
     createAxes() {
-        // Create axis lines
-        const axisGeometry = new THREE.BufferGeometry();
-        
-        // X-axis (Red)
+        // X-axis (Red) - Points toward vernal equinox in J2000
         const xAxisPoints = [
-            new THREE.Vector3(-this.size, 0, 0),
+            new THREE.Vector3(0, 0, 0),
             new THREE.Vector3(this.size, 0, 0)
         ];
         const xAxisGeometry = new THREE.BufferGeometry().setFromPoints(xAxisPoints);
         const xAxisMaterial = new THREE.LineBasicMaterial({ 
             color: 0xff0000, 
-            linewidth: 3,
+            linewidth: this.lineWidth,
             transparent: true,
-            opacity: 0.8
+            opacity: 0.9
         });
         const xAxis = new THREE.Line(xAxisGeometry, xAxisMaterial);
-        xAxis.name = 'X-Axis';
+        xAxis.name = 'X-Axis-Positive';
         this.group.add(xAxis);
         
-        // Y-axis (Green)
+        // X-axis negative (darker red)
+        const xAxisNegPoints = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(-this.size, 0, 0)
+        ];
+        const xAxisNegGeometry = new THREE.BufferGeometry().setFromPoints(xAxisNegPoints);
+        const xAxisNegMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x800000, 
+            linewidth: this.lineWidth,
+            transparent: true,
+            opacity: 0.6
+        });
+        const xAxisNeg = new THREE.Line(xAxisNegGeometry, xAxisNegMaterial);
+        xAxisNeg.name = 'X-Axis-Negative';
+        this.group.add(xAxisNeg);
+
+        // Y-axis (Green) - 90° from X in ecliptic plane
         const yAxisPoints = [
-            new THREE.Vector3(0, -this.size, 0),
+            new THREE.Vector3(0, 0, 0),
             new THREE.Vector3(0, this.size, 0)
         ];
         const yAxisGeometry = new THREE.BufferGeometry().setFromPoints(yAxisPoints);
         const yAxisMaterial = new THREE.LineBasicMaterial({ 
             color: 0x00ff00, 
-            linewidth: 3,
+            linewidth: this.lineWidth,
             transparent: true,
-            opacity: 0.8
+            opacity: 0.9
         });
         const yAxis = new THREE.Line(yAxisGeometry, yAxisMaterial);
+        yAxis.name = 'Y-Axis-Positive';
+        this.group.add(yAxis);
+        
+        // Y-axis negative (darker green)
+        const yAxisNegPoints = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, -this.size, 0)
+        ];
+        const yAxisNegGeometry = new THREE.BufferGeometry().setFromPoints(yAxisNegPoints);
+        const yAxisNegMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x008000, 
+            linewidth: this.lineWidth,
+            transparent: true,
+            opacity: 0.6
+        });
+        const yAxisNeg = new THREE.Line(yAxisNegGeometry, yAxisNegMaterial);
+        yAxisNeg.name = 'Y-Axis-Negative';
+        this.group.add(yAxisNeg);
+
+        // Z-axis (Blue) - Toward north ecliptic pole
+        const zAxisPoints = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0, this.size)
+        ];
+        const zAxisGeometry = new THREE.BufferGeometry().setFromPoints(zAxisPoints);
+        const zAxisMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x0000ff, 
+            linewidth: this.lineWidth,
+            transparent: true,
+            opacity: 0.9
+        });
+        const zAxis = new THREE.Line(zAxisGeometry, zAxisMaterial);
+        zAxis.name = 'Z-Axis-Positive';
+        this.group.add(zAxis);
+        
+        // Z-axis negative (darker blue)
+        const zAxisNegPoints = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0, -this.size)
+        ];
+        const zAxisNegGeometry = new THREE.BufferGeometry().setFromPoints(zAxisNegPoints);
+        const zAxisNegMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x000080, 
+            linewidth: this.lineWidth,
+            transparent: true,
+            opacity: 0.6
+        });
+        const zAxisNeg = new THREE.Line(zAxisNegGeometry, zAxisNegMaterial);
+        zAxisNeg.name = 'Z-Axis-Negative';
+        this.group.add(zAxisNeg);
+    }
         yAxis.name = 'Y-Axis';
         this.group.add(yAxis);
         
