@@ -107,6 +107,10 @@ export class SimulationManager {
     }
     
     createSceneObjects() {
+        // Create coordinate axes for reference
+        this.coordinateAxes = new CoordinateAxes(5000000); // 5,000 km axes
+        this.sceneManager.addToAllScenes(this.coordinateAxes.getObject3D());
+        
         // Create entry vehicle
         this.entryVehicle = new EntryVehicle();
         this.sceneManager.addToAllScenes(this.entryVehicle.getObject3D());
