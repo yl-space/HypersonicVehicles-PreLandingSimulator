@@ -38,6 +38,7 @@ export class SimulationManager {
         this.entryVehicle = null;
         this.Mars = null;
         this.Stars = null;
+        this.coordinateAxes = null;
 
         // UI components
         this.timeline = null;
