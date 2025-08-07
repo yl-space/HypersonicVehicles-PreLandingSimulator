@@ -42,8 +42,9 @@ export class CameraController {
     }
     
     init() {
-        // Set initial camera position
-        this.camera.position.set(100, 50, 100);
+        // Set initial camera position for large scale (meters)
+        // Position camera ~10,000 km from Mars center for good overview
+        this.camera.position.set(10000000, 5000000, 10000000);
         this.camera.lookAt(0, 0, 0);
         
         // Setup event listeners

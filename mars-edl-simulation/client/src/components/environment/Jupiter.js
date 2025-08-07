@@ -280,18 +280,8 @@ export class Mars {
     }
     
     update(deltaTime) {
-        // Rotate Mars
-        this.surface.rotation.y += deltaTime * 0.0001;
-        
-        // Rotate dust clouds
-        if (this.clouds) {
-            this.clouds.rotation.y += deltaTime * 0.00005;
-        }
-        
-        // Update atmosphere
-        if (this.atmosphere) {
-            this.atmosphere.rotation.y = this.surface.rotation.y;
-        }
+        // Planet rotation removed for clearer coordinate reference
+        // Jupiter remains stationary relative to coordinate axes
     }
     
     getObject3D() {

@@ -218,16 +218,8 @@ export class Mars {
                 new THREE.Vector3().subVectors(camera.position, this.mesh.position);
         }
         
-        // Rotate Mars slowly (one rotation per sol ~24.6 hours)
-        if (this.mesh) {
-            this.mesh.rotation.y += 0.00001;
-        }
-        
-        // Rotate dust clouds slightly faster for effect
-        if (this.clouds) {
-            this.clouds.rotation.y += 0.00002;
-            this.clouds.rotation.x = Math.sin(time * 0.0001) * 0.02;
-        }
+        // Planet rotation removed for clearer coordinate reference
+        // Mars remains stationary relative to coordinate axes
     }
     
     getRadius() {
