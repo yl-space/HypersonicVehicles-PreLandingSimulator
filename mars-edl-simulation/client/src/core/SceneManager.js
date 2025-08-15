@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { CoordinateAxes } from '../components/helpers/CoordinateAxes.js';
 
 export class SceneManager {
     constructor(container) {
@@ -19,6 +20,7 @@ export class SceneManager {
         this.planets = {};
         this.starfield = null;
         this.sharedObjects = []; // Track objects that need to be in all scenes
+        this.coordinateAxes = null; // J2000 coordinate system visualization
         
         this.init();
     }
@@ -42,15 +44,17 @@ export class SceneManager {
         
         this.container.appendChild(this.renderer.domElement);
 
-        // Create camera
+        // Create camera with better initial position
         this.camera = new THREE.PerspectiveCamera(
             45,
             window.innerWidth / window.innerHeight,
             0.1,
             10000
         );
-        // Position camera to see trajectory from side
-        this.camera.position.set(50, 20, 50);
+        
+        // Position camera to see trajectory from side/angle
+        // Y is up, Z is forward, X is right
+        this.camera.position.set(100, 50, 100);
         this.camera.lookAt(0, 0, 0);
 
         // Create starfield
@@ -59,13 +63,55 @@ export class SceneManager {
         // Create planet scenes
         this.createPlanetScenes();
         
+        // Create coordinate axes
+        this.createCoordinateAxes();
+        
         // Setup post-processing
         this.setupPostProcessing();
     }
     
+    // createStarfield() {
+    //     // Create starfield at appropriate scale for real-world coordinates
+    //     // Make it large enough to encompass the trajectory (which extends millions of meters)
+    //     const starFieldGeometry = new THREE.SphereGeometry(50000000, 64, 64); // 50,000 km radius
+    //     const starFieldTexture = new THREE.TextureLoader().load('/assets/textures/starfield.png');
+    //     starFieldTexture.colorSpace = THREE.SRGBColorSpace;
+    //     starFieldTexture.wrapS = THREE.RepeatWrapping;
+    //     starFieldTexture.wrapT = THREE.RepeatWrapping;
+    //     starFieldTexture.magFilter = THREE.LinearFilter;
+    //     starFieldTexture.minFilter = THREE.LinearMipmapLinearFilter;
+    //     starFieldTexture.anisotropy = 16;
+    //     starFieldTexture.repeat.set(8, 4);
+
+    //     const starMaterial = new THREE.MeshBasicMaterial({ 
+    //         map: starFieldTexture,
+    //         side: THREE.BackSide, // Render on inside only
+    //         depthTest: true,
+    //         depthWrite: false // Don't write to depth buffer so other objects render in front
+    //     });
+
+    //     this.starfield = new THREE.Mesh(starFieldGeometry, starMaterial);
+    // }
     createStarfield() {
-        const starFieldGeometry = new THREE.SphereGeometry(30, 64, 64);
-        const starFieldTexture = new THREE.TextureLoader().load('/assets/textures/starfield.png');
+        const starFieldGeometry = new THREE.SphereGeometry(900, 64, 64);
+        
+        // Load starfield texture
+        const starFieldTexture = new THREE.TextureLoader().load(
+            '/assets/textures/starfield.png',
+            (texture) => {
+                console.log('Starfield texture loaded');
+            },
+            undefined,
+            (error) => {
+                console.error('Error loading starfield texture:', error);
+                // Fallback to solid color if texture fails
+                this.starfield.material = new THREE.MeshBasicMaterial({
+                    color: 0x111122,
+                    side: THREE.BackSide
+                });
+            }
+        );
+
         starFieldTexture.colorSpace = THREE.SRGBColorSpace;
         starFieldTexture.wrapS = THREE.RepeatWrapping;
         starFieldTexture.wrapT = THREE.RepeatWrapping;
@@ -73,14 +119,91 @@ export class SceneManager {
         starFieldTexture.minFilter = THREE.LinearMipmapLinearFilter;
         starFieldTexture.anisotropy = 16;
         starFieldTexture.repeat.set(8, 4);
-
-        const starMaterial = new THREE.MeshBasicMaterial({ 
+        
+        const starFieldMaterial = new THREE.MeshBasicMaterial({
             map: starFieldTexture,
-            side: THREE.DoubleSide
+            side: THREE.BackSide,
+            depthWrite: false,
+            fog: false
         });
-
-        this.starfield = new THREE.Mesh(starFieldGeometry, starMaterial);
+        
+        this.starfield = new THREE.Mesh(starFieldGeometry, starFieldMaterial);
+        this.starfield.name = 'Starfield';
+        
+        // Add starfield to all scenes
+        Object.values(this.scenes).forEach(scene => {
+            const starfieldClone = this.starfield.clone();
+            scene.add(starfieldClone);
+        });
     }
+    
+    createCoordinateAxes() {
+        // World coordinate axes (large, for reference frame)
+        const worldAxes = new THREE.AxesHelper(100);
+        worldAxes.name = 'WorldAxes';
+        
+        // Planet coordinate axes (medium size)
+        this.planetAxes = new THREE.AxesHelper(10);
+        this.planetAxes.name = 'PlanetAxes';
+        
+        // Vehicle coordinate axes (small, will follow vehicle)
+        this.vehicleAxes = new THREE.AxesHelper(2);
+        this.vehicleAxes.name = 'VehicleAxes';
+        
+        // Trajectory coordinate axes at origin
+        this.trajectoryAxes = new THREE.AxesHelper(5);
+        this.trajectoryAxes.name = 'TrajectoryAxes';
+        this.trajectoryAxes.position.set(0, 0, 0);
+        
+        // Add labels for axes using sprites
+        this.addAxisLabels();
+        
+        // Add to all scenes
+        Object.values(this.scenes).forEach(scene => {
+            scene.add(worldAxes.clone());
+            scene.add(this.planetAxes.clone());
+            scene.add(this.trajectoryAxes.clone());
+        });
+    }
+
+    addAxisLabels() {
+        // Create text sprites for axis labels without FontLoader
+        const createLabel = (text, color, position) => {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 64;
+            canvas.height = 32;
+            
+            context.fillStyle = color;
+            context.font = 'Bold 24px Arial';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, 32, 16);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ 
+                map: texture,
+                depthTest: false,
+                depthWrite: false
+            });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.position.copy(position);
+            sprite.scale.set(4, 2, 1);
+            
+            return sprite;
+        };
+        
+        // Add labels to world axes
+        const xLabel = createLabel('X', '#ff0000', new THREE.Vector3(105, 0, 0));
+        const yLabel = createLabel('Y', '#00ff00', new THREE.Vector3(0, 105, 0));
+        const zLabel = createLabel('Z', '#0000ff', new THREE.Vector3(0, 0, 105));
+        
+        Object.values(this.scenes).forEach(scene => {
+            scene.add(xLabel.clone());
+            scene.add(yLabel.clone());
+            scene.add(zLabel.clone());
+        });
+}
     
     createPlanetScenes() {
         const textureLoader = new THREE.TextureLoader();
@@ -102,7 +225,7 @@ export class SceneManager {
         marsNormalTex.wrapS = THREE.RepeatWrapping;
         marsNormalTex.wrapT = THREE.RepeatWrapping;
 
-        const marsGeometry = new THREE.SphereGeometry(3, 64, 64);
+        const marsGeometry = new THREE.SphereGeometry(3389500, 64, 64); // Real Mars radius in meters
         const marsMaterial = new THREE.MeshPhysicalMaterial({
             map: marsColorTex,
             normalMap: marsNormalTex,
@@ -219,19 +342,19 @@ export class SceneManager {
     }
     
     setupLighting(scene, planetName) {
-        // Main Sun light - brighter for Earth visibility
+        // Main Sun light - positioned at realistic distance
         const sunLight = new THREE.DirectionalLight(0xffffff, 3.0);
-        sunLight.position.set(100, 50, 75);
+        sunLight.position.set(150000000, 75000000, 112500000); // ~150 million km - Sun distance scale
         sunLight.target.position.set(0, 0, 0);
         sunLight.castShadow = true;
         sunLight.shadow.mapSize.width = 2048;
         sunLight.shadow.mapSize.height = 2048;
-        sunLight.shadow.camera.near = 0.1;
-        sunLight.shadow.camera.far = 200;
-        sunLight.shadow.camera.left = -10;
-        sunLight.shadow.camera.right = 10;
-        sunLight.shadow.camera.top = 10;
-        sunLight.shadow.camera.bottom = -10;
+        sunLight.shadow.camera.near = 1000000; // 1,000 km
+        sunLight.shadow.camera.far = 200000000; // 200,000 km
+        sunLight.shadow.camera.left = -10000000; // 10,000 km
+        sunLight.shadow.camera.right = 10000000;
+        sunLight.shadow.camera.top = 10000000;
+        sunLight.shadow.camera.bottom = -10000000;
         scene.add(sunLight);
 
         // Increased ambient light for better visibility
@@ -305,17 +428,17 @@ export class SceneManager {
         });
     }
     
-    updatePlanetRotation(deltaTime) {
-        if (this.planets[this.currentScene]) {
-            this.planets[this.currentScene].rotation.y += 0.002;
-        }
+    // updatePlanetRotation(deltaTime) {
+    //     if (this.planets[this.currentScene]) {
+    //         this.planets[this.currentScene].rotation.y += 0.002;
+    //     }
         
-        // Rotate Earth clouds at different speed for realism
-        if (this.currentScene === 'earth' && this.planets.earthClouds) {
-            this.planets.earthClouds.rotation.y += 0.0015;
-            this.planets.earthClouds.rotation.x += 0.0002;
-        }
-    }
+    //     // Rotate Earth clouds at different speed for realism
+    //     if (this.currentScene === 'earth' && this.planets.earthClouds) {
+    //         this.planets.earthClouds.rotation.y += 0.0015;
+    //         this.planets.earthClouds.rotation.x += 0.0002;
+    //     }
+    // }
     
     render(camera) {
         if (this.composer) {

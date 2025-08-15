@@ -22,28 +22,50 @@ export class TrajectoryManager {
     }
     
     createTrajectoryLines() {
-        // Create with initial dummy geometry to prevent errors
-        const dummyPoints = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.001, 0)];
-        
+        // Brighter, thicker lines
         const pastMaterial = new THREE.LineBasicMaterial({
             color: 0x00ff00,
-            linewidth: 2,
+            linewidth: 3,
             transparent: true,
-            opacity: 0.8
+            opacity: 1.0
         });
-        const pastGeometry = new THREE.BufferGeometry().setFromPoints(dummyPoints);
-        this.pastTrajectory = new THREE.Line(pastGeometry, pastMaterial);
-        this.group.add(this.pastTrajectory);
         
         const futureMaterial = new THREE.LineBasicMaterial({
             color: 0x00ffff,
-            linewidth: 2,
+            linewidth: 3,
             transparent: true,
-            opacity: 0.4
+            opacity: 0.7
         });
-        const futureGeometry = new THREE.BufferGeometry().setFromPoints(dummyPoints);
-        this.futureTrajectory = new THREE.Line(futureGeometry, futureMaterial);
+        
+        // Initialize with dummy points
+        const dummyPoints = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.001, 0)];
+        
+        this.pastTrajectory = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(dummyPoints),
+            pastMaterial
+        );
+        
+        this.futureTrajectory = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(dummyPoints),
+            futureMaterial
+        );
+        
+        this.group.add(this.pastTrajectory);
         this.group.add(this.futureTrajectory);
+        
+        // Add glow effect to trajectory
+        const glowMaterial = new THREE.LineBasicMaterial({
+            color: 0x00ff00,
+            transparent: true,
+            opacity: 0.3,
+            linewidth: 5
+        });
+        
+        this.trajectoryGlow = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(dummyPoints),
+            glowMaterial
+        );
+        this.group.add(this.trajectoryGlow);
         
         this.deflectionMarkersGroup = new THREE.Group();
         this.group.add(this.deflectionMarkersGroup);
@@ -73,15 +95,14 @@ export class TrajectoryManager {
                 const [time, x, y, z] = lines[i].split(',').map(v => parseFloat(v.trim()));
                 
                 if (!isNaN(time) && !isNaN(x) && !isNaN(y) && !isNaN(z)) {
-                    const rawPosition = new THREE.Vector3(x, y, z);
-                    const altitude = rawPosition.length() - this.marsRadius * 1000; // Convert to meters
-                    
-                    // Option B: Consistent Large Scale - No scaling
+                    // Better scaling for visibility
                     const position = new THREE.Vector3(
-                        x,  // Full scale - meters from Mars center
-                        y,
-                        z
+                        x * 0.00002,  
+                        y * 0.00002,
+                        z * 0.00002
                     );
+                    
+                    const altitude = Math.sqrt(x*x + y*y + z*z) - this.marsRadius * 1000;
                     
                     let velocityVector = new THREE.Vector3(0, -1, 0);
                     let velocityMagnitude = 5900 * (1 - time / this.totalTime);
@@ -90,15 +111,15 @@ export class TrajectoryManager {
                         const prevTime = this.trajectoryData[this.trajectoryData.length - 1].time;
                         const dt = time - prevTime;
                         if (dt > 0) {
-                            velocityVector = position.clone().sub(prevPosition).divideScalar(dt);
-                            velocityMagnitude = velocityVector.length() * 100000; // Scale back up
+                            velocityVector = position.clone().sub(prevPosition).normalize();
+                            velocityMagnitude = position.distanceTo(prevPosition) / dt * 50000;
                         }
                     }
                     
                     this.trajectoryData.push({
                         time,
                         position,
-                        altitude: altitude * 0.001, // Convert to km
+                        altitude: altitude * 0.001,
                         velocity: velocityVector,
                         velocityMagnitude: velocityMagnitude,
                         distanceToLanding: Math.sqrt(x*x + y*y + z*z) * 0.001
@@ -111,7 +132,19 @@ export class TrajectoryManager {
             if (this.trajectoryData.length > 0) {
                 this.modifiedData = this.deepCopyTrajectoryData(this.trajectoryData);
                 this.updateTrajectoryDisplay(0);
-                console.log(`Loaded ${this.trajectoryData.length} trajectory points`);
+                
+                // Create full trajectory line for reference
+                const allPoints = this.trajectoryData.map(d => d.position);
+                const fullTrajectory = new THREE.Line(
+                    new THREE.BufferGeometry().setFromPoints(allPoints),
+                    new THREE.LineBasicMaterial({
+                        color: 0xffff00,
+                        transparent: true,
+                        opacity: 0.2,
+                        linewidth: 1
+                    })
+                );
+                this.group.add(fullTrajectory);
             }
             
         } catch (error) {

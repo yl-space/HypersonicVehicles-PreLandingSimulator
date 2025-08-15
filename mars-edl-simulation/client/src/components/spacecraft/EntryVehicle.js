@@ -34,6 +34,7 @@ export class EntryVehicle {
     
     init() {
         this.createCapsule();
+        this.createVelocityVector();
         this.createHeatShield();
         this.createBackshell();
         this.createParachute();
@@ -43,20 +44,22 @@ export class EntryVehicle {
     createCapsule() {
         const capsuleGroup = new THREE.Group();
         
-        // SCALED DOWN: Reduced from 5 to 0.5
-        const coneGeometry = new THREE.ConeGeometry(0.5, 0.8, 16);
+        // Much smaller scale relative to trajectory
+        const coneGeometry = new THREE.ConeGeometry(0.2, 0.4, 16);
         const coneMaterial = new THREE.MeshStandardMaterial({
-            color: 0x8B7355,
+            color: 0xFF4500,
             metalness: 0.3,
-            roughness: 0.7
+            roughness: 0.7,
+            emissive: 0xFF4500,
+            emissiveIntensity: 0.3
         });
         
         const cone = new THREE.Mesh(coneGeometry, coneMaterial);
         cone.rotation.x = Math.PI;
-        cone.position.y = 0.4;
+        cone.position.y = 0.2;
         capsuleGroup.add(cone);
         
-        const cylinderGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.4, 16);
+        const cylinderGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.2, 16);
         const cylinder = new THREE.Mesh(cylinderGeometry, coneMaterial);
         capsuleGroup.add(cylinder);
         
@@ -66,7 +69,7 @@ export class EntryVehicle {
     
     createHeatShield() {
 
-        const shieldGeometry = new THREE.CylinderGeometry(0.7, 0.6, 0.1, 32);
+        const shieldGeometry = new THREE.CylinderGeometry(0.25, 0.22, 0.05, 32);
         const shieldMaterial = new THREE.MeshStandardMaterial({
             color: 0x2F1B14,
             emissive: 0x000000,
@@ -159,10 +162,41 @@ export class EntryVehicle {
             this.group.add(flame);
         }
     }
+
+    createVelocityVector() {
+        const arrowHelper = new THREE.ArrowHelper(
+            new THREE.Vector3(0, -1, 0),  // Initial direction
+            new THREE.Vector3(0, 0, 0),   // Origin
+            5,                             // Length
+            0x00ff00,                      // Green color
+            1,                             // Head length
+            0.5                            // Head width
+        );
+        arrowHelper.name = 'velocityVector';
+        this.velocityVector = arrowHelper;
+        this.group.add(arrowHelper);
+    }
     
     update(time, vehicleData) {
         if (!vehicleData) return;
         
+        // Update velocity vector
+        if (this.velocityVector && vehicleData.velocity) {
+            let velocityDir;
+            if (vehicleData.velocity instanceof THREE.Vector3) {
+                velocityDir = vehicleData.velocity.clone().normalize();
+            } else {
+                velocityDir = new THREE.Vector3(0, -1, 0);
+            }
+            this.velocityVector.setDirection(velocityDir);
+            
+            // Scale arrow based on velocity magnitude
+            const speed = vehicleData.velocityMagnitude || 1000;
+            const arrowLength = Math.min(10, speed / 1000);
+            this.velocityVector.setLength(arrowLength, arrowLength * 0.2, arrowLength * 0.1);
+        }
+
+
         // Update heat shield glow based on altitude
         const glowIntensity = Math.max(0, 1 - vehicleData.altitude / 132000);
         this.effects.heatGlow.material.opacity = glowIntensity * 0.5;

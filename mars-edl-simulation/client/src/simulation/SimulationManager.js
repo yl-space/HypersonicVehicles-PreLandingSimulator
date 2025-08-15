@@ -107,13 +107,16 @@ export class SimulationManager {
     }
     
     createSceneObjects() {
-        // Create coordinate axes for reference
-        this.coordinateAxes = new CoordinateAxes(5000000); // 5,000 km axes
-        this.sceneManager.addToAllScenes(this.coordinateAxes.getObject3D());
-        
         // Create entry vehicle
         this.entryVehicle = new EntryVehicle();
-        this.sceneManager.addToAllScenes(this.entryVehicle.getObject3D());
+        const vehicleObject = this.entryVehicle.getObject3D();
+        
+        // Attach vehicle axes to vehicle
+        if (this.sceneManager.vehicleAxes) {
+            vehicleObject.add(this.sceneManager.vehicleAxes);
+        }
+        
+        this.sceneManager.addToAllScenes(vehicleObject);
         
         // Add trajectory line to all scenes
         const trajectoryObject = this.trajectoryManager.getObject3D();
@@ -122,7 +125,10 @@ export class SimulationManager {
         }
         
         // Set camera target
-        this.cameraController.setTarget(this.entryVehicle.getObject3D());
+        this.cameraController.setTarget(vehicleObject);
+        
+        // Default to freestyle mode
+        this.cameraController.setMode('freestyle');
     }
     
     initializeUI() {
@@ -383,7 +389,7 @@ export class SimulationManager {
         this.entryVehicle.update(this.state.currentTime, this.state.vehicleData);
         
         // Update planet rotation
-        this.sceneManager.updatePlanetRotation(deltaTime);
+        // this.sceneManager.updatePlanetRotation(deltaTime);
         
         // Update trajectory visibility
         this.trajectoryManager.updateTrajectoryVisibility(this.state.currentTime);
