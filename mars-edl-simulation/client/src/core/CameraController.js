@@ -25,20 +25,17 @@ export class CameraController {
     }
     
     init() {
-        // Set initial camera position
-        this.camera.position.set(100, 50, 100);
+        // Better view of trajectory and Mars
+        this.camera.position.set(80, 40, 80);
         this.camera.lookAt(0, 0, 0);
         
-        // Initialize OrbitControls for freestyle mode
+        // Initialize OrbitControls
         this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
         this.orbitControls.enableDamping = true;
         this.orbitControls.dampingFactor = 0.05;
-        this.orbitControls.screenSpacePanning = true;
-        this.orbitControls.minDistance = 1;
-        this.orbitControls.maxDistance = 1000;
-        this.orbitControls.maxPolarAngle = Math.PI;
-        
-        // Start with controls enabled
+        this.orbitControls.minDistance = 10;
+        this.orbitControls.maxDistance = 300;
+        this.orbitControls.target.set(0, 0, 0);
         this.orbitControls.enabled = true;
     }
     

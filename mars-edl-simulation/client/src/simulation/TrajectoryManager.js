@@ -91,18 +91,21 @@ export class TrajectoryManager {
             this.trajectoryData = [];
             let prevPosition = null;
             
+            // FIXED SCALING - Consistent with spacecraft
+            const SCALE_FACTOR = 0.00003; // Unified scale
+            
             for (let i = 1; i < lines.length; i++) {
                 const [time, x, y, z] = lines[i].split(',').map(v => parseFloat(v.trim()));
                 
                 if (!isNaN(time) && !isNaN(x) && !isNaN(y) && !isNaN(z)) {
-                    // Better scaling for visibility
                     const position = new THREE.Vector3(
-                        x * 0.00002,  
-                        y * 0.00002,
-                        z * 0.00002
+                        x * SCALE_FACTOR,
+                        y * SCALE_FACTOR,
+                        z * SCALE_FACTOR
                     );
                     
-                    const altitude = Math.sqrt(x*x + y*y + z*z) - this.marsRadius * 1000;
+                    const rawDistance = Math.sqrt(x*x + y*y + z*z);
+                    const altitude = (rawDistance - this.marsRadius * 1000) * 0.001; // km
                     
                     let velocityVector = new THREE.Vector3(0, -1, 0);
                     let velocityMagnitude = 5900 * (1 - time / this.totalTime);
@@ -112,40 +115,26 @@ export class TrajectoryManager {
                         const dt = time - prevTime;
                         if (dt > 0) {
                             velocityVector = position.clone().sub(prevPosition).normalize();
-                            velocityMagnitude = position.distanceTo(prevPosition) / dt * 50000;
+                            velocityMagnitude = position.distanceTo(prevPosition) / dt / SCALE_FACTOR;
                         }
                     }
                     
                     this.trajectoryData.push({
                         time,
                         position,
-                        altitude: altitude * 0.001,
+                        altitude,
                         velocity: velocityVector,
-                        velocityMagnitude: velocityMagnitude,
-                        distanceToLanding: Math.sqrt(x*x + y*y + z*z) * 0.001
+                        velocityMagnitude,
+                        distanceToLanding: rawDistance * 0.001
                     });
                     
                     prevPosition = position.clone();
                 }
             }
             
-            if (this.trajectoryData.length > 0) {
-                this.modifiedData = this.deepCopyTrajectoryData(this.trajectoryData);
-                this.updateTrajectoryDisplay(0);
-                
-                // Create full trajectory line for reference
-                const allPoints = this.trajectoryData.map(d => d.position);
-                const fullTrajectory = new THREE.Line(
-                    new THREE.BufferGeometry().setFromPoints(allPoints),
-                    new THREE.LineBasicMaterial({
-                        color: 0xffff00,
-                        transparent: true,
-                        opacity: 0.2,
-                        linewidth: 1
-                    })
-                );
-                this.group.add(fullTrajectory);
-            }
+            this.modifiedData = this.deepCopyTrajectoryData(this.trajectoryData);
+            this.updateTrajectoryDisplay(0);
+            console.log(`Loaded ${this.trajectoryData.length} trajectory points`);
             
         } catch (error) {
             console.error('Error loading trajectory data:', error);

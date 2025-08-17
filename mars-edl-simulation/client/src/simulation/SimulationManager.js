@@ -76,6 +76,10 @@ export class SimulationManager {
             this.sceneManager.camera,
             this.sceneManager.renderer
         );
+        
+        // ENSURE MARS IS ACTIVE
+        this.sceneManager.switchPlanet('mars');
+        
         this.trajectoryManager = new TrajectoryManager();
         this.phaseController = new PhaseController();
         this.dataManager = new DataManager();
@@ -91,11 +95,6 @@ export class SimulationManager {
         
         // Setup event listeners
         this.setupEventListeners();
-        
-        // Notify ready
-        if (this.options.onReady) {
-            this.options.onReady();
-        }
         
         // Start animation loop
         this.animate();
@@ -362,13 +361,17 @@ export class SimulationManager {
         this.state.vehicleData = this.trajectoryManager.getDataAtTime(this.state.currentTime);
         
         if (this.state.vehicleData) {
-            // Update vehicle position
-            this.entryVehicle.setPosition(this.state.vehicleData.position);
-            
-            // Update vehicle rotation based on velocity
-            const velocityVector = this.trajectoryManager.getVelocityVector(this.state.currentTime);
-            const lookAtPoint = this.state.vehicleData.position.clone().add(velocityVector);
-            this.entryVehicle.getObject3D().lookAt(lookAtPoint);
+            // CRITICAL FIX: Actually update spacecraft position
+            if (this.entryVehicle && this.state.vehicleData.position) {
+                this.entryVehicle.setPosition(this.state.vehicleData.position);
+                
+                // Update rotation based on velocity
+                const velocityVector = this.trajectoryManager.getVelocityVector(this.state.currentTime);
+                if (velocityVector && velocityVector.length() > 0.001) {
+                    const lookAtPoint = this.state.vehicleData.position.clone().add(velocityVector);
+                    this.entryVehicle.getObject3D().lookAt(lookAtPoint);
+                }
+            }
             
             // Update phase
             const currentPhase = this.phaseController.getCurrentPhase(this.state.currentTime);

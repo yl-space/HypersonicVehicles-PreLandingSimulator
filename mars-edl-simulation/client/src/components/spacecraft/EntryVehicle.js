@@ -44,42 +44,39 @@ export class EntryVehicle {
     createCapsule() {
         const capsuleGroup = new THREE.Group();
         
-        // Much smaller scale relative to trajectory
-        const coneGeometry = new THREE.ConeGeometry(0.2, 0.4, 16);
+        const coneGeometry = new THREE.ConeGeometry(0.5, 1, 16);
         const coneMaterial = new THREE.MeshStandardMaterial({
             color: 0xFF4500,
             metalness: 0.3,
             roughness: 0.7,
             emissive: 0xFF4500,
-            emissiveIntensity: 0.3
+            emissiveIntensity: 0.4
         });
         
         const cone = new THREE.Mesh(coneGeometry, coneMaterial);
         cone.rotation.x = Math.PI;
-        cone.position.y = 0.2;
+        cone.position.y = 0.5;
         capsuleGroup.add(cone);
         
-        const cylinderGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.2, 16);
+        const cylinderGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.5, 16);
         const cylinder = new THREE.Mesh(cylinderGeometry, coneMaterial);
         capsuleGroup.add(cylinder);
         
         this.components.capsule = capsuleGroup;
         this.group.add(capsuleGroup);
     }
-    
-    createHeatShield() {
 
-        const shieldGeometry = new THREE.CylinderGeometry(0.25, 0.22, 0.05, 32);
+    createHeatShield() {
+        const shieldGeometry = new THREE.CylinderGeometry(0.7, 0.6, 0.1, 32);
         const shieldMaterial = new THREE.MeshStandardMaterial({
             color: 0x2F1B14,
             emissive: 0x000000,
-            emissiveIntensity: 0,
             metalness: 0.1,
             roughness: 0.9
         });
         
         const shield = new THREE.Mesh(shieldGeometry, shieldMaterial);
-        shield.position.y = -0.25;
+        shield.position.y = -0.3;
         
         this.components.heatShield = shield;
         this.group.add(shield);

@@ -341,6 +341,7 @@ export class SceneManager {
         this.currentScene = 'mars';
     }
     
+    
     setupLighting(scene, planetName) {
         // Main Sun light - positioned at realistic distance
         const sunLight = new THREE.DirectionalLight(0xffffff, 3.0);
