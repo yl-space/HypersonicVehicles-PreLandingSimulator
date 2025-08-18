@@ -1,11 +1,15 @@
+/**
+ * CameraController.js
+ * Manages camera modes and smooth transitions
+ */
+
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 export class CameraController {
     constructor(camera, renderer) {
         this.camera = camera;
         this.renderer = renderer;
-        this.mode = 'freestyle'; // Default to freestyle
+        this.mode = 'freestyle'; // freestyle allows free 3D movement
         this.target = null;
         this.smoothness = 0.05;
         
@@ -15,66 +19,101 @@ export class CameraController {
             height: 50,
             angle: 0,
             cinematicTime: 0,
-            defaultDistance: 50
+            defaultDistance: 10
         };
         
-        // Orbit controls for freestyle mode
-        this.orbitControls = null;
+        // Mouse controls for orbit mode
+        this.mouse = {
+            isDown: false,
+            lastX: 0,
+            lastY: 0,
+            deltaX: 0,
+            deltaY: 0
+        };
+        
+        // Orbit controls state
+        this.orbit = {
+            theta: 0,
+            phi: Math.PI / 4,
+            radius: 100
+        };
         
         this.init();
     }
     
     init() {
-        // Better view of trajectory and Mars
-        this.camera.position.set(80, 40, 80);
+        // Set initial camera position for large scale (meters)
+        // Position camera ~10,000 km from Mars center for good overview
+        this.camera.position.set(10000000, 5000000, 10000000);
         this.camera.lookAt(0, 0, 0);
         
-        // Initialize OrbitControls
-        this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
-        this.orbitControls.enableDamping = true;
-        this.orbitControls.dampingFactor = 0.05;
-        this.orbitControls.minDistance = 10;
-        this.orbitControls.maxDistance = 300;
-        this.orbitControls.target.set(0, 0, 0);
-        this.orbitControls.enabled = true;
+        // Setup event listeners
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        const canvas = this.renderer.domElement;
+        
+        // Mouse controls for orbit mode
+        canvas.addEventListener('mousedown', (e) => {
+            if (this.mode === 'orbit') {
+                this.mouse.isDown = true;
+                this.mouse.lastX = e.clientX;
+                this.mouse.lastY = e.clientY;
+            }
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            if (this.mode === 'orbit' && this.mouse.isDown) {
+                this.mouse.deltaX = e.clientX - this.mouse.lastX;
+                this.mouse.deltaY = e.clientY - this.mouse.lastY;
+                this.mouse.lastX = e.clientX;
+                this.mouse.lastY = e.clientY;
+                
+                // Update orbit angles
+                this.orbit.theta -= this.mouse.deltaX * 0.01;
+                this.orbit.phi = Math.max(0.1, Math.min(Math.PI - 0.1, 
+                    this.orbit.phi + this.mouse.deltaY * 0.01));
+            }
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            this.mouse.isDown = false;
+        });
+        
+        // Prevent context menu on right click
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+        
+        // Wheel for zoom
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomSpeed = 0.1;
+            const delta = e.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
+            
+            if (this.mode === 'orbit') {
+                this.orbit.radius = Math.max(20, Math.min(500, this.orbit.radius * delta));
+            } else {
+                this.state.distance = Math.max(20, Math.min(500, this.state.distance * delta));
+            }
+        });
     }
     
     setMode(mode) {
         this.mode = mode.toLowerCase();
         
-        // Handle mode switching
-        switch(this.mode) {
-            case 'follow':
-                this.orbitControls.enabled = false;
-                break;
-                
-            case 'freestyle':
-            case 'free':
-            case 'orbit':
-                this.orbitControls.enabled = true;
-                if (this.target) {
-                    this.orbitControls.target.copy(this.target.position);
-                }
-                break;
-                
-            case 'fixed':
-                this.orbitControls.enabled = false;
-                this.camera.position.set(100, 50, 100);
-                this.camera.lookAt(0, 0, 0);
-                break;
-                
-            case 'cinematic':
-                this.orbitControls.enabled = false;
-                this.state.cinematicTime = 0;
-                break;
+        // Initialize orbit position when switching to orbit mode
+        if (mode === 'orbit' && this.target) {
+            const offset = this.camera.position.clone().sub(this.target.position);
+            this.orbit.radius = offset.length();
+            this.orbit.theta = Math.atan2(offset.x, offset.z);
+            this.orbit.phi = Math.acos(offset.y / this.orbit.radius);
         }
     }
     
     setTarget(target) {
         this.target = target;
-        if (this.orbitControls && (this.mode === 'freestyle' || this.mode === 'free')) {
-            this.orbitControls.target.set(0, 0, 0); // Keep focused on origin
-        }
     }
     
     setDefaultDistance(distance) {
@@ -83,12 +122,6 @@ export class CameraController {
     }
     
     update(deltaTime, vehicleData) {
-        // Always update OrbitControls if in freestyle mode
-        if (this.orbitControls && this.orbitControls.enabled) {
-            this.orbitControls.update();
-            return; // Let OrbitControls handle everything
-        }
-        
         if (!this.target) return;
         
         const targetPos = this.target.position.clone();
@@ -98,9 +131,10 @@ export class CameraController {
         switch (this.mode) {
             case 'follow':
                 const altitude = vehicleData?.altitude || 10000;
-                const followDistance = 30 + Math.sqrt(altitude) * 0.01;
-                const followHeight = 15 + Math.sqrt(altitude) * 0.005;
+                const followDistance = 10 + Math.sqrt(altitude) * 0.01;
+                const followHeight = 5 + Math.sqrt(altitude) * 0.005;
                 
+                // Handle velocity properly
                 let velocity;
                 if (vehicleData?.velocity) {
                     if (vehicleData.velocity instanceof THREE.Vector3) {
@@ -118,36 +152,62 @@ export class CameraController {
                 desiredPosition.sub(forward.multiplyScalar(followDistance));
                 desiredPosition.y += followHeight;
                 
-                lookAtPoint.add(forward.multiplyScalar(5));
+                lookAtPoint.add(forward.multiplyScalar(2));
                 break;
                 
-            case 'fixed':
-                desiredPosition.set(100, 50, 100);
+            case 'orbit':
+                // Orbit mode using mouse controls
+                if (this.target) {
+                    const spherical = new THREE.Spherical();
+                    spherical.setFromVector3(this.camera.position.clone().sub(this.target.position));
+                    
+                    spherical.theta = this.orbit.theta;
+                    spherical.phi = this.orbit.phi;
+                    spherical.radius = this.orbit.radius;
+                    
+                    desiredPosition.copy(this.target.position);
+                    desiredPosition.add(new THREE.Vector3().setFromSpherical(spherical));
+                    lookAtPoint = this.target.position.clone();
+                }
+                break;
+                
+            case 'freestyle':
+                // Freestyle mode - manual orbit controls around current position
+                const center = this.target ? this.target.position : new THREE.Vector3(0, 0, 0);
+                
+                const spherical = new THREE.Spherical();
+                spherical.setFromVector3(this.camera.position.clone().sub(center));
+                
+                spherical.theta = this.orbit.theta;
+                spherical.phi = this.orbit.phi;
+                spherical.radius = this.orbit.radius;
+                
+                desiredPosition.copy(center);
+                desiredPosition.add(new THREE.Vector3().setFromSpherical(spherical));
+                lookAtPoint = center.clone();
                 break;
                 
             case 'cinematic':
                 this.state.cinematicTime += deltaTime;
                 const t = this.state.cinematicTime * 0.1;
                 
-                desiredPosition.x = targetPos.x + Math.sin(t) * 50;
-                desiredPosition.y = targetPos.y + 30 + Math.sin(t * 0.5) * 10;
-                desiredPosition.z = targetPos.z + Math.cos(t) * 50;
+                desiredPosition.x = targetPos.x + Math.sin(t) * 30;
+                desiredPosition.y = targetPos.y + 15 + Math.sin(t * 0.5) * 5;
+                desiredPosition.z = targetPos.z + Math.cos(t) * 30;
                 break;
         }
         
-        if (this.mode !== 'freestyle' && this.mode !== 'free') {
-            this.camera.position.lerp(desiredPosition, this.smoothness);
-            
-            const currentLookAt = new THREE.Vector3();
-            this.camera.getWorldDirection(currentLookAt);
-            currentLookAt.add(this.camera.position);
-            
-            const targetDirection = lookAtPoint.clone().sub(this.camera.position).normalize();
-            const currentDirection = currentLookAt.sub(this.camera.position).normalize();
-            
-            const smoothedDirection = currentDirection.lerp(targetDirection, this.smoothness * 2);
-            this.camera.lookAt(this.camera.position.clone().add(smoothedDirection));
-        }
+        this.camera.position.lerp(desiredPosition, this.smoothness);
+        
+        const currentLookAt = new THREE.Vector3();
+        this.camera.getWorldDirection(currentLookAt);
+        currentLookAt.add(this.camera.position);
+        
+        const targetDirection = lookAtPoint.clone().sub(this.camera.position).normalize();
+        const currentDirection = currentLookAt.sub(this.camera.position).normalize();
+        
+        const smoothedDirection = currentDirection.lerp(targetDirection, this.smoothness * 2);
+        this.camera.lookAt(this.camera.position.clone().add(smoothedDirection));
     }
     
     handleResize() {
@@ -155,36 +215,33 @@ export class CameraController {
         this.camera.updateProjectionMatrix();
     }
     
-    dispose() {
-        if (this.orbitControls) {
-            this.orbitControls.dispose();
-        }
-    }
-    
-    // Additional methods for camera control
-    reset() {
-        this.camera.position.set(100, 50, 100);
-        this.camera.lookAt(0, 0, 0);
-        if (this.orbitControls) {
-            this.orbitControls.target.set(0, 0, 0);
-            this.orbitControls.update();
-        }
-    }
-    
-    focusOnTrajectory() {
-        this.camera.position.set(80, 40, 80);
-        this.camera.lookAt(0, 0, 0);
-        if (this.orbitControls) {
-            this.orbitControls.target.set(0, 0, 0);
-            this.orbitControls.update();
-        }
-    }
-    
-    // Camera shake and zoom methods remain the same
+    // Camera shake effect for dramatic momen
     shake(intensity = 1, duration = 0.5) {
-        // Implementation remains the same
+        const startTime = Date.now();
+        const originalPosition = this.camera.position.clone();
+        
+        const shakeAnimation = () => {
+            const elapsed = (Date.now() - startTime) / 1000;
+            if (elapsed < duration) {
+                const decay = 1 - elapsed / duration;
+                const offsetX = (Math.random() - 0.5) * intensity * decay;
+                const offsetY = (Math.random() - 0.5) * intensity * decay;
+                const offsetZ = (Math.random() - 0.5) * intensity * decay;
+                
+                this.camera.position.x = originalPosition.x + offsetX;
+                this.camera.position.y = originalPosition.y + offsetY;
+                this.camera.position.z = originalPosition.z + offsetZ;
+                
+                requestAnimationFrame(shakeAnimation);
+            } else {
+                this.camera.position.copy(originalPosition);
+            }
+        };
+        
+        shakeAnimation();
     }
     
+    // Zoom control
     zoom(direction) {
         const zoomSpeed = 5;
         if (direction === 'in') {

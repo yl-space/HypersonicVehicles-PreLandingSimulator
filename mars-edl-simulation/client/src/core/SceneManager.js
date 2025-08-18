@@ -18,7 +18,7 @@ export class SceneManager {
         this.lights = {};
         this.planets = {};
         this.starfield = null;
-        this.sharedObjects = [];
+        this.sharedObjects = []; // Track objects that need to be in all scenes
         
         this.init();
     }
@@ -49,163 +49,34 @@ export class SceneManager {
             0.1,
             10000
         );
-        
-        // Position camera for good trajectory view
-        this.camera.position.set(150, 80, 150);
+        // Position camera to see trajectory from side
+        this.camera.position.set(50, 20, 50);
         this.camera.lookAt(0, 0, 0);
 
         // Create planet scenes FIRST
         this.createPlanetScenes();
-        
-        // Then create starfield and add to existing scenes
-        this.createStarfield();
-        
-        // Create coordinate axes
-        this.createCoordinateAxes();
         
         // Setup post-processing
         this.setupPostProcessing();
     }
     
     createStarfield() {
-        const starFieldGeometry = new THREE.SphereGeometry(900, 64, 64);
-        
-        // Fix texture path - remove extra 'textures' folder
-        const starFieldTexture = new THREE.TextureLoader().load(
-            '/assets/textures/starfield.png',
-            (texture) => {
-                console.log('Starfield texture loaded');
-                texture.wrapS = THREE.RepeatWrapping;
-                texture.wrapT = THREE.RepeatWrapping;
-                texture.repeat.set(8, 4);
-            },
-            undefined,
-            (error) => {
-                console.error('Error loading starfield texture:', error);
-                // Fallback to procedural stars
-                this.createProceduralStarfield();
-            }
-        );
-        
-        const starFieldMaterial = new THREE.MeshBasicMaterial({
+        const starFieldGeometry = new THREE.SphereGeometry(30, 64, 64);
+        const starFieldTexture = new THREE.TextureLoader().load('/assets/textures/starfield.png');
+        starFieldTexture.colorSpace = THREE.SRGBColorSpace;
+        starFieldTexture.wrapS = THREE.RepeatWrapping;
+        starFieldTexture.wrapT = THREE.RepeatWrapping;
+        starFieldTexture.magFilter = THREE.LinearFilter;
+        starFieldTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        starFieldTexture.anisotropy = 16;
+        starFieldTexture.repeat.set(8, 4);
+
+        const starMaterial = new THREE.MeshBasicMaterial({ 
             map: starFieldTexture,
-            side: THREE.BackSide,
-            depthWrite: false,
-            fog: false
+            side: THREE.DoubleSide
         });
-        
-        this.starfield = new THREE.Mesh(starFieldGeometry, starFieldMaterial);
-        this.starfield.name = 'Starfield';
-        
-        // Add starfield to all existing scenes
-        Object.values(this.scenes).forEach(scene => {
-            scene.add(this.starfield.clone());
-        });
-    }
 
-    createProceduralStarfield() {
-        // Fallback procedural starfield
-        const starCount = 5000;
-        const starGeometry = new THREE.BufferGeometry();
-        const starPositions = new Float32Array(starCount * 3);
-        
-        for (let i = 0; i < starCount * 3; i += 3) {
-            const radius = 500 + Math.random() * 400;
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos(2 * Math.random() - 1);
-            
-            starPositions[i] = radius * Math.sin(phi) * Math.cos(theta);
-            starPositions[i + 1] = radius * Math.sin(phi) * Math.sin(theta);
-            starPositions[i + 2] = radius * Math.cos(phi);
-        }
-        
-        starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
-        
-        const starMaterial = new THREE.PointsMaterial({
-            color: 0xffffff,
-            size: 1,
-            sizeAttenuation: false
-        });
-        
-        const stars = new THREE.Points(starGeometry, starMaterial);
-        stars.name = 'ProceduralStarfield';
-        
-        Object.values(this.scenes).forEach(scene => {
-            scene.add(stars.clone());
-        });
-    }
-    
-    createCoordinateAxes() {
-        // World coordinate axes
-        const worldAxes = new THREE.AxesHelper(100);
-        worldAxes.name = 'WorldAxes';
-        
-        // Planet coordinate axes
-        this.planetAxes = new THREE.AxesHelper(50);
-        this.planetAxes.name = 'PlanetAxes';
-        this.planetAxes.position.set(0, -100, 0); // At Mars position
-        
-        // Vehicle coordinate axes (will follow vehicle)
-        this.vehicleAxes = new THREE.AxesHelper(2);
-        this.vehicleAxes.name = 'VehicleAxes';
-        
-        // Trajectory coordinate axes at origin
-        this.trajectoryAxes = new THREE.AxesHelper(20);
-        this.trajectoryAxes.name = 'TrajectoryAxes';
-        this.trajectoryAxes.position.set(0, 0, 0);
-        
-        // Add labels
-        this.addAxisLabels();
-        
-        // Add grid for reference
-        const gridHelper = new THREE.GridHelper(200, 20, 0x444444, 0x222222);
-        gridHelper.position.y = -100;
-        
-        // Add to all scenes
-        Object.values(this.scenes).forEach(scene => {
-            scene.add(worldAxes.clone());
-            scene.add(this.planetAxes.clone());
-            scene.add(this.trajectoryAxes.clone());
-            scene.add(gridHelper.clone());
-        });
-    }
-
-    addAxisLabels() {
-        const createLabel = (text, color, position) => {
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = 64;
-            canvas.height = 32;
-            
-            context.fillStyle = color;
-            context.font = 'Bold 24px Arial';
-            context.textAlign = 'center';
-            context.textBaseline = 'middle';
-            context.fillText(text, 32, 16);
-            
-            const texture = new THREE.CanvasTexture(canvas);
-            const spriteMaterial = new THREE.SpriteMaterial({ 
-                map: texture,
-                depthTest: false,
-                depthWrite: false
-            });
-            const sprite = new THREE.Sprite(spriteMaterial);
-            sprite.position.copy(position);
-            sprite.scale.set(4, 2, 1);
-            
-            return sprite;
-        };
-        
-        // Add labels to world axes
-        const xLabel = createLabel('X', '#ff0000', new THREE.Vector3(105, 0, 0));
-        const yLabel = createLabel('Y', '#00ff00', new THREE.Vector3(0, 105, 0));
-        const zLabel = createLabel('Z', '#0000ff', new THREE.Vector3(0, 0, 105));
-        
-        Object.values(this.scenes).forEach(scene => {
-            scene.add(xLabel.clone());
-            scene.add(yLabel.clone());
-            scene.add(zLabel.clone());
-        });
+        this.starfield = new THREE.Mesh(starFieldGeometry, starMaterial);
     }
     
     createPlanetScenes() {
@@ -219,13 +90,8 @@ export class SceneManager {
         const marsColorTex = textureLoader.load('/assets/textures/Mars/Mars.jpg');
         const marsNormalTex = textureLoader.load('/assets/textures/Mars/mars_normal.jpg');
 
-        // FIXED: Scale Mars appropriately for trajectory
-        // Trajectory is scaled by 0.00003, Mars radius is 3389.5 km
-        // Visual scale: make Mars visible but not overwhelming
-        const marsRadius = 100; // Visual radius in scene units
-        
-        const marsGeometry = new THREE.SphereGeometry(marsRadius, 64, 64);
-        const marsMaterial = new THREE.MeshStandardMaterial({
+        const marsGeometry = new THREE.SphereGeometry(3, 64, 64);
+        const marsMaterial = new THREE.MeshPhysicalMaterial({
             map: marsColorTex,
             normalMap: marsNormalTex,
             normalScale: new THREE.Vector2(1.0, 1.0),
@@ -319,16 +185,19 @@ export class SceneManager {
     }
     
     setupLighting(scene, planetName) {
-        // Sun light
-        const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
-        sunLight.position.set(100, 100, 50);
+        // Main Sun light - brighter for Earth visibility
+        const sunLight = new THREE.DirectionalLight(0xffffff, 3.0);
+        sunLight.position.set(100, 50, 75);
+        sunLight.target.position.set(0, 0, 0);
         sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
         sunLight.shadow.camera.near = 0.1;
-        sunLight.shadow.camera.far = 500;
-        sunLight.shadow.camera.left = -200;
-        sunLight.shadow.camera.right = 200;
-        sunLight.shadow.camera.top = 200;
-        sunLight.shadow.camera.bottom = -200;
+        sunLight.shadow.camera.far = 200;
+        sunLight.shadow.camera.left = -10;
+        sunLight.shadow.camera.right = 10;
+        sunLight.shadow.camera.top = 10;
+        sunLight.shadow.camera.bottom = -10;
         scene.add(sunLight);
 
         // Ambient light for visibility
@@ -411,7 +280,15 @@ export class SceneManager {
     }
     
     updatePlanetRotation(deltaTime) {
-        // Disabled - no rotation
+        if (this.planets[this.currentScene]) {
+            this.planets[this.currentScene].rotation.y += 0.002;
+        }
+        
+        // Rotate Earth clouds at different speed for realism
+        if (this.currentScene === 'earth' && this.planets.earthClouds) {
+            this.planets.earthClouds.rotation.y += 0.0015;
+            this.planets.earthClouds.rotation.x += 0.0002;
+        }
     }
     
     render(camera) {

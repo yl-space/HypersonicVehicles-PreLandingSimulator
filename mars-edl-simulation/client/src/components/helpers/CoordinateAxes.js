@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 
 export class CoordinateAxes {
-    constructor(size = 10000000, lineWidth = 3) { // 10,000 km default - twice Mars radius for good visibility
+    constructor(size = 5000000, lineWidth = 3) { // 5,000 km default for Mars-scale visualization
         this.size = size;
         this.lineWidth = lineWidth;
         this.group = new THREE.Group();
@@ -18,84 +18,99 @@ export class CoordinateAxes {
     }
 
     createAxes() {
-        const axisRadius = this.size * 0.002; // Make axes thicker - 0.2% of axis length
-        
         // X-axis (Red) - Points toward vernal equinox in J2000
-        const xAxisGeometry = new THREE.CylinderGeometry(axisRadius, axisRadius, this.size, 8);
-        const xAxisMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xff0000,
+        const xAxisPoints = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(this.size, 0, 0)
+        ];
+        const xAxisGeometry = new THREE.BufferGeometry().setFromPoints(xAxisPoints);
+        const xAxisMaterial = new THREE.LineBasicMaterial({ 
+            color: 0xff0000, 
+            linewidth: this.lineWidth,
             transparent: true,
-            opacity: 0.9,
-            depthTest: true,
-            depthWrite: true
+            opacity: 0.9
         });
-        const xAxis = new THREE.Mesh(xAxisGeometry, xAxisMaterial);
-        xAxis.rotation.z = -Math.PI / 2; // Rotate to point along X axis
-        xAxis.position.set(this.size / 2, 0, 0);
+        const xAxis = new THREE.Line(xAxisGeometry, xAxisMaterial);
         xAxis.name = 'X-Axis-Positive';
-        xAxis.renderOrder = 100; // Render after most objects
         this.group.add(xAxis);
         
         // X-axis negative (darker red)
-        const xAxisNegGeometry = new THREE.CylinderGeometry(axisRadius, axisRadius, this.size, 8);
-        const xAxisNegMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x800000,
+        const xAxisNegPoints = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(-this.size, 0, 0)
+        ];
+        const xAxisNegGeometry = new THREE.BufferGeometry().setFromPoints(xAxisNegPoints);
+        const xAxisNegMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x800000, 
+            linewidth: this.lineWidth,
             transparent: true,
             opacity: 0.6
         });
-        const xAxisNeg = new THREE.Mesh(xAxisNegGeometry, xAxisNegMaterial);
-        xAxisNeg.rotation.z = -Math.PI / 2;
-        xAxisNeg.position.set(-this.size / 2, 0, 0);
+        const xAxisNeg = new THREE.Line(xAxisNegGeometry, xAxisNegMaterial);
         xAxisNeg.name = 'X-Axis-Negative';
         this.group.add(xAxisNeg);
 
         // Y-axis (Green) - 90° from X in ecliptic plane
-        const yAxisGeometry = new THREE.CylinderGeometry(axisRadius, axisRadius, this.size, 8);
-        const yAxisMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x00ff00,
+        const yAxisPoints = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, this.size, 0)
+        ];
+        const yAxisGeometry = new THREE.BufferGeometry().setFromPoints(yAxisPoints);
+        const yAxisMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x00ff00, 
+            linewidth: this.lineWidth,
             transparent: true,
             opacity: 0.9
         });
-        const yAxis = new THREE.Mesh(yAxisGeometry, yAxisMaterial);
-        yAxis.position.set(0, this.size / 2, 0);
+        const yAxis = new THREE.Line(yAxisGeometry, yAxisMaterial);
         yAxis.name = 'Y-Axis-Positive';
         this.group.add(yAxis);
         
         // Y-axis negative (darker green)
-        const yAxisNegGeometry = new THREE.CylinderGeometry(axisRadius, axisRadius, this.size, 8);
-        const yAxisNegMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x008000,
+        const yAxisNegPoints = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, -this.size, 0)
+        ];
+        const yAxisNegGeometry = new THREE.BufferGeometry().setFromPoints(yAxisNegPoints);
+        const yAxisNegMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x008000, 
+            linewidth: this.lineWidth,
             transparent: true,
             opacity: 0.6
         });
-        const yAxisNeg = new THREE.Mesh(yAxisNegGeometry, yAxisNegMaterial);
-        yAxisNeg.position.set(0, -this.size / 2, 0);
+        const yAxisNeg = new THREE.Line(yAxisNegGeometry, yAxisNegMaterial);
         yAxisNeg.name = 'Y-Axis-Negative';
         this.group.add(yAxisNeg);
 
         // Z-axis (Blue) - Toward north ecliptic pole
-        const zAxisGeometry = new THREE.CylinderGeometry(axisRadius, axisRadius, this.size, 8);
-        const zAxisMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x0000ff,
+        const zAxisPoints = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0, this.size)
+        ];
+        const zAxisGeometry = new THREE.BufferGeometry().setFromPoints(zAxisPoints);
+        const zAxisMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x0000ff, 
+            linewidth: this.lineWidth,
             transparent: true,
             opacity: 0.9
         });
-        const zAxis = new THREE.Mesh(zAxisGeometry, zAxisMaterial);
-        zAxis.rotation.x = Math.PI / 2; // Rotate to point along Z axis
-        zAxis.position.set(0, 0, this.size / 2);
+        const zAxis = new THREE.Line(zAxisGeometry, zAxisMaterial);
         zAxis.name = 'Z-Axis-Positive';
         this.group.add(zAxis);
         
         // Z-axis negative (darker blue)
-        const zAxisNegGeometry = new THREE.CylinderGeometry(axisRadius, axisRadius, this.size, 8);
-        const zAxisNegMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x000080,
+        const zAxisNegPoints = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0, -this.size)
+        ];
+        const zAxisNegGeometry = new THREE.BufferGeometry().setFromPoints(zAxisNegPoints);
+        const zAxisNegMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x000080, 
+            linewidth: this.lineWidth,
             transparent: true,
             opacity: 0.6
         });
-        const zAxisNeg = new THREE.Mesh(zAxisNegGeometry, zAxisNegMaterial);
-        zAxisNeg.rotation.x = Math.PI / 2;
-        zAxisNeg.position.set(0, 0, -this.size / 2);
+        const zAxisNeg = new THREE.Line(zAxisNegGeometry, zAxisNegMaterial);
         zAxisNeg.name = 'Z-Axis-Negative';
         this.group.add(zAxisNeg);
     }
