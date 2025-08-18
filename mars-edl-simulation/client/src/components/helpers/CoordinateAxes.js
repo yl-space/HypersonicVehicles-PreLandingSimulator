@@ -65,10 +65,7 @@ export class CoordinateAxes {
         
         // Add arrow heads for better visibility
         this.addArrowHeads();
-        
-        // No coordinate planes - removed
-        // No axis labels - removed
-        // No tick marks - just clean axes
+        this.createAxisLabels();
     }
     
     addArrowHeads() {
@@ -99,55 +96,13 @@ export class CoordinateAxes {
         this.group.add(zArrow);
     }
     
-    createCoordinatePlanes() {
-        const planeSize = this.size * 0.3;
-        const planeOpacity = 0.05;
-        
-        // XY Plane (horizontal)
-        const xyGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
-        const xyMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffff00,
-            side: THREE.DoubleSide,
-            opacity: planeOpacity,
-            transparent: true
-        });
-        const xyPlane = new THREE.Mesh(xyGeometry, xyMaterial);
-        xyPlane.rotation.x = -Math.PI / 2;
-        xyPlane.position.set(planeSize/2, 0, planeSize/2);
-        this.group.add(xyPlane);
-        
-        // XZ Plane
-        const xzGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
-        const xzMaterial = new THREE.MeshBasicMaterial({
-            color: 0xff00ff,
-            side: THREE.DoubleSide,
-            opacity: planeOpacity,
-            transparent: true
-        });
-        const xzPlane = new THREE.Mesh(xzGeometry, xzMaterial);
-        xzPlane.position.set(planeSize/2, planeSize/2, 0);
-        this.group.add(xzPlane);
-        
-        // YZ Plane
-        const yzGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
-        const yzMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00ffff,
-            side: THREE.DoubleSide,
-            opacity: planeOpacity,
-            transparent: true
-        });
-        const yzPlane = new THREE.Mesh(yzGeometry, yzMaterial);
-        yzPlane.rotation.y = Math.PI / 2;
-        yzPlane.position.set(0, planeSize/2, planeSize/2);
-        this.group.add(yzPlane);
-    }
     
     createAxisLabels() {
         // Create sprite labels for each axis
         const labels = [
-            { text: 'X (Vernal Equinox)', position: new THREE.Vector3(this.size * 1.1, 0, 0), color: '#ff0000' },
+            { text: 'X', position: new THREE.Vector3(this.size * 1.1, 0, 0), color: '#ff0000' },
             { text: 'Y', position: new THREE.Vector3(0, this.size * 1.1, 0), color: '#00ff00' },
-            { text: 'Z (North)', position: new THREE.Vector3(0, 0, this.size * 1.1), color: '#0088ff' }
+            { text: 'Z', position: new THREE.Vector3(0, 0, this.size * 1.1), color: '#0088ff' }
         ];
         
         labels.forEach(label => {
@@ -216,9 +171,6 @@ export class CoordinateAxes {
         this.group.add(tick);
     }
     
-    update(camera) {
-        // No labels to update
-    }
     
     setVisibility(visible) {
         this.group.visible = visible;

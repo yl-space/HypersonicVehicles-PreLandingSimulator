@@ -1,5 +1,4 @@
 /**
- * Controls.js
  * UI controls for camera modes, zoom, and other interactions
  */
 

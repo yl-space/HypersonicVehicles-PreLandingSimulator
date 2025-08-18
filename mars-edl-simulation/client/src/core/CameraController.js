@@ -1,5 +1,4 @@
 /**
- * CameraController.js - FIXED VERSION
  * Camera management for J2000 reference frame
  */
 

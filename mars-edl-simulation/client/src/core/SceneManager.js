@@ -1,8 +1,3 @@
-/**
- * SceneManager.js - Modern Three.js r179 implementation
- * Uses latest performance optimizations and rendering techniques
- */
-
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -124,49 +119,13 @@ export class SceneManager {
     createScenes() {
         // Mars Scene with optimizations
         const marsScene = new THREE.Scene();
-        marsScene.background = new THREE.Color(0x000000); // Ensure black background
-        marsScene.fog = new THREE.FogExp2(0x000000, 0.00001);
-        marsScene.backgroundIntensity = 0.5;
+        // marsScene.background = new THREE.Color(0x000000); // Ensure black background
+        // marsScene.fog = new THREE.FogExp2(0x000000, 0.00001);
+        // marsScene.backgroundIntensity = 0.5;
         
         // Use environment map for better lighting
         const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
         pmremGenerator.compileEquirectangularShader();
-        
-        // Create procedural starfield using BufferGeometry for performance
-        const starsGeometry = new THREE.BufferGeometry();
-        const starsCount = 10000;
-        const positions = new Float32Array(starsCount * 3);
-        const colors = new Float32Array(starsCount * 3);
-        
-        for (let i = 0; i < starsCount * 3; i += 3) {
-            const radius = 1000 + Math.random() * 2000;
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos(2 * Math.random() - 1);
-            
-            positions[i] = radius * Math.sin(phi) * Math.cos(theta);
-            positions[i + 1] = radius * Math.sin(phi) * Math.sin(theta);
-            positions[i + 2] = radius * Math.cos(phi);
-            
-            const color = new THREE.Color();
-            color.setHSL(0.6, 0.1, 0.5 + Math.random() * 0.5);
-            colors[i] = color.r;
-            colors[i + 1] = color.g;
-            colors[i + 2] = color.b;
-        }
-        
-        starsGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        starsGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        
-        const starsMaterial = new THREE.PointsMaterial({
-            size: 2,
-            vertexColors: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            sizeAttenuation: true
-        });
-        
-        const stars = new THREE.Points(starsGeometry, starsMaterial);
-        marsScene.add(stars);
         
         // Add lighting with modern shadow settings
         const sunLight = new THREE.DirectionalLight(0xffffff, 3.0);
@@ -254,16 +213,16 @@ export class SceneManager {
         }
     }
     
-    updatePlanetRotation(deltaTime) {
-        // Mars rotation (1 sol = 24.6 hours)
-        const marsRotationSpeed = (2 * Math.PI) / (24.6 * 3600) * deltaTime * 100; // Speed up for visualization
+    // updatePlanetRotation(deltaTime) {
+    //     // Mars rotation (1 sol = 24.6 hours)
+    //     const marsRotationSpeed = (2 * Math.PI) / (24.6 * 3600) * deltaTime * 100; // Speed up for visualization
         
-        this.scenes.mars?.traverse((child) => {
-            if (child.name === 'mars_surface') {
-                child.rotation.y += marsRotationSpeed;
-            }
-        });
-    }
+    //     this.scenes.mars?.traverse((child) => {
+    //         if (child.name === 'mars_surface') {
+    //             child.rotation.y += marsRotationSpeed;
+    //         }
+    //     });
+    // }
     
     updateLighting(altitude, phase) {
         const sunLight = this.currentScene?.getObjectByProperty('type', 'DirectionalLight');

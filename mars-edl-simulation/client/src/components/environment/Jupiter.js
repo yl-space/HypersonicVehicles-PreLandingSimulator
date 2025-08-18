@@ -1,7 +1,3 @@
-/**
- * Jupiter.js - Jupiter planet with realistic texture
- */
-
 import * as THREE from 'three';
 
 export class Jupiter {

@@ -1,5 +1,4 @@
 /**
- * DataManager.js
  * Handles data loading, caching, and API communication
  */
 

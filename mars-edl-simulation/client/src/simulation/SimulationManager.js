@@ -1,5 +1,4 @@
 /**
- * SimulationManager.js - COMPLETE FIXED VERSION
  * Main simulation controller with planet switching
  */
 
@@ -124,7 +123,7 @@ export class SimulationManager {
         this.currentPlanet = this.jupiter;
         this.sceneManager.addToAllScenes(this.jupiter.getObject3D());
         
-        // Create coordinate axes for reference (scaled to be visible with planets)
+        // Create coordinate axes for reference 
         // Using scale of 300 units to be clearly visible with planet scales
         this.coordinateAxes = new CoordinateAxes(300);
         this.sceneManager.addToAllScenes(this.coordinateAxes.getObject3D());

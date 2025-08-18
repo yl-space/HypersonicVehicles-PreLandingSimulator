@@ -1,7 +1,3 @@
-/**
- * EntryVehicle.js - Modern Three.js r179 with LOD and optimizations
- */
-
 import * as THREE from 'three';
 
 export class EntryVehicle {

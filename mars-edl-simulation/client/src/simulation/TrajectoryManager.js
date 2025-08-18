@@ -1,8 +1,3 @@
-/**
- * TrajectoryManager.js - Modern Three.js r179 implementation
- * Uses BufferGeometry, instancing, and LOD for performance
- */
-
 import * as THREE from 'three';
 
 export class TrajectoryManager {
