@@ -11,6 +11,11 @@ export class CoordinateAxes {
         this.group = new THREE.Group();
         this.labels = [];
         
+        // J2000 Reference Frame
+        // X: Vernal Equinox (Red)
+        // Y: Completes right-handed system (Green)  
+        // Z: North Celestial Pole (Blue)
+        
         this.init();
     }
     
@@ -23,9 +28,9 @@ export class CoordinateAxes {
         ]);
         const xMaterial = new THREE.LineBasicMaterial({ 
             color: 0xff0000,
-            linewidth: 2,
-            opacity: 0.6,
-            transparent: true
+            linewidth: 3,
+            opacity: 1.0,
+            transparent: false
         });
         const xAxis = new THREE.Line(xGeometry, xMaterial);
         this.group.add(xAxis);
@@ -37,9 +42,9 @@ export class CoordinateAxes {
         ]);
         const yMaterial = new THREE.LineBasicMaterial({ 
             color: 0x00ff00,
-            linewidth: 2,
-            opacity: 0.6,
-            transparent: true
+            linewidth: 3,
+            opacity: 1.0,
+            transparent: false
         });
         const yAxis = new THREE.Line(yGeometry, yMaterial);
         this.group.add(yAxis);
@@ -51,21 +56,47 @@ export class CoordinateAxes {
         ]);
         const zMaterial = new THREE.LineBasicMaterial({ 
             color: 0x0088ff,
-            linewidth: 2,
-            opacity: 0.6,
-            transparent: true
+            linewidth: 3,
+            opacity: 1.0,
+            transparent: false
         });
         const zAxis = new THREE.Line(zGeometry, zMaterial);
         this.group.add(zAxis);
         
-        // Add coordinate planes (optional, semi-transparent)
-        this.createCoordinatePlanes();
+        // Add arrow heads for better visibility
+        this.addArrowHeads();
         
-        // Add axis labels
-        this.createAxisLabels();
+        // No coordinate planes - removed
+        // No axis labels - removed
+        // No tick marks - just clean axes
+    }
+    
+    addArrowHeads() {
+        const arrowSize = this.size * 0.02;
+        const arrowHeight = this.size * 0.04;
         
-        // Add tick marks
-        this.createTickMarks();
+        // X-axis arrow (Red)
+        const xArrowGeometry = new THREE.ConeGeometry(arrowSize, arrowHeight, 8);
+        const xArrowMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const xArrow = new THREE.Mesh(xArrowGeometry, xArrowMaterial);
+        xArrow.position.set(this.size, 0, 0);
+        xArrow.rotation.z = -Math.PI / 2;
+        this.group.add(xArrow);
+        
+        // Y-axis arrow (Green)
+        const yArrowGeometry = new THREE.ConeGeometry(arrowSize, arrowHeight, 8);
+        const yArrowMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const yArrow = new THREE.Mesh(yArrowGeometry, yArrowMaterial);
+        yArrow.position.set(0, this.size, 0);
+        this.group.add(yArrow);
+        
+        // Z-axis arrow (Blue)
+        const zArrowGeometry = new THREE.ConeGeometry(arrowSize, arrowHeight, 8);
+        const zArrowMaterial = new THREE.MeshBasicMaterial({ color: 0x0088ff });
+        const zArrow = new THREE.Mesh(zArrowGeometry, zArrowMaterial);
+        zArrow.position.set(0, 0, this.size);
+        zArrow.rotation.x = Math.PI / 2;
+        this.group.add(zArrow);
     }
     
     createCoordinatePlanes() {
@@ -186,10 +217,7 @@ export class CoordinateAxes {
     }
     
     update(camera) {
-        // Make labels always face the camera
-        this.labels.forEach(label => {
-            label.lookAt(camera.position);
-        });
+        // No labels to update
     }
     
     setVisibility(visible) {

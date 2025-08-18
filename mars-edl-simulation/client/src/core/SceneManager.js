@@ -81,8 +81,8 @@ export class SceneManager {
         this.camera = new THREE.PerspectiveCamera(
             50,
             aspect,
-            0.1,
-            10000
+            1,      // Increased near plane to prevent z-fighting
+            100000  // Increased far plane for large scale scenes
         );
         
         this.camera.position.set(50, 20, 50);
@@ -96,16 +96,16 @@ export class SceneManager {
         // Modern post-processing pipeline
         this.composer = new EffectComposer(this.renderer);
         
-        // Render pass
-        const renderPass = new RenderPass(null, this.camera);
-        this.composer.addPass(renderPass);
+        // Render pass - will be updated with scene later
+        this.renderPass = new RenderPass(null, this.camera);
+        this.composer.addPass(this.renderPass);
         
-        // Bloom for atmospheric effects
+        // Bloom for atmospheric effects (reduced strength to prevent black patches)
         const bloomPass = new UnrealBloomPass(
             new THREE.Vector2(this.container.clientWidth, this.container.clientHeight),
-            0.5,  // Strength
-            0.4,  // Radius
-            0.85  // Threshold
+            0.2,  // Reduced strength
+            0.3,  // Reduced radius
+            0.9   // Higher threshold (less bloom)
         );
         this.composer.addPass(bloomPass);
         
@@ -124,6 +124,7 @@ export class SceneManager {
     createScenes() {
         // Mars Scene with optimizations
         const marsScene = new THREE.Scene();
+        marsScene.background = new THREE.Color(0x000000); // Ensure black background
         marsScene.fog = new THREE.FogExp2(0x000000, 0.00001);
         marsScene.backgroundIntensity = 0.5;
         
@@ -194,8 +195,21 @@ export class SceneManager {
         const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d6e63, 0.5);
         marsScene.add(hemiLight);
         
-        this.scenes = { mars: marsScene };
+        // Create earth and jupiter scenes as placeholders
+        const earthScene = marsScene.clone();
+        const jupiterScene = marsScene.clone();
+        
+        this.scenes = { 
+            mars: marsScene,
+            earth: earthScene,
+            jupiter: jupiterScene
+        };
         this.currentScene = marsScene;
+        
+        // Update render pass with the current scene
+        if (this.renderPass) {
+            this.renderPass.scene = this.currentScene;
+        }
         
         pmremGenerator.dispose();
     }
@@ -223,21 +237,19 @@ export class SceneManager {
     }
     
     addToAllScenes(object) {
-        Object.values(this.scenes).forEach(scene => {
-            // Clone for each scene to avoid conflicts
-            const clone = object.clone ? object.clone() : object;
-            scene.add(clone);
-        });
+        // Add object to current scene only to avoid cloning issues
+        if (this.currentScene) {
+            this.currentScene.add(object);
+        }
     }
     
     switchPlanet(planetName) {
         if (this.scenes[planetName]) {
             this.currentScene = this.scenes[planetName];
             
-            // Update render pass
-            const renderPass = this.composer.passes[0];
-            if (renderPass instanceof RenderPass) {
-                renderPass.scene = this.currentScene;
+            // Update render pass with new scene
+            if (this.renderPass) {
+                this.renderPass.scene = this.currentScene;
             }
         }
     }

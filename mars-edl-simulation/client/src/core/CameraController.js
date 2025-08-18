@@ -13,12 +13,12 @@ export class CameraController {
         this.target = null;
         this.smoothness = 0.1; // Smoother transitions
         
-        // Camera state
+        // Camera state (closer to spacecraft)
         this.state = {
-            distance: 50,      // Distance in km
-            height: 20,        // Height offset in km
+            distance: 10,      // Much closer to spacecraft
+            height: 5,         // Lower height offset
             angle: 0,
-            defaultDistance: 50
+            defaultDistance: 10
         };
         
         // Mouse controls for orbit mode
@@ -32,16 +32,15 @@ export class CameraController {
         this.orbit = {
             theta: Math.PI / 4,  // Azimuth
             phi: Math.PI / 6,    // Elevation
-            radius: 100          // Distance in km
+            radius: 20           // Closer orbit radius
         };
         
         this.init();
     }
     
     init() {
-        // Set initial camera position for small scale
-        // Position camera to see the entry from a good angle
-        this.camera.position.set(50, 20, 50);
+        // Set initial camera position closer to spacecraft
+        this.camera.position.set(15, 10, 15);
         this.camera.lookAt(0, 0, 0);
         
         this.setupEventListeners();
@@ -77,16 +76,16 @@ export class CameraController {
             this.mouse.isDown = false;
         });
         
-        // Wheel for zoom
+        // Wheel for zoom - more controlled
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
-            const zoomSpeed = 0.1;
+            const zoomSpeed = 0.05; // Reduced zoom speed
             const delta = e.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
             
             if (this.mode === 'orbit' || this.mode === 'free') {
-                this.orbit.radius = Math.max(10, Math.min(10000, this.orbit.radius * delta));
+                this.orbit.radius = Math.max(5, Math.min(500, this.orbit.radius * delta));
             } else if (this.mode === 'follow') {
-                this.state.distance = Math.max(10, Math.min(1000, this.state.distance * delta));
+                this.state.distance = Math.max(5, Math.min(100, this.state.distance * delta));
             }
         });
     }
@@ -117,32 +116,35 @@ export class CameraController {
         
         switch (this.mode) {
             case 'follow':
-                // Follow mode - camera trails behind spacecraft
-                if (vehicleData && vehicleData.velocity) {
-                    // Get velocity direction
-                    const velocity = vehicleData.velocity.clone().normalize();
-                    
-                    // Adjust distance based on altitude
-                    const altitude = vehicleData.altitude || 100;
-                    const dynamicDistance = Math.min(200, 30 + altitude * 0.5);
-                    const dynamicHeight = Math.min(50, 10 + altitude * 0.1);
-                    
-                    // Position camera behind and above the spacecraft
-                    desiredPosition.copy(targetPos);
-                    desiredPosition.sub(velocity.multiplyScalar(dynamicDistance));
-                    desiredPosition.y += dynamicHeight;
-                    
-                    // Look slightly ahead of the spacecraft
-                    lookAtPoint = targetPos.clone();
-                    lookAtPoint.add(velocity.multiplyScalar(10));
+                // Follow mode - camera follows spacecraft from behind
+                if (vehicleData && vehicleData.velocity instanceof THREE.Vector3) {
+                    // Get velocity direction for trailing camera
+                    const velocity = vehicleData.velocity.clone();
+                    if (velocity.length() > 0.001) {
+                        velocity.normalize();
+                        
+                        // Position camera behind the spacecraft
+                        desiredPosition.copy(targetPos);
+                        desiredPosition.sub(velocity.clone().multiplyScalar(this.state.distance));
+                        desiredPosition.y += this.state.height;
+                    } else {
+                        // Static follow when no velocity
+                        desiredPosition.set(
+                            targetPos.x - this.state.distance * 0.7,
+                            targetPos.y + this.state.height,
+                            targetPos.z - this.state.distance * 0.7
+                        );
+                    }
                 } else {
-                    // Fallback if no velocity data
+                    // Default follow position
                     desiredPosition.set(
-                        targetPos.x - 50,
-                        targetPos.y + 20,
-                        targetPos.z - 50
+                        targetPos.x - this.state.distance * 0.7,
+                        targetPos.y + this.state.height,
+                        targetPos.z - this.state.distance * 0.7
                     );
                 }
+                // Always look at the spacecraft
+                lookAtPoint = targetPos.clone();
                 break;
                 
             case 'orbit':
@@ -163,33 +165,20 @@ export class CameraController {
                 break;
                 
             case 'free':
-                // Free mode - user controls camera freely
+                // Free mode - user controls camera with mouse drag
                 if (this.mouse.isDown) {
-                    desiredPosition.x = this.camera.position.x;
-                    desiredPosition.y = this.camera.position.y;
-                    desiredPosition.z = this.camera.position.z;
+                    // Use orbit controls for free camera movement
+                    desiredPosition.x = this.orbit.radius * Math.sin(this.orbit.phi) * Math.sin(this.orbit.theta);
+                    desiredPosition.y = this.orbit.radius * Math.cos(this.orbit.phi);
+                    desiredPosition.z = this.orbit.radius * Math.sin(this.orbit.phi) * Math.cos(this.orbit.theta);
+                    lookAtPoint.set(0, 0, 0); // Look at scene center
                 } else {
-                    return; // Don't update if not actively controlling
+                    // Keep current position when not dragging
+                    return;
                 }
                 break;
                 
-            case 'cinematic':
-                // Cinematic mode - smooth predetermined path
-                const t = (Date.now() * 0.0001) % 1;
-                const cinematicRadius = 50 + 20 * Math.sin(t * Math.PI * 2);
-                const cinematicAngle = t * Math.PI * 2;
-                
-                desiredPosition.x = Math.cos(cinematicAngle) * cinematicRadius;
-                desiredPosition.y = 20 + 10 * Math.sin(t * Math.PI * 4);
-                desiredPosition.z = Math.sin(cinematicAngle) * cinematicRadius;
-                
-                // Look at spacecraft or Mars center
-                if (targetPos.length() > 1) {
-                    lookAtPoint = targetPos;
-                } else {
-                    lookAtPoint.set(0, 0, 0);
-                }
-                break;
+            // Cinematic mode removed - not needed
         }
         
         // Smooth camera movement
@@ -212,13 +201,13 @@ export class CameraController {
     }
     
     zoom(direction) {
-        const zoomSpeed = 0.2;
-        const factor = direction > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
+        const zoomSpeed = 0.1; // Reduced for finer control
+        const factor = direction > 0 ? 1 - zoomSpeed : 1 + zoomSpeed; // Inverted for intuitive control
         
         if (this.mode === 'orbit' || this.mode === 'free') {
-            this.orbit.radius = Math.max(10, Math.min(10000, this.orbit.radius * factor));
+            this.orbit.radius = Math.max(5, Math.min(500, this.orbit.radius * factor));
         } else {
-            this.state.distance = Math.max(10, Math.min(1000, this.state.distance * factor));
+            this.state.distance = Math.max(5, Math.min(100, this.state.distance * factor));
         }
     }
     
@@ -233,12 +222,12 @@ export class CameraController {
     }
     
     reset() {
-        // Reset camera to default position
-        this.camera.position.set(50, 20, 50);
+        // Reset camera to default position (closer view)
+        this.camera.position.set(15, 10, 15);
         this.camera.lookAt(0, 0, 0);
         this.orbit.theta = Math.PI / 4;
         this.orbit.phi = Math.PI / 6;
-        this.orbit.radius = 100;
-        this.state.distance = 50;
+        this.orbit.radius = 20;
+        this.state.distance = 10;
     }
 }

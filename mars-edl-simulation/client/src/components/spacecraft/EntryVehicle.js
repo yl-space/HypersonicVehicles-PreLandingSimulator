@@ -220,8 +220,6 @@ export class EntryVehicle {
         const thrusterGeometry = new THREE.ConeGeometry(0.1, 0.5, 8);
         const thrusterMaterial = new THREE.MeshBasicMaterial({
             color: 0xffaa00,
-            emissive: 0xffaa00,
-            emissiveIntensity: 1,
             transparent: true,
             opacity: 0,
             blending: THREE.AdditiveBlending
