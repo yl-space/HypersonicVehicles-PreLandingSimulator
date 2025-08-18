@@ -1,6 +1,5 @@
 /**
- * EntryVehicle.js
- * Spacecraft component for EDL simulation
+ * EntryVehicle.js - Modern Three.js r179 with LOD and optimizations
  */
 
 import * as THREE from 'three';
@@ -8,257 +7,322 @@ import * as THREE from 'three';
 export class EntryVehicle {
     constructor() {
         this.group = new THREE.Group();
-        this.components = {
-            capsule: null,
-            heatShield: null,
-            backshell: null,
-            parachute: null
+        this.vehicleLOD = null;
+        this.effects = {
+            heatGlow: null,
+            plasmaTail: null,
+            thrusters: []
         };
-        
         this.state = {
             heatShieldAttached: true,
             parachuteDeployed: false,
-            thrustersActive: false,
-            isDeflected: false
+            thrustersActive: false
         };
-        
-        this.effects = {
-            heatGlow: null,
-            thrusters: []
-        };
-        
-        this.lastDeflectionTime = 0;
         
         this.init();
     }
     
     init() {
-        this.createCapsule();
-        this.createHeatShield();
-        this.createBackshell();
-        this.createParachute();
-        this.createEffects();
+        this.createVehicleWithLOD();
+        this.createHeatEffects();
+        this.createThrusterSystem();
     }
     
-    createCapsule() {
-        const capsuleGroup = new THREE.Group();
+    createVehicleWithLOD() {
+        // Use LOD for performance
+        this.vehicleLOD = new THREE.LOD();
         
-        // SCALED DOWN: Reduced from 5 to 0.5
-        const coneGeometry = new THREE.ConeGeometry(0.5, 0.8, 16);
-        const coneMaterial = new THREE.MeshStandardMaterial({
+        // High detail (close)
+        const highDetail = this.createHighDetailVehicle();
+        this.vehicleLOD.addLevel(highDetail, 0);
+        
+        // Medium detail
+        const mediumDetail = this.createMediumDetailVehicle();
+        this.vehicleLOD.addLevel(mediumDetail, 50);
+        
+        // Low detail (far)
+        const lowDetail = this.createLowDetailVehicle();
+        this.vehicleLOD.addLevel(lowDetail, 200);
+        
+        this.group.add(this.vehicleLOD);
+    }
+    
+    createHighDetailVehicle() {
+        const group = new THREE.Group();
+        
+        // Detailed aeroshell with PBR materials
+        const shellGeometry = new THREE.ConeGeometry(0.5, 0.8, 32, 16);
+        const shellMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8B7355,
+            metalness: 0.3,
+            roughness: 0.7,
+            normalScale: new THREE.Vector2(0.5, 0.5),
+            envMapIntensity: 0.5
+        });
+        
+        const shell = new THREE.Mesh(shellGeometry, shellMaterial);
+        shell.rotation.x = Math.PI;
+        shell.position.y = 0.4;
+        shell.castShadow = true;
+        shell.receiveShadow = true;
+        group.add(shell);
+        
+        // Heat shield with emissive properties
+        const shieldGeometry = new THREE.CylinderGeometry(0.7, 0.6, 0.1, 32);
+        const shieldMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0x2F1B14,
+            metalness: 0.1,
+            roughness: 0.9,
+            clearcoat: 0.1,
+            clearcoatRoughness: 0.8,
+            emissive: 0x000000,
+            emissiveIntensity: 0
+        });
+        
+        const shield = new THREE.Mesh(shieldGeometry, shieldMaterial);
+        shield.position.y = -0.3;
+        shield.name = 'heatShield';
+        group.add(shield);
+        
+        return group;
+    }
+    
+    createMediumDetailVehicle() {
+        const group = new THREE.Group();
+        
+        const geometry = new THREE.ConeGeometry(0.5, 0.8, 16, 8);
+        const material = new THREE.MeshStandardMaterial({
             color: 0x8B7355,
             metalness: 0.3,
             roughness: 0.7
         });
         
-        const cone = new THREE.Mesh(coneGeometry, coneMaterial);
-        cone.rotation.x = Math.PI;
-        cone.position.y = 0.4;
-        capsuleGroup.add(cone);
+        const vehicle = new THREE.Mesh(geometry, material);
+        vehicle.rotation.x = Math.PI;
+        vehicle.position.y = 0.4;
+        group.add(vehicle);
         
-        const cylinderGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.4, 16);
-        const cylinder = new THREE.Mesh(cylinderGeometry, coneMaterial);
-        capsuleGroup.add(cylinder);
-        
-        this.components.capsule = capsuleGroup;
-        this.group.add(capsuleGroup);
-    }
-
-    createHeatShield() {
-        const shieldGeometry = new THREE.CylinderGeometry(0.7, 0.6, 0.1, 32);
-        const shieldMaterial = new THREE.MeshStandardMaterial({
-            color: 0x2F1B14,
-            emissive: 0x000000,
-            metalness: 0.1,
-            roughness: 0.9
-        });
-        
-        const shield = new THREE.Mesh(shieldGeometry, shieldMaterial);
-        shield.position.y = -0.3;
-        
-        this.components.heatShield = shield;
-        this.group.add(shield);
+        return group;
     }
     
-    createBackshell() {
-        const backshellGroup = new THREE.Group();
+    createLowDetailVehicle() {
+        const group = new THREE.Group();
         
-        // Conical backshell
-        const shellGeometry = new THREE.ConeGeometry(0.55, 0.6, 16);
-        const shellMaterial = new THREE.MeshStandardMaterial({
-            color: 0xaaaaaa,
-            metalness: 0.2,
-            roughness: 0.6
+        const geometry = new THREE.ConeGeometry(0.5, 0.8, 8, 4);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x8B7355
         });
         
-        const shell = new THREE.Mesh(shellGeometry, shellMaterial);
-        backshellGroup.add(shell);
+        const vehicle = new THREE.Mesh(geometry, material);
+        vehicle.rotation.x = Math.PI;
+        vehicle.position.y = 0.4;
+        group.add(vehicle);
         
-        this.components.backshell = backshellGroup;
-        this.group.add(backshellGroup);
+        return group;
     }
     
-    createParachute() {
-        const parachuteGroup = new THREE.Group();
-        
-        // Parachute canopy
-        const canopyGeometry = new THREE.ConeGeometry(2, 1.5, 16, 8, true);
-        const canopyMaterial = new THREE.MeshStandardMaterial({
-            color: 0xff6644,
-            side: THREE.DoubleSide,
+    createHeatEffects() {
+        // Modern shader for heat glow
+        const glowMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                intensity: { value: 0.0 },
+                glowColor: { value: new THREE.Color(0xff6600) },
+                viewVector: { value: new THREE.Vector3() },
+                time: { value: 0 }
+            },
+            vertexShader: `
+                varying vec3 vNormal;
+                varying vec3 vWorldPosition;
+                
+                void main() {
+                    vNormal = normalize(normalMatrix * normal);
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float intensity;
+                uniform vec3 glowColor;
+                uniform vec3 viewVector;
+                uniform float time;
+                
+                varying vec3 vNormal;
+                varying vec3 vWorldPosition;
+                
+                void main() {
+                    vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+                    float fresnel = pow(1.0 - dot(vNormal, viewDirection), 2.0);
+                    
+                    // Animated plasma effect
+                    float noise = sin(time * 10.0 + vWorldPosition.y * 20.0) * 0.1;
+                    float glow = fresnel * intensity * (1.0 + noise);
+                    
+                    vec3 color = glowColor * glow;
+                    gl_FragColor = vec4(color, glow * 0.8);
+                }
+            `,
+            side: THREE.BackSide,
+            blending: THREE.AdditiveBlending,
             transparent: true,
-            opacity: 0.9
+            depthWrite: false
         });
         
-        const canopy = new THREE.Mesh(canopyGeometry, canopyMaterial);
-        canopy.position.y = 20;
-        parachuteGroup.add(canopy);
+        const glowGeometry = new THREE.SphereGeometry(1, 32, 32);
+        this.effects.heatGlow = new THREE.Mesh(glowGeometry, glowMaterial);
+        this.group.add(this.effects.heatGlow);
         
-        // Initially hidden
-        parachuteGroup.visible = false;
-        parachuteGroup.scale.set(0.1, 0.1, 0.1);
-        
-        this.components.parachute = parachuteGroup;
-        this.group.add(parachuteGroup);
+        // Plasma tail using particle system
+        this.createPlasmaTail();
     }
     
-    createEffects() {
-        // Heat glow effect
-        const glowGeometry = new THREE.SphereGeometry(1, 32, 32);
-        const glowMaterial = new THREE.MeshBasicMaterial({
+    createPlasmaTail() {
+        const particleCount = 500;
+        const geometry = new THREE.BufferGeometry();
+        
+        const positions = new Float32Array(particleCount * 3);
+        const velocities = new Float32Array(particleCount * 3);
+        const lifetimes = new Float32Array(particleCount);
+        
+        for (let i = 0; i < particleCount; i++) {
+            positions[i * 3] = 0;
+            positions[i * 3 + 1] = 0;
+            positions[i * 3 + 2] = 0;
+            
+            velocities[i * 3] = (Math.random() - 0.5) * 0.1;
+            velocities[i * 3 + 1] = -Math.random() * 0.2;
+            velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.1;
+            
+            lifetimes[i] = Math.random();
+        }
+        
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
+        geometry.setAttribute('lifetime', new THREE.BufferAttribute(lifetimes, 1));
+        
+        const material = new THREE.PointsMaterial({
+            size: 0.1,
             color: 0xff6600,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            vertexColors: true
+        });
+        
+        this.effects.plasmaTail = new THREE.Points(geometry, material);
+        this.effects.plasmaTail.frustumCulled = false;
+        this.group.add(this.effects.plasmaTail);
+    }
+    
+    createThrusterSystem() {
+        // Modern instanced thrusters
+        const thrusterGeometry = new THREE.ConeGeometry(0.1, 0.5, 8);
+        const thrusterMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffaa00,
+            emissive: 0xffaa00,
+            emissiveIntensity: 1,
             transparent: true,
             opacity: 0,
             blending: THREE.AdditiveBlending
         });
         
-        this.effects.heatGlow = new THREE.Mesh(glowGeometry, glowMaterial);
-        this.group.add(this.effects.heatGlow);
+        // Create 8 thrusters using InstancedMesh
+        this.thrusterMesh = new THREE.InstancedMesh(
+            thrusterGeometry,
+            thrusterMaterial,
+            8
+        );
         
-        // Thruster flames
-        for (let i = 0; i < 4; i++) {
-            const angle = (i / 4) * Math.PI * 2;
-            const flameGeometry = new THREE.ConeGeometry(0.5, 3, 8);
-            const flameMaterial = new THREE.MeshBasicMaterial({
-                color: 0xffaa00,
-                transparent: true,
-                opacity: 0,
-                blending: THREE.AdditiveBlending
-            });
+        const matrix = new THREE.Matrix4();
+        const position = new THREE.Vector3();
+        const rotation = new THREE.Euler();
+        const scale = new THREE.Vector3(1, 1, 1);
+        
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            position.set(
+                Math.cos(angle) * 0.6,
+                -0.5,
+                Math.sin(angle) * 0.6
+            );
+            rotation.set(Math.PI, 0, angle);
             
-            const flame = new THREE.Mesh(flameGeometry, flameMaterial);
-            flame.position.x = Math.cos(angle) * 3;
-            flame.position.y = -3;
-            flame.position.z = Math.sin(angle) * 3;
-            flame.rotation.x = Math.PI;
-            flame.visible = false;
-            
-            this.effects.thrusters.push(flame);
-            this.group.add(flame);
+            matrix.compose(position, new THREE.Quaternion().setFromEuler(rotation), scale);
+            this.thrusterMesh.setMatrixAt(i, matrix);
         }
+        
+        this.thrusterMesh.instanceMatrix.needsUpdate = true;
+        this.group.add(this.thrusterMesh);
     }
     
     update(time, vehicleData) {
         if (!vehicleData) return;
         
-        // Update heat shield glow based on altitude
-        const glowIntensity = Math.max(0, 1 - vehicleData.altitude / 132000);
-        this.effects.heatGlow.material.opacity = glowIntensity * 0.5;
+        // Update heat effects based on altitude and velocity
+        const altitude = vehicleData.altitude || 100;
+        const velocity = vehicleData.velocityMagnitude || 0;
         
-        // Update heat shield color based on heating
-        if (this.state.heatShieldAttached && this.components.heatShield) {
-            const heat = glowIntensity;
-            this.components.heatShield.material.emissive = new THREE.Color(heat, heat * 0.3, 0);
-            this.components.heatShield.material.emissiveIntensity = heat;
-        }
+        // Heat intensity calculation
+        const heatIntensity = altitude < 100 && altitude > 20 
+            ? (1 - altitude / 100) * (velocity / 5900) 
+            : 0;
         
-        // Animate parachute deployment
-        if (this.state.parachuteDeployed && this.components.parachute.visible) {
-            const targetScale = 1;
-            this.components.parachute.scale.lerp(
-                new THREE.Vector3(targetScale, targetScale, targetScale), 
-                0.05
-            );
+        // Update glow shader
+        if (this.effects.heatGlow) {
+            this.effects.heatGlow.material.uniforms.intensity.value = heatIntensity;
+            this.effects.heatGlow.material.uniforms.time.value = time;
             
-            // Gentle swaying motion
-            this.components.parachute.rotation.x = Math.sin(time * 0.5) * 0.05;
-            this.components.parachute.rotation.z = Math.cos(time * 0.3) * 0.05;
+            // Change color based on heat
+            const heatColor = new THREE.Color();
+            heatColor.setHSL(0.05 - heatIntensity * 0.05, 1, 0.5);
+            this.effects.heatGlow.material.uniforms.glowColor.value = heatColor;
         }
         
-        // Thruster effects
-        if (this.state.thrustersActive) {
-            this.effects.thrusters.forEach((thruster, i) => {
-                thruster.visible = true;
-                thruster.material.opacity = 0.6 + Math.random() * 0.2;
-            });
+        // Update plasma tail particles
+        this.updatePlasmaTail(heatIntensity);
+        
+        // Update thruster visibility
+        if (this.thrusterMesh) {
+            this.thrusterMesh.material.opacity = this.state.thrustersActive ? 0.8 : 0;
         }
         
-        // Deflection reaction
-        if (this.state.isDeflected) {
-            const wobble = Math.sin(time * 10) * 0.1 * Math.exp(-(time - this.lastDeflectionTime));
-            this.group.rotation.z = wobble;
-            
-            if (Date.now() - this.lastDeflectionTime > 1000) {
-                this.state.isDeflected = false;
-                this.group.rotation.z = 0;
-            }
-        }
+        // LOD updates handled automatically by Three.js
+        this.vehicleLOD.update(this.group);
     }
     
-    onDeflection() {
-        this.state.isDeflected = true;
-        this.lastDeflectionTime = Date.now() / 1000;
-    }
-    
-    deployParachute() {
-        this.state.parachuteDeployed = true;
-        this.components.parachute.visible = true;
-        this.components.parachute.scale.set(0.1, 0.1, 0.1);
-    }
-    
-    ejectHeatShield() {
-        this.state.heatShieldAttached = false;
+    updatePlasmaTail(intensity) {
+        if (!this.effects.plasmaTail) return;
         
-        const heatShield = this.components.heatShield;
-        const duration = 2000;
-        const startTime = Date.now();
+        const positions = this.effects.plasmaTail.geometry.attributes.position;
+        const velocities = this.effects.plasmaTail.geometry.attributes.velocity;
+        const lifetimes = this.effects.plasmaTail.geometry.attributes.lifetime;
         
-        const animate = () => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min(elapsed / duration, 1);
+        for (let i = 0; i < positions.count; i++) {
+            lifetimes.array[i] -= 0.01;
             
-            heatShield.position.y = -2.5 - progress * 50;
-            heatShield.rotation.x = progress * Math.PI * 2;
-            heatShield.material.opacity = 1 - progress;
-            
-            if (progress < 1) {
-                requestAnimationFrame(animate);
+            if (lifetimes.array[i] <= 0) {
+                // Reset particle
+                positions.array[i * 3] = (Math.random() - 0.5) * 0.2;
+                positions.array[i * 3 + 1] = -0.5;
+                positions.array[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
+                lifetimes.array[i] = 1;
             } else {
-                heatShield.visible = false;
+                // Update position
+                positions.array[i * 3] += velocities.array[i * 3];
+                positions.array[i * 3 + 1] += velocities.array[i * 3 + 1];
+                positions.array[i * 3 + 2] += velocities.array[i * 3 + 2];
             }
-        };
+        }
         
-        animate();
+        positions.needsUpdate = true;
+        lifetimes.needsUpdate = true;
+        
+        this.effects.plasmaTail.material.opacity = intensity * 0.5;
     }
     
-    activateThrusters(active = true) {
-        this.state.thrustersActive = active;
-    }
-    
-    getObject3D() {
-        return this.group;
-    }
-    
-    dispose() {
-        // Dispose of geometries and materials
-        this.group.traverse((child) => {
-            if (child.geometry) child.geometry.dispose();
-            if (child.material) child.material.dispose();
-        });
-    }
-
     setPosition(position) {
-        if (position && position.isVector3) {
+        if (position?.isVector3) {
             this.group.position.copy(position);
         }
     }
@@ -271,9 +335,58 @@ export class EntryVehicle {
             case 'Heat Shield Separation':
                 this.ejectHeatShield();
                 break;
-            case 'Powered Descent':
+            case 'Guidance Start':
                 this.activateThrusters(true);
                 break;
         }
+    }
+    
+    deployParachute() {
+        // Implementation remains same as existing
+        this.state.parachuteDeployed = true;
+    }
+    
+    ejectHeatShield() {
+        this.state.heatShieldAttached = false;
+        
+        // Find and animate heat shield
+        this.vehicleLOD.traverse((child) => {
+            if (child.name === 'heatShield') {
+                // Animate separation
+                const startPos = child.position.clone();
+                const animate = () => {
+                    child.position.y -= 0.05;
+                    child.rotation.x += 0.1;
+                    
+                    if (child.position.y > startPos.y - 5) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        child.visible = false;
+                    }
+                };
+                animate();
+            }
+        });
+    }
+    
+    activateThrusters(active) {
+        this.state.thrustersActive = active;
+    }
+    
+    getObject3D() {
+        return this.group;
+    }
+    
+    dispose() {
+        this.group.traverse((child) => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+                if (Array.isArray(child.material)) {
+                    child.material.forEach(m => m.dispose());
+                } else {
+                    child.material.dispose();
+                }
+            }
+        });
     }
 }

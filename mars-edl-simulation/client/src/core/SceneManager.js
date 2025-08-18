@@ -1,350 +1,334 @@
 /**
- * SceneManager.js - FIXED VERSION
- * Handles Three.js scene setup with planet rendering
+ * SceneManager.js - Modern Three.js r179 implementation
+ * Uses latest performance optimizations and rendering techniques
  */
 
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
 export class SceneManager {
     constructor(container) {
         this.container = container || document.body;
         this.scenes = {};
-        this.currentScene = 'mars';
+        this.currentScene = null;
         this.renderer = null;
         this.camera = null;
-        this.lights = {};
-        this.planets = {};
-        this.starfield = null;
-        this.sharedObjects = []; // Track objects that need to be in all scenes
+        this.composer = null;
+        this.stats = null;
+        
+        // Performance monitoring
+        this.performanceMonitor = {
+            drawCalls: 0,
+            triangles: 0,
+            points: 0,
+            lines: 0
+        };
+        
+        // Modern Three.js features
+        this.USE_WEBGPU = false; // Set to true when WebGPU is stable
+        this.USE_PMREM = true; // Use PMREM for better environment maps
         
         this.init();
     }
     
     init() {
-        // Create renderer
-        this.renderer = new THREE.WebGLRenderer({
+        this.setupRenderer();
+        this.setupCamera();
+        this.setupPostProcessing();
+        this.createScenes();
+        this.setupEventListeners();
+        this.setupPerformanceMonitoring();
+    }
+    
+    setupRenderer() {
+        // Modern renderer with optimizations
+        const params = {
             antialias: true,
-            alpha: true,
             powerPreference: "high-performance",
-            logarithmicDepthBuffer: true
-        });
+            alpha: false,
+            stencil: false,
+            depth: true,
+            logarithmicDepthBuffer: true, // Better depth precision for large scenes
+            preserveDrawingBuffer: false
+        };
         
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        // Use standard WebGLRenderer for production stability
+        this.renderer = new THREE.WebGLRenderer(params);
+        
+        // Modern renderer settings
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap at 2 for performance
+        this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.0;
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        this.renderer.outputEncoding = THREE.sRGBEncoding;
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 0.8;
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        
+        // Enable modern features
+        this.renderer.useLegacyLights = false; // Use physically correct lighting
+        this.renderer.shadowMap.autoUpdate = false; // Manual shadow updates for performance
         
         this.container.appendChild(this.renderer.domElement);
-
-        // Create camera
+    }
+    
+    setupCamera() {
+        const aspect = this.container.clientWidth / this.container.clientHeight;
+        
         this.camera = new THREE.PerspectiveCamera(
-            45,
-            window.innerWidth / window.innerHeight,
+            50,
+            aspect,
             0.1,
             10000
         );
-        // Position camera to see trajectory from side
+        
         this.camera.position.set(50, 20, 50);
         this.camera.lookAt(0, 0, 0);
-
-        // Create planet scenes FIRST
-        this.createPlanetScenes();
         
-        // Setup post-processing
-        this.setupPostProcessing();
-    }
-    
-    createStarfield() {
-        const starFieldGeometry = new THREE.SphereGeometry(30, 64, 64);
-        const starFieldTexture = new THREE.TextureLoader().load('/assets/textures/starfield.png');
-        starFieldTexture.colorSpace = THREE.SRGBColorSpace;
-        starFieldTexture.wrapS = THREE.RepeatWrapping;
-        starFieldTexture.wrapT = THREE.RepeatWrapping;
-        starFieldTexture.magFilter = THREE.LinearFilter;
-        starFieldTexture.minFilter = THREE.LinearMipmapLinearFilter;
-        starFieldTexture.anisotropy = 16;
-        starFieldTexture.repeat.set(8, 4);
-
-        const starMaterial = new THREE.MeshBasicMaterial({ 
-            map: starFieldTexture,
-            side: THREE.DoubleSide
-        });
-
-        this.starfield = new THREE.Mesh(starFieldGeometry, starMaterial);
-    }
-    
-    createPlanetScenes() {
-        const textureLoader = new THREE.TextureLoader();
-
-        // ============ MARS SCENE ============
-        const marsScene = new THREE.Scene();
-        marsScene.fog = new THREE.FogExp2(0x000000, 0.00001);
-
-        // Fixed texture paths (remove 'textures' subfolder)
-        const marsColorTex = textureLoader.load('/assets/textures/Mars/Mars.jpg');
-        const marsNormalTex = textureLoader.load('/assets/textures/Mars/mars_normal.jpg');
-
-        const marsGeometry = new THREE.SphereGeometry(3, 64, 64);
-        const marsMaterial = new THREE.MeshPhysicalMaterial({
-            map: marsColorTex,
-            normalMap: marsNormalTex,
-            normalScale: new THREE.Vector2(1.0, 1.0),
-            roughness: 1.0,
-            metalness: 0.0,
-            color: new THREE.Color(0xd99559) // Mars orange tint
-        });
-        
-        const mars = new THREE.Mesh(marsGeometry, marsMaterial);
-        // Position Mars below the trajectory path
-        mars.position.set(0, -100, 0);
-        marsScene.add(mars);
-        this.planets.mars = mars;
-
-        // ============ EARTH SCENE ============
-        const earthScene = new THREE.Scene();
-        earthScene.fog = new THREE.FogExp2(0x000000, 0.00001);
-
-        // Earth textures
-        const earthColorTex = textureLoader.load('/assets/textures/Earth/earthmap_color.jpg');
-        const earthBumpTex = textureLoader.load('/assets/textures/Earth/earthmap_bump.jpg');
-        const earthSpecularTex = textureLoader.load('/assets/textures/Earth/earthmap_specular.jpg');
-        const earthCloudTex = textureLoader.load('/assets/textures/Earth/earthmap_cloud.jpg');
-        const earthCloudAlpha = textureLoader.load('/assets/textures/Earth/earthcloudmap_transperancy.jpg');
-
-        // Earth with similar scale to Mars
-        const earthRadius = 100;
-        const earthGeometry = new THREE.SphereGeometry(earthRadius, 64, 64);
-        const earthMaterial = new THREE.MeshStandardMaterial({
-            map: earthColorTex,
-            bumpMap: earthBumpTex,
-            bumpScale: 0.5,
-            metalnessMap: earthSpecularTex,
-            roughness: 0.7,
-            metalness: 0.1
-        });
-        
-        const earth = new THREE.Mesh(earthGeometry, earthMaterial);
-        earth.position.set(0, -100, 0);
-        earthScene.add(earth);
-        this.planets.earth = earth;
-
-        // Earth cloud layer
-        const cloudGeometry = new THREE.SphereGeometry(earthRadius * 1.01, 64, 64);
-        const cloudMaterial = new THREE.MeshStandardMaterial({
-            map: earthCloudTex,
-            alphaMap: earthCloudAlpha,
-            transparent: true,
-            opacity: 0.4,
-            depthWrite: false
-        });
-        
-        const clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
-        clouds.position.copy(earth.position);
-        earthScene.add(clouds);
-        this.planets.earthClouds = clouds;
-
-        // ============ JUPITER SCENE ============
-        const jupiterScene = new THREE.Scene();
-        jupiterScene.fog = new THREE.FogExp2(0x000000, 0.00001);
-
-        // Jupiter (larger than Earth and Mars)
-        const jupiterRadius = 150;
-        const jupiterGeometry = new THREE.SphereGeometry(jupiterRadius, 64, 64);
-        const jupiterMaterial = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(0xc88b3f),
-            roughness: 0.8,
-            metalness: 0.0
-        });
-        
-        const jupiter = new THREE.Mesh(jupiterGeometry, jupiterMaterial);
-        jupiter.position.set(0, -150, 0);
-        jupiterScene.add(jupiter);
-        this.planets.jupiter = jupiter;
-
-        // Store scenes
-        this.scenes = {
-            mars: marsScene,
-            earth: earthScene,
-            jupiter: jupiterScene
-        };
-
-        // Setup lighting for each scene
-        Object.entries(this.scenes).forEach(([name, scene]) => {
-            this.setupLighting(scene, name);
-        });
-
-        // Set default scene to Mars
-        this.scene = this.scenes.mars;
-        this.currentScene = 'mars';
-    }
-    
-    setupLighting(scene, planetName) {
-        // Main Sun light - brighter for Earth visibility
-        const sunLight = new THREE.DirectionalLight(0xffffff, 3.0);
-        sunLight.position.set(100, 50, 75);
-        sunLight.target.position.set(0, 0, 0);
-        sunLight.castShadow = true;
-        sunLight.shadow.mapSize.width = 2048;
-        sunLight.shadow.mapSize.height = 2048;
-        sunLight.shadow.camera.near = 0.1;
-        sunLight.shadow.camera.far = 200;
-        sunLight.shadow.camera.left = -10;
-        sunLight.shadow.camera.right = 10;
-        sunLight.shadow.camera.top = 10;
-        sunLight.shadow.camera.bottom = -10;
-        scene.add(sunLight);
-
-        // Ambient light for visibility
-        const ambientLight = new THREE.AmbientLight(0x404040, 1.0);
-        scene.add(ambientLight);
-        
-        // Hemisphere light for natural lighting
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5);
-        hemiLight.position.set(0, 100, 0);
-        scene.add(hemiLight);
-        
-        // Store lights
-        if (!this.lights[planetName]) {
-            this.lights[planetName] = {};
-        }
-        this.lights[planetName].sun = sunLight;
-        this.lights[planetName].ambient = ambientLight;
-        this.lights[planetName].hemisphere = hemiLight;
+        // Add camera layers for selective rendering
+        this.camera.layers.enableAll();
     }
     
     setupPostProcessing() {
+        // Modern post-processing pipeline
         this.composer = new EffectComposer(this.renderer);
         
-        const renderPass = new RenderPass(this.scene, this.camera);
+        // Render pass
+        const renderPass = new RenderPass(null, this.camera);
         this.composer.addPass(renderPass);
         
+        // Bloom for atmospheric effects
         const bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(window.innerWidth, window.innerHeight),
-            0.3, // reduced strength
-            0.4,
-            0.85
+            new THREE.Vector2(this.container.clientWidth, this.container.clientHeight),
+            0.5,  // Strength
+            0.4,  // Radius
+            0.85  // Threshold
         );
         this.composer.addPass(bloomPass);
+        
+        // SMAA for better antialiasing
+        const smaaPass = new SMAAPass(
+            this.container.clientWidth * this.renderer.getPixelRatio(),
+            this.container.clientHeight * this.renderer.getPixelRatio()
+        );
+        this.composer.addPass(smaaPass);
+        
+        // Output pass for correct color space
+        const outputPass = new OutputPass();
+        this.composer.addPass(outputPass);
+    }
+    
+    createScenes() {
+        // Mars Scene with optimizations
+        const marsScene = new THREE.Scene();
+        marsScene.fog = new THREE.FogExp2(0x000000, 0.00001);
+        marsScene.backgroundIntensity = 0.5;
+        
+        // Use environment map for better lighting
+        const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+        pmremGenerator.compileEquirectangularShader();
+        
+        // Create procedural starfield using BufferGeometry for performance
+        const starsGeometry = new THREE.BufferGeometry();
+        const starsCount = 10000;
+        const positions = new Float32Array(starsCount * 3);
+        const colors = new Float32Array(starsCount * 3);
+        
+        for (let i = 0; i < starsCount * 3; i += 3) {
+            const radius = 1000 + Math.random() * 2000;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            
+            positions[i] = radius * Math.sin(phi) * Math.cos(theta);
+            positions[i + 1] = radius * Math.sin(phi) * Math.sin(theta);
+            positions[i + 2] = radius * Math.cos(phi);
+            
+            const color = new THREE.Color();
+            color.setHSL(0.6, 0.1, 0.5 + Math.random() * 0.5);
+            colors[i] = color.r;
+            colors[i + 1] = color.g;
+            colors[i + 2] = color.b;
+        }
+        
+        starsGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        starsGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        
+        const starsMaterial = new THREE.PointsMaterial({
+            size: 2,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            sizeAttenuation: true
+        });
+        
+        const stars = new THREE.Points(starsGeometry, starsMaterial);
+        marsScene.add(stars);
+        
+        // Add lighting with modern shadow settings
+        const sunLight = new THREE.DirectionalLight(0xffffff, 3.0);
+        sunLight.position.set(100, 50, 75);
+        sunLight.castShadow = true;
+        
+        // Optimized shadow settings
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 500;
+        sunLight.shadow.camera.left = -100;
+        sunLight.shadow.camera.right = 100;
+        sunLight.shadow.camera.top = 100;
+        sunLight.shadow.camera.bottom = -100;
+        sunLight.shadow.bias = -0.0005;
+        sunLight.shadow.normalBias = 0.02;
+        
+        marsScene.add(sunLight);
+        
+        // Ambient lighting for fill
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+        marsScene.add(ambientLight);
+        
+        // Hemisphere light for sky/ground color
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d6e63, 0.5);
+        marsScene.add(hemiLight);
+        
+        this.scenes = { mars: marsScene };
+        this.currentScene = marsScene;
+        
+        pmremGenerator.dispose();
+    }
+    
+    setupPerformanceMonitoring() {
+        // Monitor render info
+        this.renderer.info.autoReset = false;
+        
+        // Optional: Stats.js integration
+        if (typeof Stats !== 'undefined') {
+            this.stats = new Stats();
+            this.container.appendChild(this.stats.dom);
+        }
+    }
+    
+    updatePerformanceMetrics() {
+        const info = this.renderer.info;
+        this.performanceMonitor.drawCalls = info.render.calls;
+        this.performanceMonitor.triangles = info.render.triangles;
+        this.performanceMonitor.points = info.render.points;
+        this.performanceMonitor.lines = info.render.lines;
+        
+        // Reset for next frame
+        this.renderer.info.reset();
+    }
+    
+    addToAllScenes(object) {
+        Object.values(this.scenes).forEach(scene => {
+            // Clone for each scene to avoid conflicts
+            const clone = object.clone ? object.clone() : object;
+            scene.add(clone);
+        });
     }
     
     switchPlanet(planetName) {
         if (this.scenes[planetName]) {
-            this.currentScene = planetName;
-            this.scene = this.scenes[planetName];
+            this.currentScene = this.scenes[planetName];
             
             // Update render pass
-            if (this.composer && this.composer.passes[0]) {
-                this.composer.passes[0].scene = this.scene;
+            const renderPass = this.composer.passes[0];
+            if (renderPass instanceof RenderPass) {
+                renderPass.scene = this.currentScene;
             }
-            
-            // Re-add shared objects
-            this.sharedObjects.forEach(obj => {
-                if (!this.scene.getObjectById(obj.id)) {
-                    this.scene.add(obj.clone ? obj.clone() : obj);
-                }
-            });
         }
-    }
-    
-    addToCurrentScene(object) {
-        if (this.scene) {
-            this.scene.add(object);
-        }
-    }
-    
-    addToAllScenes(object) {
-        this.sharedObjects.push(object);
-        
-        Object.values(this.scenes).forEach(scene => {
-            // Clone if possible, otherwise add directly
-            const objToAdd = object.clone ? object.clone() : object;
-            scene.add(objToAdd);
-        });
-    }
-    
-    removeFromAllScenes(object) {
-        const index = this.sharedObjects.indexOf(object);
-        if (index > -1) {
-            this.sharedObjects.splice(index, 1);
-        }
-        
-        Object.values(this.scenes).forEach(scene => {
-            scene.remove(object);
-        });
     }
     
     updatePlanetRotation(deltaTime) {
-        if (this.planets[this.currentScene]) {
-            this.planets[this.currentScene].rotation.y += 0.002;
-        }
+        // Mars rotation (1 sol = 24.6 hours)
+        const marsRotationSpeed = (2 * Math.PI) / (24.6 * 3600) * deltaTime * 100; // Speed up for visualization
         
-        // Rotate Earth clouds at different speed for realism
-        if (this.currentScene === 'earth' && this.planets.earthClouds) {
-            this.planets.earthClouds.rotation.y += 0.0015;
-            this.planets.earthClouds.rotation.x += 0.0002;
+        this.scenes.mars?.traverse((child) => {
+            if (child.name === 'mars_surface') {
+                child.rotation.y += marsRotationSpeed;
+            }
+        });
+    }
+    
+    updateLighting(altitude, phase) {
+        const sunLight = this.currentScene?.getObjectByProperty('type', 'DirectionalLight');
+        if (!sunLight) return;
+        
+        // Dynamic lighting based on altitude
+        const atmosphericAttenuation = Math.max(0.3, 1 - altitude / 200);
+        sunLight.intensity = 3.0 * atmosphericAttenuation;
+        
+        // Update shadows only when needed
+        if (phase === 0 || phase === 3) { // Entry or landing phases
+            this.renderer.shadowMap.needsUpdate = true;
         }
     }
     
     render(camera) {
-        if (this.composer) {
+        if (this.currentScene && camera) {
+            // Use composer for post-processing
             this.composer.render();
-        } else {
-            this.renderer.render(this.scene, camera || this.camera);
+            
+            // Update performance metrics
+            this.updatePerformanceMetrics();
+            
+            if (this.stats) {
+                this.stats.update();
+            }
         }
     }
     
     handleResize() {
-        const width = window.innerWidth;
-        const height = window.innerHeight;
+        const width = this.container.clientWidth;
+        const height = this.container.clientHeight;
         
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
         
         this.renderer.setSize(width, height);
+        this.composer.setSize(width, height);
         
-        if (this.composer) {
-            this.composer.setSize(width, height);
+        // Update post-processing passes
+        const smaaPass = this.composer.passes.find(pass => pass instanceof SMAAPass);
+        if (smaaPass) {
+            smaaPass.setSize(width * this.renderer.getPixelRatio(), height * this.renderer.getPixelRatio());
         }
     }
     
-    updateLighting(altitude, phase) {
-        const sceneLights = this.lights[this.currentScene];
-        if (!sceneLights) return;
+    setupEventListeners() {
+        window.addEventListener('resize', () => this.handleResize());
         
-        const atmosphereEffect = Math.max(0.2, 1 - altitude / 100000);
-        
-        if (sceneLights.sun) {
-            sceneLights.sun.intensity = 1.5 + (0.5 * atmosphereEffect);
-        }
-        
-        if (sceneLights.ambient) {
-            sceneLights.ambient.intensity = 0.8 + (0.2 * atmosphereEffect);
-        }
+        // Handle visibility change for performance
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                this.renderer.setAnimationLoop(null);
+            }
+        });
     }
     
     dispose() {
+        this.renderer.dispose();
+        this.composer.dispose();
+        
+        // Dispose all geometries and materials
         Object.values(this.scenes).forEach(scene => {
             scene.traverse((child) => {
                 if (child.geometry) child.geometry.dispose();
                 if (child.material) {
                     if (Array.isArray(child.material)) {
-                        child.material.forEach(mat => mat.dispose());
+                        child.material.forEach(m => m.dispose());
                     } else {
                         child.material.dispose();
                     }
                 }
             });
         });
-        
-        this.renderer.dispose();
-        if (this.composer) {
-            this.composer.dispose();
-        }
+    }
+    
+    getPerformanceStats() {
+        return this.performanceMonitor;
     }
 }

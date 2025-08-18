@@ -1,232 +1,235 @@
-// client/src/components/environment/Mars.js
+/**
+ * Mars.js - FIXED VERSION
+ * Mars planet with correct NASA dimensions
+ */
+
 import * as THREE from 'three';
 
 export class Mars {
     constructor() {
-        this.radius = 3389500; // Mars radius in meters
-        this.mesh = null;
+        this.group = new THREE.Group();
+        this.radius = 10; // Mars scaled to match EntryVehicle scale
         this.atmosphere = null;
-        this.atmosphereShader = null;
+        this.surface = null;
         this.clouds = null;
-        this.position = new THREE.Vector3(0, 0, 0); // Mars at origin
         
-        this.textureLoader = new THREE.TextureLoader();     
+        this.init();
     }
     
-    async init() {
-        // Create Mars sphere with high detail
-        const geometry = new THREE.SphereGeometry(this.radius, 128, 128);
-        
-        // Load all textures with proper settings
-        const [
-            marsTexture,
-            marsNormal,
-            marsRoughness,
-            marsDisplacement
-        ] = await Promise.all([
-            this.loadTexture('/assets/textures/Mars.jpg'),
-            this.loadTexture('/assets/textures/Mars_normal.jpg'),
-        ]);
-        
-        // Create material with realistic properties
-        const material = new THREE.MeshStandardMaterial({
-            map: marsTexture,
-            normalMap: marsNormal,
-            normalScale: new THREE.Vector2(1, 1),
-            roughness: 0.85,
-            metalness: 0.00
-        });
-        
-        this.mesh = new THREE.Mesh(geometry, material);
-        this.mesh.position.copy(this.position);
-        this.mesh.receiveShadow = true;
-        this.mesh.castShadow = true;
-        
-        // Create atmosphere layers
+    init() {
+        this.createSurface();
         this.createAtmosphere();
+        this.createSurfaceFeatures();
+    }
+    
+    createSurface() {
+        // Create Mars sphere with high detail
+        const geometry = new THREE.SphereGeometry(this.radius, 128, 64);
         
-        // Create optional dust clouds
-        this.createDustClouds();
-    }
-    
-    loadTexture(url) {
-        return new Promise((resolve, reject) => {
-            this.textureLoader.load(
-                url,
-                (texture) => {
-                    texture.encoding = THREE.sRGBEncoding;
-                    texture.anisotropy = 16;
-                    resolve(texture);
-                },
-                undefined,
-                (error) => {
-                    console.warn(`Failed to load texture ${url}, using fallback`);
-                    // Create fallback texture
-                    const fallbackTexture = new THREE.Texture();
-                    fallbackTexture.image = this.createFallbackImage();
-                    fallbackTexture.needsUpdate = true;
-                    resolve(fallbackTexture);
-                }
-            );
+        // Create Mars texture programmatically
+        const texture = this.createMarsTexture();
+        
+        const material = new THREE.MeshPhongMaterial({
+            map: texture,
+            bumpMap: texture,
+            bumpScale: 2,
+            specular: new THREE.Color(0x111111),
+            shininess: 5
         });
+        
+        this.surface = new THREE.Mesh(geometry, material);
+        this.surface.receiveShadow = true;
+        this.surface.castShadow = true;
+        
+        // Position Mars at origin (0,0,0) for J2000 frame
+        this.surface.position.set(0, 0, 0);
+        this.group.add(this.surface);
     }
     
-    createFallbackImage() {
+    createMarsTexture() {
         const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 512;
+        canvas.width = 2048;
+        canvas.height = 1024;
         const ctx = canvas.getContext('2d');
         
-        // Create Mars-like gradient
-        const gradient = ctx.createLinearGradient(0, 0, 512, 512);
-        gradient.addColorStop(0, '#d2691e');
-        gradient.addColorStop(0.5, '#cd853f');
-        gradient.addColorStop(1, '#8b4513');
+        // Base Mars colors
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, '#d99559');    // Lighter orange-red
+        gradient.addColorStop(0.3, '#c67b5c');   // Dusty red
+        gradient.addColorStop(0.5, '#b87333');   // Rust orange
+        gradient.addColorStop(0.7, '#a0522d');   // Darker rust
+        gradient.addColorStop(1, '#8b4513');     // Dark brown
         
         ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 512, 512);
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        return canvas;
+        // Add surface variation
+        for (let i = 0; i < 1000; i++) {
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height;
+            const radius = Math.random() * 15 + 3;
+            const opacity = Math.random() * 0.3;
+            
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(139, 69, 19, ${opacity})`;
+            ctx.fill();
+        }
+        
+        // Add some darker regions (maria-like features)
+        for (let i = 0; i < 50; i++) {
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height;
+            const radiusX = Math.random() * 100 + 50;
+            const radiusY = Math.random() * 50 + 25;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(Math.random() * Math.PI);
+            ctx.scale(1, radiusY / radiusX);
+            ctx.beginPath();
+            ctx.arc(0, 0, radiusX, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(60, 30, 10, 0.2)`;
+            ctx.fill();
+            ctx.restore();
+        }
+        
+        // Add polar ice caps
+        // North pole
+        const northGradient = ctx.createRadialGradient(
+            canvas.width / 2, 50, 0,
+            canvas.width / 2, 50, 200
+        );
+        northGradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+        northGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = northGradient;
+        ctx.fillRect(0, 0, canvas.width, 150);
+        
+        // South pole
+        const southGradient = ctx.createRadialGradient(
+            canvas.width / 2, canvas.height - 50, 0,
+            canvas.width / 2, canvas.height - 50, 200
+        );
+        southGradient.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+        southGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = southGradient;
+        ctx.fillRect(0, canvas.height - 150, canvas.width, 150);
+        
+        return new THREE.CanvasTexture(canvas);
     }
     
     createAtmosphere() {
-        this.atmosphere = new THREE.Group();
+        // Thin atmospheric glow
+        const atmosphereGeometry = new THREE.SphereGeometry(this.radius * 1.02, 64, 64);
         
-        // Inner atmosphere layer
-        const innerAtmosphereGeometry = new THREE.SphereGeometry(
-            this.radius * 1.01,
-            64,
-            64
-        );
-        
-        const innerAtmosphereMaterial = new THREE.MeshLambertMaterial({
-            color: 0xff6b4a,
-            transparent: true,
-            opacity: 0.1,
-            side: THREE.BackSide,
-            emissive: 0xff4500,
-            emissiveIntensity: 0.1
-        });
-        
-        const innerAtmosphere = new THREE.Mesh(innerAtmosphereGeometry, innerAtmosphereMaterial);
-        innerAtmosphere.position.copy(this.position);
-        this.atmosphere.add(innerAtmosphere);
-        
-        // Outer atmosphere with custom shader
-        const outerAtmosphereGeometry = new THREE.SphereGeometry(
-            this.radius * 1.025,
-            64,
-            64
-        );
-        
-        const atmosphereShader = {
-            uniforms: {
-                sunDirection: { value: new THREE.Vector3(1, 0.5, 0.3).normalize() },
-                viewVector: { value: new THREE.Vector3() },
-                c: { value: 0.6 },
-                p: { value: 4.0 },
-                glowColor: { value: new THREE.Color(0xff6b4a) },
-                intensity: { value: 1.0 }
-            },
+        const atmosphereMaterial = new THREE.ShaderMaterial({
             vertexShader: `
                 varying vec3 vNormal;
-                varying vec3 vPositionNormal;
-                varying vec3 vWorldPosition;
+                varying vec3 vPosition;
                 
                 void main() {
                     vNormal = normalize(normalMatrix * normal);
-                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                    vPositionNormal = normalize(mvPosition.xyz);
-                    vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
-                    gl_Position = projectionMatrix * mvPosition;
+                    vPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }
             `,
             fragmentShader: `
-                uniform vec3 sunDirection;
                 uniform vec3 viewVector;
                 uniform float c;
                 uniform float p;
-                uniform vec3 glowColor;
-                uniform float intensity;
-                
                 varying vec3 vNormal;
-                varying vec3 vPositionNormal;
-                varying vec3 vWorldPosition;
+                varying vec3 vPosition;
                 
                 void main() {
-                    vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
-                    float sunDot = dot(vNormal, sunDirection);
-                    float viewDot = dot(vNormal, viewDirection);
+                    vec3 viewDir = normalize(cameraPosition - vPosition);
+                    float intensity = pow(c - dot(vNormal, viewDir), p);
                     
-                    // Atmospheric scattering
-                    float atmosphere = pow(c - viewDot, p);
+                    // Mars atmosphere is thin and reddish
+                    vec3 atmosphereColor = vec3(0.9, 0.6, 0.3);
+                    float alpha = intensity * 0.15; // Very thin atmosphere
                     
-                    // Sun-side glow
-                    float sunGlow = smoothstep(-0.3, 0.5, sunDot) * 0.5;
-                    
-                    // Combine effects
-                    vec3 color = glowColor * (atmosphere + sunGlow) * intensity;
-                    float alpha = (atmosphere * 0.8 + sunGlow * 0.4) * intensity;
-                    
-                    gl_FragColor = vec4(color, alpha);
+                    gl_FragColor = vec4(atmosphereColor, alpha);
                 }
             `,
+            uniforms: {
+                viewVector: { value: new THREE.Vector3() },
+                c: { value: 0.5 },
+                p: { value: 3.0 }
+            },
             side: THREE.BackSide,
             blending: THREE.AdditiveBlending,
             transparent: true,
             depthWrite: false
-        };
-        
-        const outerAtmosphereMaterial = new THREE.ShaderMaterial(atmosphereShader);
-        const outerAtmosphere = new THREE.Mesh(outerAtmosphereGeometry, outerAtmosphereMaterial);
-        outerAtmosphere.position.copy(this.position);
-        this.atmosphere.add(outerAtmosphere);
-        
-        // Store reference for updates
-        this.atmosphereShader = outerAtmosphereMaterial;
-    }
-    
-    createDustClouds() {
-        // Create subtle dust cloud layer
-        const cloudGeometry = new THREE.SphereGeometry(
-            this.radius * 1.005,
-            32,
-            32
-        );
-        
-        const cloudMaterial = new THREE.MeshLambertMaterial({
-            color: 0xcc9966,
-            transparent: true,
-            opacity: 0.05,
-            side: THREE.DoubleSide
         });
         
-        this.clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
-        this.clouds.position.copy(this.position);
+        this.atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+        this.group.add(this.atmosphere);
     }
     
-    addToScene(scene) {
-        if (this.mesh) scene.add(this.mesh);
-        if (this.atmosphere) scene.add(this.atmosphere);
-        if (this.clouds) scene.add(this.clouds);
+    createSurfaceFeatures() {
+        // Major surface features markers
+        const features = [
+            { name: 'Olympus Mons', lat: 18.65, lon: 226.2, scale: 30 },
+            { name: 'Valles Marineris', lat: -14, lon: 301, scale: 50 },
+            { name: 'Hellas Planitia', lat: -42.5, lon: 70, scale: 40 }
+        ];
+        
+        features.forEach(feature => {
+            const phi = (90 - feature.lat) * Math.PI / 180;
+            const theta = feature.lon * Math.PI / 180;
+            
+            const x = this.radius * Math.sin(phi) * Math.cos(theta);
+            const y = this.radius * Math.cos(phi);
+            const z = this.radius * Math.sin(phi) * Math.sin(theta);
+            
+            // Add subtle marker
+            const markerGeometry = new THREE.SphereGeometry(feature.scale, 8, 8);
+            const markerMaterial = new THREE.MeshBasicMaterial({
+                color: 0x663300,
+                opacity: 0.3,
+                transparent: true
+            });
+            
+            const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+            marker.position.set(x, y, z);
+            this.group.add(marker);
+        });
     }
     
-    update(camera, time) {
-        // Update atmosphere shader based on camera position
-        if (this.atmosphereShader) {
-            this.atmosphereShader.uniforms.viewVector.value = 
-                new THREE.Vector3().subVectors(camera.position, this.mesh.position);
+    update(camera, deltaTime) {
+        // Update atmosphere shader with camera position
+        if (this.atmosphere && this.atmosphere.material.uniforms) {
+            this.atmosphere.material.uniforms.viewVector.value = 
+                new THREE.Vector3().subVectors(camera.position, this.group.position);
         }
         
-        // Planet rotation removed for clearer coordinate reference
-        // Mars remains stationary relative to coordinate axes
+        // Slow rotation (Mars day = 24.6 hours)
+        // For visualization, we'll make it rotate slowly
+        this.surface.rotation.y += deltaTime * 0.01;
+        
+        // Atmosphere doesn't rotate
+        if (this.atmosphere) {
+            this.atmosphere.rotation.y = 0;
+        }
+    }
+    
+    getObject3D() {
+        return this.group;
     }
     
     getRadius() {
         return this.radius;
     }
     
-    getPosition() {
-        return this.position.clone();
+    dispose() {
+        if (this.surface) {
+            this.surface.geometry.dispose();
+            this.surface.material.dispose();
+        }
+        
+        if (this.atmosphere) {
+            this.atmosphere.geometry.dispose();
+            this.atmosphere.material.dispose();
+        }
     }
 }

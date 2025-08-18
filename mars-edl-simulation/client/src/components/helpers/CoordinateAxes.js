@@ -1,182 +1,143 @@
 /**
  * CoordinateAxes.js
- * Visualizes coordinate axes for better spatial understanding
+ * Visualizes the J2000 reference frame axes
  */
 
 import * as THREE from 'three';
 
 export class CoordinateAxes {
-    constructor(size = 5000000, lineWidth = 3) { // 5,000 km default for Mars-scale visualization
+    constructor(size = 5000) {
         this.size = size;
-        this.lineWidth = lineWidth;
         this.group = new THREE.Group();
-        this.group.name = 'CoordinateAxes';
+        this.labels = [];
         
-        this.createAxes();
-        this.createArrowHeads();
-        this.createLabels();
+        this.init();
     }
-
-    createAxes() {
-        // X-axis (Red) - Points toward vernal equinox in J2000
-        const xAxisPoints = [
+    
+    init() {
+        // Create axes with distinct colors
+        // X-axis (Red) - Points to vernal equinox
+        const xGeometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(0, 0, 0),
             new THREE.Vector3(this.size, 0, 0)
-        ];
-        const xAxisGeometry = new THREE.BufferGeometry().setFromPoints(xAxisPoints);
-        const xAxisMaterial = new THREE.LineBasicMaterial({ 
-            color: 0xff0000, 
-            linewidth: this.lineWidth,
-            transparent: true,
-            opacity: 0.9
+        ]);
+        const xMaterial = new THREE.LineBasicMaterial({ 
+            color: 0xff0000,
+            linewidth: 2,
+            opacity: 0.6,
+            transparent: true
         });
-        const xAxis = new THREE.Line(xAxisGeometry, xAxisMaterial);
-        xAxis.name = 'X-Axis-Positive';
+        const xAxis = new THREE.Line(xGeometry, xMaterial);
         this.group.add(xAxis);
         
-        // X-axis negative (darker red)
-        const xAxisNegPoints = [
-            new THREE.Vector3(0, 0, 0),
-            new THREE.Vector3(-this.size, 0, 0)
-        ];
-        const xAxisNegGeometry = new THREE.BufferGeometry().setFromPoints(xAxisNegPoints);
-        const xAxisNegMaterial = new THREE.LineBasicMaterial({ 
-            color: 0x800000, 
-            linewidth: this.lineWidth,
-            transparent: true,
-            opacity: 0.6
-        });
-        const xAxisNeg = new THREE.Line(xAxisNegGeometry, xAxisNegMaterial);
-        xAxisNeg.name = 'X-Axis-Negative';
-        this.group.add(xAxisNeg);
-
-        // Y-axis (Green) - 90° from X in ecliptic plane
-        const yAxisPoints = [
+        // Y-axis (Green) - Completes right-handed system
+        const yGeometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(0, 0, 0),
             new THREE.Vector3(0, this.size, 0)
-        ];
-        const yAxisGeometry = new THREE.BufferGeometry().setFromPoints(yAxisPoints);
-        const yAxisMaterial = new THREE.LineBasicMaterial({ 
-            color: 0x00ff00, 
-            linewidth: this.lineWidth,
-            transparent: true,
-            opacity: 0.9
+        ]);
+        const yMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x00ff00,
+            linewidth: 2,
+            opacity: 0.6,
+            transparent: true
         });
-        const yAxis = new THREE.Line(yAxisGeometry, yAxisMaterial);
-        yAxis.name = 'Y-Axis-Positive';
+        const yAxis = new THREE.Line(yGeometry, yMaterial);
         this.group.add(yAxis);
         
-        // Y-axis negative (darker green)
-        const yAxisNegPoints = [
-            new THREE.Vector3(0, 0, 0),
-            new THREE.Vector3(0, -this.size, 0)
-        ];
-        const yAxisNegGeometry = new THREE.BufferGeometry().setFromPoints(yAxisNegPoints);
-        const yAxisNegMaterial = new THREE.LineBasicMaterial({ 
-            color: 0x008000, 
-            linewidth: this.lineWidth,
-            transparent: true,
-            opacity: 0.6
-        });
-        const yAxisNeg = new THREE.Line(yAxisNegGeometry, yAxisNegMaterial);
-        yAxisNeg.name = 'Y-Axis-Negative';
-        this.group.add(yAxisNeg);
-
-        // Z-axis (Blue) - Toward north ecliptic pole
-        const zAxisPoints = [
+        // Z-axis (Blue) - Points to Mars north pole
+        const zGeometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(0, 0, 0),
             new THREE.Vector3(0, 0, this.size)
-        ];
-        const zAxisGeometry = new THREE.BufferGeometry().setFromPoints(zAxisPoints);
-        const zAxisMaterial = new THREE.LineBasicMaterial({ 
-            color: 0x0000ff, 
-            linewidth: this.lineWidth,
-            transparent: true,
-            opacity: 0.9
+        ]);
+        const zMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x0088ff,
+            linewidth: 2,
+            opacity: 0.6,
+            transparent: true
         });
-        const zAxis = new THREE.Line(zAxisGeometry, zAxisMaterial);
-        zAxis.name = 'Z-Axis-Positive';
+        const zAxis = new THREE.Line(zGeometry, zMaterial);
         this.group.add(zAxis);
         
-        // Z-axis negative (darker blue)
-        const zAxisNegPoints = [
-            new THREE.Vector3(0, 0, 0),
-            new THREE.Vector3(0, 0, -this.size)
-        ];
-        const zAxisNegGeometry = new THREE.BufferGeometry().setFromPoints(zAxisNegPoints);
-        const zAxisNegMaterial = new THREE.LineBasicMaterial({ 
-            color: 0x000080, 
-            linewidth: this.lineWidth,
-            transparent: true,
-            opacity: 0.6
+        // Add coordinate planes (optional, semi-transparent)
+        this.createCoordinatePlanes();
+        
+        // Add axis labels
+        this.createAxisLabels();
+        
+        // Add tick marks
+        this.createTickMarks();
+    }
+    
+    createCoordinatePlanes() {
+        const planeSize = this.size * 0.3;
+        const planeOpacity = 0.05;
+        
+        // XY Plane (horizontal)
+        const xyGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
+        const xyMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffff00,
+            side: THREE.DoubleSide,
+            opacity: planeOpacity,
+            transparent: true
         });
-        const zAxisNeg = new THREE.Line(zAxisNegGeometry, zAxisNegMaterial);
-        zAxisNeg.name = 'Z-Axis-Negative';
-        this.group.add(zAxisNeg);
+        const xyPlane = new THREE.Mesh(xyGeometry, xyMaterial);
+        xyPlane.rotation.x = -Math.PI / 2;
+        xyPlane.position.set(planeSize/2, 0, planeSize/2);
+        this.group.add(xyPlane);
+        
+        // XZ Plane
+        const xzGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
+        const xzMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff00ff,
+            side: THREE.DoubleSide,
+            opacity: planeOpacity,
+            transparent: true
+        });
+        const xzPlane = new THREE.Mesh(xzGeometry, xzMaterial);
+        xzPlane.position.set(planeSize/2, planeSize/2, 0);
+        this.group.add(xzPlane);
+        
+        // YZ Plane
+        const yzGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
+        const yzMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ffff,
+            side: THREE.DoubleSide,
+            opacity: planeOpacity,
+            transparent: true
+        });
+        const yzPlane = new THREE.Mesh(yzGeometry, yzMaterial);
+        yzPlane.rotation.y = Math.PI / 2;
+        yzPlane.position.set(0, planeSize/2, planeSize/2);
+        this.group.add(yzPlane);
     }
-
-    createArrowHeads() {
-        const arrowSize = this.size * 0.02; // 2% of axis length
+    
+    createAxisLabels() {
+        // Create sprite labels for each axis
+        const labels = [
+            { text: 'X (Vernal Equinox)', position: new THREE.Vector3(this.size * 1.1, 0, 0), color: '#ff0000' },
+            { text: 'Y', position: new THREE.Vector3(0, this.size * 1.1, 0), color: '#00ff00' },
+            { text: 'Z (North)', position: new THREE.Vector3(0, 0, this.size * 1.1), color: '#0088ff' }
+        ];
         
-        // X-axis arrow (Red cone)
-        const xArrowGeometry = new THREE.ConeGeometry(arrowSize * 0.3, arrowSize, 8);
-        const xArrowMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        const xArrow = new THREE.Mesh(xArrowGeometry, xArrowMaterial);
-        xArrow.position.set(this.size + arrowSize * 0.5, 0, 0);
-        xArrow.rotateZ(-Math.PI / 2);
-        xArrow.name = 'X-Arrow';
-        this.group.add(xArrow);
-        
-        // Y-axis arrow (Green cone)
-        const yArrowGeometry = new THREE.ConeGeometry(arrowSize * 0.3, arrowSize, 8);
-        const yArrowMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-        const yArrow = new THREE.Mesh(yArrowGeometry, yArrowMaterial);
-        yArrow.position.set(0, this.size + arrowSize * 0.5, 0);
-        yArrow.name = 'Y-Arrow';
-        this.group.add(yArrow);
-        
-        // Z-axis arrow (Blue cone)
-        const zArrowGeometry = new THREE.ConeGeometry(arrowSize * 0.3, arrowSize, 8);
-        const zArrowMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
-        const zArrow = new THREE.Mesh(zArrowGeometry, zArrowMaterial);
-        zArrow.position.set(0, 0, this.size + arrowSize * 0.5);
-        zArrow.rotateX(Math.PI / 2);
-        zArrow.name = 'Z-Arrow';
-        this.group.add(zArrow);
+        labels.forEach(label => {
+            const sprite = this.createTextSprite(label.text, label.color);
+            sprite.position.copy(label.position);
+            this.group.add(sprite);
+            this.labels.push(sprite);
+        });
     }
-
-    createLabels() {
-        const labelDistance = this.size * 1.1;
-        
-        // X-axis label
-        this.xLabel = this.createTextSprite('X (Vernal Equinox)', 0xff0000);
-        this.xLabel.position.set(labelDistance, 0, 0);
-        this.group.add(this.xLabel);
-        
-        // Y-axis label
-        this.yLabel = this.createTextSprite('Y (Ecliptic)', 0x00ff00);
-        this.yLabel.position.set(0, labelDistance, 0);
-        this.group.add(this.yLabel);
-        
-        // Z-axis label
-        this.zLabel = this.createTextSprite('Z (North Pole)', 0x0000ff);
-        this.zLabel.position.set(0, 0, labelDistance);
-        this.group.add(this.zLabel);
-    }
-
+    
     createTextSprite(text, color) {
         const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        const fontSize = 48;
-        
         canvas.width = 512;
         canvas.height = 128;
         
-        context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
-        context.font = `${fontSize}px Arial`;
+        const context = canvas.getContext('2d');
+        context.font = 'Bold 48px Arial';
+        context.fillStyle = color;
         context.textAlign = 'center';
         context.textBaseline = 'middle';
-        context.fillText(text, canvas.width / 2, canvas.height / 2);
+        context.fillText(text, 256, 64);
         
         const texture = new THREE.CanvasTexture(canvas);
         const material = new THREE.SpriteMaterial({ 
@@ -186,43 +147,67 @@ export class CoordinateAxes {
         });
         
         const sprite = new THREE.Sprite(material);
-        const scale = this.size * 0.0002; // Scale relative to axis size
-        sprite.scale.set(scale, scale * 0.25, 1);
+        sprite.scale.set(200, 50, 1);
         
         return sprite;
     }
-
-    // Set visibility of axes
-    setVisible(visible) {
+    
+    createTickMarks() {
+        const tickInterval = 1000; // Every 1000 km
+        const tickSize = 50;
+        const numTicks = Math.floor(this.size / tickInterval);
+        
+        for (let i = 1; i <= numTicks; i++) {
+            const distance = i * tickInterval;
+            
+            // X-axis ticks
+            this.addTick(new THREE.Vector3(distance, -tickSize, 0), 
+                       new THREE.Vector3(distance, tickSize, 0), 0xff0000);
+            
+            // Y-axis ticks
+            this.addTick(new THREE.Vector3(-tickSize, distance, 0), 
+                       new THREE.Vector3(tickSize, distance, 0), 0x00ff00);
+            
+            // Z-axis ticks
+            this.addTick(new THREE.Vector3(-tickSize, 0, distance), 
+                       new THREE.Vector3(tickSize, 0, distance), 0x0088ff);
+        }
+    }
+    
+    addTick(start, end, color) {
+        const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+        const material = new THREE.LineBasicMaterial({ 
+            color: color,
+            opacity: 0.3,
+            transparent: true
+        });
+        const tick = new THREE.Line(geometry, material);
+        this.group.add(tick);
+    }
+    
+    update(camera) {
+        // Make labels always face the camera
+        this.labels.forEach(label => {
+            label.lookAt(camera.position);
+        });
+    }
+    
+    setVisibility(visible) {
         this.group.visible = visible;
     }
-
-    // Update position (for moving objects like vehicles)
-    setPosition(position) {
-        this.group.position.copy(position);
-    }
-
-    // Get the Three.js group for adding to scene
+    
     getObject3D() {
         return this.group;
     }
-
-    // Dispose of resources
+    
     dispose() {
-        this.group.children.forEach(child => {
+        // Clean up geometries and materials
+        this.group.traverse((child) => {
             if (child.geometry) child.geometry.dispose();
             if (child.material) {
                 if (child.material.map) child.material.map.dispose();
                 child.material.dispose();
             }
         });
-    }
-
-    // Create axes for a specific object (vehicle, planet, etc.)
-    static createLocalAxes(size = 500000, position = new THREE.Vector3(), name = 'Local') {
-        const axes = new CoordinateAxes(size);
-        axes.group.position.copy(position);
-        axes.group.name = `${name}Axes`;
-        return axes;
     }
 }

@@ -7,8 +7,6 @@ import * as THREE from 'three';
 import { SceneManager } from '../core/SceneManager.js';
 import { CameraController } from '../core/CameraController.js';
 import { EntryVehicle } from '../components/spacecraft/EntryVehicle.js';
-import { Mars } from '../components/environment/Mars.js';
-import { Stars } from '../components/environment/Stars.js';
 import { TrajectoryManager } from './TrajectoryManager.js';
 import { PhaseController } from './PhaseController.js';
 import { Timeline } from '../ui/Timeline.js';
@@ -106,8 +104,8 @@ export class SimulationManager {
     }
     
     createSceneObjects() {
-        // Create coordinate axes for reference
-        this.coordinateAxes = new CoordinateAxes(5000000); // 5,000 km axes
+        // Create coordinate axes for reference (smaller scale)
+        this.coordinateAxes = new CoordinateAxes(50); // 50 units instead of 5000
         this.sceneManager.addToAllScenes(this.coordinateAxes.getObject3D());
         
         // Create entry vehicle
@@ -251,24 +249,33 @@ export class SimulationManager {
                 const y = parseFloat(row.y || 0);
                 const z = parseFloat(row.z || 0);
                 
-                // Calculate altitude (distance from Mars center - Mars radius)
-                const distance = Math.sqrt(x * x + y * y + z * z);
-                const altitude = distance * 0.001 - 3389.5; // Convert to km and subtract Mars radius
+                // Calculate raw distance from Mars center
+                const rawDistance = Math.sqrt(x * x + y * y + z * z);
+                
+                // Mars radius in meters
+                const marsRadiusMeters = 3390000;
+                
+                // Calculate altitude (distance from surface)
+                const altitude = rawDistance - marsRadiusMeters;
+                
+                // Scale factor for visualization
+                // EntryVehicle is about 0.5 units, so we need appropriate scaling
+                const SCALE_FACTOR = 0.00001; // Very small scale
                 
                 return {
                     time: time,
                     position: new THREE.Vector3(
-                        x * 0.000001,  // Scale down for visualization
-                        y * 0.000001,
-                        z * 0.000001
+                        x * SCALE_FACTOR,
+                        y * SCALE_FACTOR,
+                        z * SCALE_FACTOR
                     ),
-                    altitude: altitude,
+                    altitude: altitude * 0.001, // Convert to km for display
                     velocity: 5900 * (1 - time / 260.65), // Approximate velocity decay
-                    distanceToLanding: distance * 0.001 // km
+                    distanceToLanding: rawDistance * 0.001 // km
                 };
             });
             
-            // Set trajectory data
+            // Set trajectory data in TrajectoryManager
             this.trajectoryManager.setTrajectoryData(trajectoryData);
             
             // Load mission configuration
