@@ -6,15 +6,6 @@ A high-fidelity 3D simulation platform for atmospheric entry, descent, and landi
 
 This simulation provides real-time visualization and analysis of hypersonic vehicle trajectories during atmospheric entry on various planets and moons. Built with Three.js and featuring actual trajectory data, it offers an immersive experience for understanding the complex dynamics of EDL missions.
 
-## ✨ Key Features
-
-- **Multi-Planet Support**: Mars, Venus, Jupiter, Saturn, and more
-- **Real Trajectory Data**: Uses actual mission data (SPICE kernels, CSV formats)
-- **Multiple Vehicle Types**: Capsules, lifting bodies, deployable decelerators
-- **Interactive 3D Visualization**: Real-time rendering with multiple camera modes
-- **Mission Phase Tracking**: Entry interface, peak heating, parachute deployment, powered descent
-- **Live Telemetry**: Altitude, velocity, g-force, heat flux, atmospheric pressure
-- **Timeline Control**: Scrubbing, playback speed control, phase markers
 
 ## 🛠️ Tech Stack
 
@@ -117,17 +108,6 @@ hypersonic-vehicle-simulation/
 | **F** | Fullscreen |
 | **Timeline Click** | Scrub to position |
 
-## 🪐 Supported Environments
-
-### Planets
-- **Jupiter** : Currently used 
-
-
-### Vehicle Types
-- **Blunt Body Capsules**: Apollo, Orion style
-- **Lifting Bodies**: Space Shuttle, Dream Chaser
-- **Deployable Decelerators**: HIAD, ballutes
-- **Powered Descent**: SpaceX-style propulsive landing
 
 ## 📊 Data Format
 
@@ -170,6 +150,3 @@ Time,x,y,z
 - Level-of-detail (LOD) for planet surfaces
 - Efficient particle systems for atmospheric effects
 - WebGL 2.0 features when available
-
-
-**Note**: This simulation is for educational and research purposes. Trajectory data accuracy depends on source quality.
