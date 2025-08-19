@@ -1,8 +1,3 @@
-/**
- * Timeline.js
- * Interactive timeline with scrubbing functionality
- */
-
 export class Timeline {
     constructor(options) {
         this.options = {

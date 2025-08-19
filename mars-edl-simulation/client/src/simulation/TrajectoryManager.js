@@ -1,16 +1,12 @@
-/**
- * TrajectoryManager.js - Modern Three.js r179 implementation
- * Uses BufferGeometry, instancing, and LOD for performance
- */
-
 import * as THREE from 'three';
 
 export class TrajectoryManager {
     constructor() {
         this.trajectoryData = [];
         this.totalTime = 260.65;
-        this.marsRadius = 3390000; // meters
-        this.SCALE_FACTOR = 0.00001;
+        this.marsRadius = 3390000; // meters (NASA data)
+        // Scale factor: 1 unit = 100 km for consistency with planet scales
+        this.SCALE_FACTOR = 0.00001; // Convert meters to visualization units
         
         // Visual components
         this.group = new THREE.Group();
@@ -34,22 +30,21 @@ export class TrajectoryManager {
         // Use BufferGeometry for better performance
         this.pathGeometry = new THREE.BufferGeometry();
         
-        // Materials with modern features
+        // Materials with modern features - more visible colors
         this.pastMaterial = new THREE.LineBasicMaterial({
-            color: 0x00ff88,
-            linewidth: 2,
-            opacity: 0.9,
-            transparent: true,
-            blending: THREE.NormalBlending
+            color: 0x00ff00,  // Bright green for traveled path
+            linewidth: 3,
+            opacity: 1.0,
+            transparent: false
         });
         
         this.futureMaterial = new THREE.LineDashedMaterial({
-            color: 0xffaa00,
-            linewidth: 2,
-            opacity: 0.5,
+            color: 0xff0000,  // Red for future path
+            linewidth: 3,
+            opacity: 0.8,
             transparent: true,
-            dashSize: 3,
-            gapSize: 2,
+            dashSize: 5,
+            gapSize: 3,
             scale: 1
         });
         
@@ -77,9 +72,7 @@ export class TrajectoryManager {
         // Geometry for each point
         const pointGeometry = new THREE.SphereGeometry(0.02, 4, 4);
         const pointMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00ffff,
-            emissive: 0x00ffff,
-            emissiveIntensity: 0.5
+            color: 0x00ffff
         });
         
         // Use InstancedMesh for performance
@@ -90,6 +83,13 @@ export class TrajectoryManager {
             maxPoints
         );
         
+        // Initialize instance color attribute
+        const colors = new Float32Array(maxPoints * 3);
+        for (let i = 0; i < maxPoints * 3; i++) {
+            colors[i] = 1;
+        }
+        this.pathPoints.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
+        
         // Enable frustum culling for performance
         this.pathPoints.frustumCulled = true;
         this.pathPoints.castShadow = false;
@@ -99,11 +99,11 @@ export class TrajectoryManager {
     }
     
     createPositionMarker() {
-        // Current position indicator
-        const markerGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+        // Current position indicator - larger and more visible
+        const markerGeometry = new THREE.SphereGeometry(0.5, 16, 16);
         const markerMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            emissive: 0xffffff,
+            color: 0xffff00,  // Yellow for visibility
+            emissive: 0xffff00,
             emissiveIntensity: 1.0
         });
         
@@ -111,11 +111,11 @@ export class TrajectoryManager {
         this.currentPositionMarker.castShadow = false;
         
         // Add glow effect
-        const glowGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+        const glowGeometry = new THREE.SphereGeometry(0.8, 16, 16);
         const glowMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
+            color: 0xffff00,
             transparent: true,
-            opacity: 0.3,
+            opacity: 0.5,
             blending: THREE.AdditiveBlending
         });
         
@@ -163,7 +163,7 @@ export class TrajectoryManager {
                     time,
                     position,
                     altitude: altitude * 0.001, // km
-                    velocity: velocityVector.normalize(),
+                    velocity: velocityVector.clone(), // Ensure it's a Vector3
                     velocityMagnitude,
                     distanceToLanding: rawDistance * 0.001 // km
                 });
@@ -198,13 +198,14 @@ export class TrajectoryManager {
         // Compute bounding sphere for frustum culling
         this.pathGeometry.computeBoundingSphere();
         
-        // Create full trajectory line
+        // Create full trajectory line - more visible
         this.trajectoryLine = new THREE.Line(
             this.pathGeometry,
             new THREE.LineBasicMaterial({
-                color: 0x444444,
-                opacity: 0.2,
-                transparent: true
+                color: 0xffffff,  // White for full path
+                opacity: 0.3,
+                transparent: true,
+                linewidth: 2
             })
         );
         
@@ -227,7 +228,15 @@ export class TrajectoryManager {
             const color = new THREE.Color();
             const altitudeNorm = Math.min(1, point.altitude / 132);
             color.setHSL(0.1 + altitudeNorm * 0.5, 1, 0.5);
-            this.pathPoints.setColorAt(instanceIndex, color);
+            
+            if (this.pathPoints.instanceColor) {
+                this.pathPoints.instanceColor.setXYZ(
+                    instanceIndex,
+                    color.r,
+                    color.g,
+                    color.b
+                );
+            }
             
             instanceIndex++;
         }
@@ -352,7 +361,9 @@ export class TrajectoryManager {
             time,
             position: prev.position.clone().lerp(next.position, t),
             altitude: THREE.MathUtils.lerp(prev.altitude, next.altitude, t),
-            velocity: prev.velocity.clone().lerp(next.velocity, t),
+            velocity: (prev.velocity instanceof THREE.Vector3 && next.velocity instanceof THREE.Vector3)
+                ? prev.velocity.clone().lerp(next.velocity, t)
+                : new THREE.Vector3(0, -1, 0),
             velocityMagnitude: THREE.MathUtils.lerp(
                 prev.velocityMagnitude,
                 next.velocityMagnitude,

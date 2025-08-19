@@ -1,6 +1,5 @@
 /**
- * main.js
- * Main entry point for Mars EDL Simulation
+ * Main entry point for Simulation
  */
 
 import { SimulationManager } from './simulation/SimulationManager.js';

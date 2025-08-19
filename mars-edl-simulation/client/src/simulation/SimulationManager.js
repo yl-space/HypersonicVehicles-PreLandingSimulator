@@ -1,5 +1,4 @@
 /**
- * SimulationManager.js
  * Main simulation controller with planet switching
  */
 
@@ -7,6 +6,10 @@ import * as THREE from 'three';
 import { SceneManager } from '../core/SceneManager.js';
 import { CameraController } from '../core/CameraController.js';
 import { EntryVehicle } from '../components/spacecraft/EntryVehicle.js';
+import { Mars } from '../components/environment/Mars.js';
+import { Earth } from '../components/environment/Earth.js';
+import { Jupiter } from '../components/environment/Jupiter.js';
+import { Stars } from '../components/environment/Stars.js';
 import { TrajectoryManager } from './TrajectoryManager.js';
 import { PhaseController } from './PhaseController.js';
 import { Timeline } from '../ui/Timeline.js';
@@ -34,8 +37,11 @@ export class SimulationManager {
         
         // Scene objects
         this.entryVehicle = null;
-        this.Mars = null;
-        this.Stars = null;
+        this.mars = null;
+        this.earth = null;
+        this.jupiter = null;
+        this.currentPlanet = null;
+        this.stars = null;
         this.coordinateAxes = null;
 
         // UI components
@@ -51,7 +57,7 @@ export class SimulationManager {
             playbackSpeed: 1,
             currentPhase: 0,
             vehicleData: null,
-            currentPlanet: 'Mars' // Default planet
+            currentPlanet: 'jupiter'
         };
         
         // Animation
@@ -60,7 +66,7 @@ export class SimulationManager {
 
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
-        this.clickEnabled = true;
+        this.clickEnabled = false; // Disabled to prevent accidental trajectory clicks
         this.lastClickTime = 0;
         this.clickCooldown = 500;
         
@@ -75,8 +81,8 @@ export class SimulationManager {
             this.sceneManager.renderer
         );
         
-        // ENSURE MARS IS ACTIVE
-        this.sceneManager.switchPlanet('mars');
+        // Ensure Jupiter is active by default
+        this.sceneManager.switchPlanet('jupiter');
         
         this.trajectoryManager = new TrajectoryManager();
         this.phaseController = new PhaseController();
@@ -104,8 +110,22 @@ export class SimulationManager {
     }
     
     createSceneObjects() {
-        // Create coordinate axes for reference (smaller scale)
-        this.coordinateAxes = new CoordinateAxes(50); // 50 units instead of 5000
+        // Create stars background
+        this.stars = new Stars();
+        this.sceneManager.addToAllScenes(this.stars.getObject3D());
+        
+        // Create all planets
+        this.mars = new Mars();
+        this.earth = new Earth();
+        this.jupiter = new Jupiter();
+        
+        // Start with Jupiter visible
+        this.currentPlanet = this.jupiter;
+        this.sceneManager.addToAllScenes(this.jupiter.getObject3D());
+        
+        // Create coordinate axes for reference 
+        // Using scale of 300 units to be clearly visible with planet scales
+        this.coordinateAxes = new CoordinateAxes(300);
         this.sceneManager.addToAllScenes(this.coordinateAxes.getObject3D());
         
         // Create entry vehicle
@@ -163,7 +183,7 @@ export class SimulationManager {
         
         ['mars', 'earth', 'jupiter'].forEach(planet => {
             const btn = document.createElement('button');
-            btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''}`;
+            btn.className = `planet-btn ${planet === 'jupiter' ? 'active' : ''}`;
             btn.textContent = planet.charAt(0).toUpperCase() + planet.slice(1);
             btn.style.cssText = `
                 padding: 12px 24px;
@@ -212,8 +232,29 @@ export class SimulationManager {
     }
     
     switchPlanet(planetName) {
+        // Remove current planet from scene
+        if (this.currentPlanet) {
+            this.sceneManager.currentScene.remove(this.currentPlanet.getObject3D());
+        }
+        
+        // Add new planet to scene
+        switch(planetName) {
+            case 'mars':
+                this.currentPlanet = this.mars;
+                break;
+            case 'earth':
+                this.currentPlanet = this.earth;
+                break;
+            case 'jupiter':
+                this.currentPlanet = this.jupiter;
+                break;
+        }
+        
+        if (this.currentPlanet) {
+            this.sceneManager.currentScene.add(this.currentPlanet.getObject3D());
+        }
+        
         this.state.currentPlanet = planetName;
-        this.sceneManager.switchPlanet(planetName);
         
         // Update button states
         document.querySelectorAll('.planet-btn').forEach(btn => {
@@ -221,11 +262,11 @@ export class SimulationManager {
                 btn.textContent.toLowerCase() === planetName.toLowerCase());
         });
         
-        // Adjust camera for different planet sizes
+        // Adjust camera for different planet sizes (much closer view)
         const cameraDistances = {
-            mars: 10,
-            earth: 15,
-            jupiter: 40
+            mars: 50,     // View distance for Mars
+            earth: 80,    // View distance for Earth  
+            jupiter: 200  // View distance for Jupiter
         };
         
         if (cameraDistances[planetName]) {
@@ -242,38 +283,64 @@ export class SimulationManager {
             const csvData = await this.dataManager.loadTrajectoryCSV(filename);
             
             // Transform CSV data to trajectory format with proper Vector3 objects
-            const trajectoryData = csvData.rows.map(row => {
+            const trajectoryData = [];
+            let prevPosition = null;
+            
+            for (let i = 0; i < csvData.rows.length; i++) {
+                const row = csvData.rows[i];
+                
                 // Parse values as floats
                 const time = parseFloat(row.Time || row.time || 0);
                 const x = parseFloat(row.x || 0);
                 const y = parseFloat(row.y || 0);
                 const z = parseFloat(row.z || 0);
                 
-                // Calculate raw distance from Mars center
-                const rawDistance = Math.sqrt(x * x + y * y + z * z);
-                
-                // Mars radius in meters
-                const marsRadiusMeters = 3390000;
-                
-                // Calculate altitude (distance from surface)
-                const altitude = rawDistance - marsRadiusMeters;
-                
-                // Scale factor for visualization
-                // EntryVehicle is about 0.5 units, so we need appropriate scaling
-                const SCALE_FACTOR = 0.00001; // Very small scale
-                
-                return {
-                    time: time,
-                    position: new THREE.Vector3(
+                if (!isNaN(time) && !isNaN(x) && !isNaN(y) && !isNaN(z)) {
+                    // Calculate raw distance from Mars center
+                    const rawDistance = Math.sqrt(x * x + y * y + z * z);
+                    
+                    // Mars radius in meters
+                    const marsRadiusMeters = 3390000;
+                    
+                    // Calculate altitude (distance from surface)
+                    const altitude = rawDistance - marsRadiusMeters;
+                    
+                    // Scale factor for visualization (matching EntryVehicle scale)
+                    const SCALE_FACTOR = 0.00001;
+                    
+                    // Create position vector
+                    const position = new THREE.Vector3(
                         x * SCALE_FACTOR,
                         y * SCALE_FACTOR,
                         z * SCALE_FACTOR
-                    ),
-                    altitude: altitude * 0.001, // Convert to km for display
-                    velocity: 5900 * (1 - time / 260.65), // Approximate velocity decay
-                    distanceToLanding: rawDistance * 0.001 // km
-                };
-            });
+                    );
+                    
+                    // Calculate velocity vector
+                    let velocityVector = new THREE.Vector3(0, -1, 0);
+                    let velocityMagnitude = 5900 * (1 - time / 260.65);
+                    
+                    if (prevPosition && i > 0) {
+                        const prevTime = trajectoryData[trajectoryData.length - 1].time;
+                        const dt = time - prevTime;
+                        if (dt > 0) {
+                            velocityVector = position.clone().sub(prevPosition).divideScalar(dt);
+                            velocityMagnitude = velocityVector.length() / SCALE_FACTOR;
+                            velocityVector.normalize();
+                        }
+                    }
+                    
+                    trajectoryData.push({
+                        time: time,
+                        position: position,
+                        altitude: altitude * 0.001, // Convert to km for display
+                        velocity: velocityVector, // Ensure it's a Vector3
+                        velocityMagnitude: velocityMagnitude,
+                        distanceToLanding: rawDistance * 0.001 // km
+                    });
+                    
+                    prevPosition = position.clone();
+                }
+            }
             
             // Set trajectory data in TrajectoryManager
             this.trajectoryManager.setTrajectoryData(trajectoryData);
@@ -313,9 +380,13 @@ export class SimulationManager {
     }
     
     handleKeyPress(event) {
+        // Prevent default for navigation keys
+        if (event.key === ' ' || event.key.startsWith('Arrow')) {
+            event.preventDefault();
+        }
+        
         switch(event.key) {
             case ' ':
-                event.preventDefault();
                 this.togglePlayPause();
                 break;
             case 'ArrowRight':
@@ -324,14 +395,27 @@ export class SimulationManager {
             case 'ArrowLeft':
                 this.seekTo(Math.max(this.state.currentTime - 5, 0));
                 break;
+            case 'ArrowUp':
+                this.handleZoom(1);
+                break;
+            case 'ArrowDown':
+                this.handleZoom(-1);
+                break;
             case '1':
                 this.setCameraMode('follow');
                 break;
             case '2':
-                this.setCameraMode('orbit');
+                this.setCameraMode('free');
                 break;
             case '3':
+                this.setCameraMode('orbit');
+                break;
+            case '4':
                 this.setCameraMode('fixed');
+                break;
+            case 'r':
+            case 'R':
+                this.restart();
                 break;
         }
     }
@@ -362,7 +446,7 @@ export class SimulationManager {
         this.state.vehicleData = this.trajectoryManager.getDataAtTime(this.state.currentTime);
         
         if (this.state.vehicleData) {
-            // CRITICAL FIX: Actually update spacecraft position
+            // Update spacecraft position
             if (this.entryVehicle && this.state.vehicleData.position) {
                 this.entryVehicle.setPosition(this.state.vehicleData.position);
                 
@@ -391,6 +475,21 @@ export class SimulationManager {
         
         // Update entry vehicle effects
         this.entryVehicle.update(this.state.currentTime, this.state.vehicleData);
+        
+        // Update current planet
+        if (this.currentPlanet) {
+            this.currentPlanet.update(this.cameraController.camera, deltaTime);
+        }
+        
+        // Update stars
+        if (this.stars) {
+            this.stars.update(deltaTime);
+        }
+        
+        // Update coordinate axes
+        if (this.coordinateAxes) {
+            this.coordinateAxes.update(this.cameraController.camera);
+        }
         
         // Update planet rotation
         this.sceneManager.updatePlanetRotation(deltaTime);
@@ -492,6 +591,13 @@ export class SimulationManager {
         this.cameraController.zoom(direction);
     }
     
+    restart() {
+        this.state.currentTime = 0;
+        this.state.isPlaying = false;
+        this.seekTo(0);
+        this.cameraController.reset();
+    }
+    
     handleResize() {
         this.sceneManager.handleResize();
         this.cameraController.handleResize();
@@ -510,6 +616,8 @@ export class SimulationManager {
         this.sceneManager.dispose();
         this.entryVehicle.dispose();
         this.trajectoryManager.dispose();
+        if (this.mars) this.mars.dispose();
+        if (this.stars) this.stars.dispose();
         
         // Dispose UI
         this.timeline.dispose();

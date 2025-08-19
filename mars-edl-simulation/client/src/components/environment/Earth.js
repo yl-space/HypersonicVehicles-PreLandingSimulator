@@ -1,12 +1,17 @@
+/**
+ * Earth.js - Earth planet with realistic textures
+ */
+
 import * as THREE from 'three';
 
-export class Jupiter {
+export class Earth {
     constructor() {
         this.group = new THREE.Group();
-        // NASA Data: Jupiter radius = 69,911 km (11x Earth)
-        // Scale: 1 unit = 100 km, but capped at 3x Earth for visibility
-        this.radius = 191.34; // (6,378 * 3) / 100 = 3x Earth size for visibility
+        // NASA Data: Earth radius = 6,378 km
+        // Scale: 1 unit = 100 km for visualization
+        this.radius = 63.78; // 6,378 km / 100
         this.surface = null;
+        this.clouds = null;
         this.atmosphere = null;
         
         this.init();
@@ -14,22 +19,31 @@ export class Jupiter {
     
     init() {
         this.createSurface();
+        this.createClouds();
         this.createAtmosphere();
-        this.createStormFeatures();
     }
     
     createSurface() {
-        // Create Jupiter sphere with high detail
+        // Create Earth sphere with high detail
         const geometry = new THREE.SphereGeometry(this.radius, 128, 64);
         
-        // Load texture from assets
+        // Load textures from assets
         const textureLoader = new THREE.TextureLoader();
-        const jupiterTexture = textureLoader.load('/assets/textures/Jupiter/jupiter.jpg');
+        const earthTexture = textureLoader.load('/assets/textures/Earth/earthmap_color.jpg');
+        const earthBump = textureLoader.load('/assets/textures/Earth/earthmap_bump.jpg');
+        const earthSpecular = textureLoader.load('/assets/textures/Earth/earthmap_specular.jpg');
+        const earthLights = textureLoader.load('/assets/textures/Earth/earthamp_lights.jpg');
         
         const material = new THREE.MeshPhongMaterial({
-            map: jupiterTexture,
-            specular: new THREE.Color(0x111111),
-            shininess: 5
+            map: earthTexture,
+            bumpMap: earthBump,
+            bumpScale: 0.5,
+            specularMap: earthSpecular,
+            specular: new THREE.Color(0x333333),
+            shininess: 25,
+            emissiveMap: earthLights,
+            emissive: new THREE.Color(0xffff88),
+            emissiveIntensity: 0.1
         });
         
         this.surface = new THREE.Mesh(geometry, material);
@@ -39,9 +53,30 @@ export class Jupiter {
         this.group.add(this.surface);
     }
     
+    createClouds() {
+        // Create cloud layer
+        const cloudGeometry = new THREE.SphereGeometry(this.radius * 1.01, 64, 64);
+        
+        const textureLoader = new THREE.TextureLoader();
+        const cloudTexture = textureLoader.load('/assets/textures/Earth/earthmap_cloud.jpg');
+        const cloudTransparency = textureLoader.load('/assets/textures/Earth/earthcloudmap_transperancy.jpg');
+        
+        const cloudMaterial = new THREE.MeshPhongMaterial({
+            map: cloudTexture,
+            alphaMap: cloudTransparency,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+        
+        this.clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
+        this.group.add(this.clouds);
+    }
+    
     createAtmosphere() {
-        // Jupiter's thick atmosphere
-        const atmosphereGeometry = new THREE.SphereGeometry(this.radius * 1.01, 64, 64);
+        // Atmospheric glow
+        const atmosphereGeometry = new THREE.SphereGeometry(this.radius * 1.03, 64, 64);
         
         const atmosphereMaterial = new THREE.ShaderMaterial({
             vertexShader: `
@@ -58,7 +93,6 @@ export class Jupiter {
                 uniform vec3 viewVector;
                 uniform float c;
                 uniform float p;
-                uniform float time;
                 varying vec3 vNormal;
                 varying vec3 vPosition;
                 
@@ -66,19 +100,17 @@ export class Jupiter {
                     vec3 viewDir = normalize(cameraPosition - vPosition);
                     float intensity = pow(c - dot(vNormal, viewDir), p);
                     
-                    // Jupiter atmosphere with swirling bands
-                    float band = sin(vPosition.y * 10.0 + time) * 0.1;
-                    vec3 atmosphereColor = vec3(0.9 + band, 0.7 + band * 0.5, 0.4);
-                    float alpha = intensity * 0.25;
+                    // Earth atmosphere is blue
+                    vec3 atmosphereColor = vec3(0.3, 0.6, 1.0);
+                    float alpha = intensity * 0.4;
                     
                     gl_FragColor = vec4(atmosphereColor, alpha);
                 }
             `,
             uniforms: {
                 viewVector: { value: new THREE.Vector3() },
-                c: { value: 0.4 },
-                p: { value: 3.0 },
-                time: { value: 0 }
+                c: { value: 0.6 },
+                p: { value: 2.5 }
             },
             side: THREE.BackSide,
             blending: THREE.AdditiveBlending,
@@ -90,41 +122,20 @@ export class Jupiter {
         this.group.add(this.atmosphere);
     }
     
-    createStormFeatures() {
-        // Great Red Spot
-        const spotGeometry = new THREE.SphereGeometry(3, 16, 16);
-        const spotMaterial = new THREE.MeshBasicMaterial({
-            color: 0xcc6644,
-            transparent: true,
-            opacity: 0.3
-        });
-        
-        const redSpot = new THREE.Mesh(spotGeometry, spotMaterial);
-        // Position on Jupiter's surface
-        const lat = -22; // degrees
-        const lon = 0;
-        const phi = (90 - lat) * Math.PI / 180;
-        const theta = lon * Math.PI / 180;
-        
-        redSpot.position.set(
-            this.radius * Math.sin(phi) * Math.cos(theta),
-            this.radius * Math.cos(phi),
-            this.radius * Math.sin(phi) * Math.sin(theta)
-        );
-        
-        this.group.add(redSpot);
-    }
-    
     update(camera, deltaTime) {
         // Update atmosphere shader with camera position
         if (this.atmosphere && this.atmosphere.material.uniforms) {
             this.atmosphere.material.uniforms.viewVector.value = 
                 new THREE.Vector3().subVectors(camera.position, this.group.position);
-            this.atmosphere.material.uniforms.time.value += deltaTime;
         }
         
-        // Fast rotation (Jupiter day = 9.9 hours)
-        this.surface.rotation.y += deltaTime * 0.04;
+        // Rotation (Earth day = 24 hours)
+        this.surface.rotation.y += deltaTime * 0.02;
+        
+        // Clouds rotate slightly slower
+        if (this.clouds) {
+            this.clouds.rotation.y += deltaTime * 0.015;
+        }
         
         // Atmosphere doesn't rotate
         if (this.atmosphere) {
@@ -144,6 +155,11 @@ export class Jupiter {
         if (this.surface) {
             this.surface.geometry.dispose();
             this.surface.material.dispose();
+        }
+        
+        if (this.clouds) {
+            this.clouds.geometry.dispose();
+            this.clouds.material.dispose();
         }
         
         if (this.atmosphere) {
