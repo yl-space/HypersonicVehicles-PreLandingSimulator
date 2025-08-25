@@ -171,6 +171,14 @@ export class CoordinateAxes {
         this.group.add(tick);
     }
     
+    update(camera) {
+        // Update labels to face camera if they exist
+        if (this.labels && this.labels.length > 0) {
+            this.labels.forEach(label => {
+                label.lookAt(camera.position);
+            });
+        }
+    }
     
     setVisibility(visible) {
         this.group.visible = visible;

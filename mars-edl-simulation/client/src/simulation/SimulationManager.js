@@ -66,7 +66,7 @@ export class SimulationManager {
 
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
-        this.clickEnabled = false; // Disabled to prevent accidental trajectory clicks
+        this.clickEnabled = true; // Enable trajectory click functionality
         this.lastClickTime = 0;
         this.clickCooldown = 500;
         
@@ -262,11 +262,11 @@ export class SimulationManager {
                 btn.textContent.toLowerCase() === planetName.toLowerCase());
         });
         
-        // Adjust camera for different planet sizes (much closer view)
+        // Adjust camera for different planet sizes with smaller spacecraft
         const cameraDistances = {
-            mars: 50,     // View distance for Mars
-            earth: 80,    // View distance for Earth  
-            jupiter: 200  // View distance for Jupiter
+            mars: 5,      // View distance for Mars with small spacecraft
+            earth: 8,     // View distance for Earth  
+            jupiter: 20   // View distance for Jupiter (larger planet)
         };
         
         if (cameraDistances[planetName]) {
@@ -410,9 +410,6 @@ export class SimulationManager {
             case '3':
                 this.setCameraMode('orbit');
                 break;
-            case '4':
-                this.setCameraMode('fixed');
-                break;
             case 'r':
             case 'R':
                 this.restart();
@@ -491,8 +488,7 @@ export class SimulationManager {
             this.coordinateAxes.update(this.cameraController.camera);
         }
         
-        // Update planet rotation
-        this.sceneManager.updatePlanetRotation(deltaTime);
+        // Planet rotation removed - planets remain stationary in J2000 reference frame
         
         // Update trajectory visibility
         this.trajectoryManager.updateTrajectoryVisibility(this.state.currentTime);
@@ -531,7 +527,7 @@ export class SimulationManager {
     }
     
     onMouseClick(event) {
-        if (!this.clickEnabled || !this.state.isPlaying) return;
+        if (!this.clickEnabled) return; // Allow clicking even when paused
         
         const now = Date.now();
         if (now - this.lastClickTime < this.clickCooldown) return;

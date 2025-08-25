@@ -12,12 +12,12 @@ export class CameraController {
         this.target = null;
         this.smoothness = 0.1; // Smoother transitions
         
-        // Camera state (closer to spacecraft)
+        // Camera state (adjusted for smaller spacecraft scale)
         this.state = {
-            distance: 10,      // Much closer to spacecraft
-            height: 5,         // Lower height offset
+            distance: 2,      // Very close for 0.1 unit spacecraft
+            height: 1,        // Small height offset
             angle: 0,
-            defaultDistance: 10
+            defaultDistance: 2
         };
         
         // Mouse controls for orbit mode
@@ -31,15 +31,15 @@ export class CameraController {
         this.orbit = {
             theta: Math.PI / 4,  // Azimuth
             phi: Math.PI / 6,    // Elevation
-            radius: 20           // Closer orbit radius
+            radius: 3            // Orbit radius for smaller spacecraft
         };
         
         this.init();
     }
     
     init() {
-        // Set initial camera position closer to spacecraft
-        this.camera.position.set(15, 10, 15);
+        // Set initial camera position for smaller spacecraft
+        this.camera.position.set(3, 2, 3);
         this.camera.lookAt(0, 0, 0);
         
         this.setupEventListeners();
@@ -82,9 +82,9 @@ export class CameraController {
             const delta = e.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
             
             if (this.mode === 'orbit' || this.mode === 'free') {
-                this.orbit.radius = Math.max(5, Math.min(500, this.orbit.radius * delta));
+                this.orbit.radius = Math.max(0.5, Math.min(50, this.orbit.radius * delta));
             } else if (this.mode === 'follow') {
-                this.state.distance = Math.max(5, Math.min(100, this.state.distance * delta));
+                this.state.distance = Math.max(0.5, Math.min(10, this.state.distance * delta));
             }
         });
     }
@@ -156,13 +156,6 @@ export class CameraController {
                     this.orbit.radius * Math.sin(this.orbit.phi) * Math.cos(this.orbit.theta);
                 break;
                 
-            case 'fixed':
-                // Fixed mode - stationary camera position
-                desiredPosition.set(30, 20, 30);
-                // Always look at Mars center for reference
-                lookAtPoint.set(0, 0, 0);
-                break;
-                
             case 'free':
                 // Free mode - user controls camera with mouse drag
                 if (this.mouse.isDown) {
@@ -204,9 +197,9 @@ export class CameraController {
         const factor = direction > 0 ? 1 - zoomSpeed : 1 + zoomSpeed; // Inverted for intuitive control
         
         if (this.mode === 'orbit' || this.mode === 'free') {
-            this.orbit.radius = Math.max(5, Math.min(500, this.orbit.radius * factor));
+            this.orbit.radius = Math.max(0.5, Math.min(50, this.orbit.radius * factor));
         } else {
-            this.state.distance = Math.max(5, Math.min(100, this.state.distance * factor));
+            this.state.distance = Math.max(0.5, Math.min(10, this.state.distance * factor));
         }
     }
     
@@ -221,12 +214,12 @@ export class CameraController {
     }
     
     reset() {
-        // Reset camera to default position (closer view)
-        this.camera.position.set(15, 10, 15);
+        // Reset camera to default position for smaller spacecraft
+        this.camera.position.set(3, 2, 3);
         this.camera.lookAt(0, 0, 0);
         this.orbit.theta = Math.PI / 4;
         this.orbit.phi = Math.PI / 6;
-        this.orbit.radius = 20;
-        this.state.distance = 10;
+        this.orbit.radius = 3;
+        this.state.distance = 2;
     }
 }

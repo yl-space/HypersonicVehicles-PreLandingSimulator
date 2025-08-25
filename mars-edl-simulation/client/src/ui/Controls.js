@@ -49,12 +49,6 @@ export class Controls {
                     </svg>
                     ORBIT
                 </button>
-                <button class="camera-mode" data-mode="FIXED">
-                    <svg width="20" height="20" viewBox="0 0 24 24">
-                        <path d="M16.48 2.52c3.27 1.55 5.61 4.72 5.97 8.48h1.5C23.44 4.84 18.29 0 12 0l-.66.03 3.81 3.81 1.33-1.32zm-6.25-.77c-.59-.59-1.54-.59-2.12 0L1.75 8.11c-.59.59-.59 1.54 0 2.12l12.02 12.02c.59.59 1.54.59 2.12 0l6.36-6.36c.59-.59.59-1.54 0-2.12L10.23 1.75zm4.6 19.44L2.81 9.17l6.36-6.36 12.02 12.02-6.36 6.36zm-7.31.29C4.25 19.94 1.91 16.76 1.55 13H.05C.56 19.16 5.71 24 12 24l.66-.03-3.81-3.81-1.33 1.32z" fill="currentColor"/>
-                    </svg>
-                    FIXED
-                </button>
             </div>
         `;
         
@@ -146,12 +140,6 @@ export class Controls {
                     </label>
                 </div>
                 
-                <div class="setting-item">
-                    <label>
-                        <input type="checkbox" id="auto-rotate" unchecked>
-                        Auto-rotate Mars
-                    </label>
-                </div>
                 
                 <div class="setting-separator"></div>
                 
@@ -192,7 +180,6 @@ export class Controls {
             showTelemetry: container.querySelector('#show-telemetry'),
             showEffects: container.querySelector('#show-effects'),
             showLandingSite: container.querySelector('#show-landing-site'),
-            autoRotate: container.querySelector('#auto-rotate'),
             quality: container.querySelector('#quality-setting'),
             units: container.querySelector('#units-setting')
         };
@@ -222,7 +209,6 @@ export class Controls {
                     <dt>1</dt><dd>Follow Camera</dd>
                     <dt>2</dt><dd>Free Camera</dd>
                     <dt>3</dt><dd>Orbit Camera</dd>
-                    <dt>4</dt><dd>Fixed Camera</dd>
                     <dt>←/→</dt><dd>Skip 5 seconds</dd>
                     <dt>↑/↓</dt><dd>Zoom In/Out</dd>
                     <dt>R</dt><dd>Restart Simulation</dd>

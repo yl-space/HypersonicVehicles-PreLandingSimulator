@@ -15,6 +15,10 @@ export class EntryVehicle {
             thrustersActive: false
         };
         
+        // Add coordinate axes and velocity vector
+        this.localAxes = null;
+        this.velocityArrow = null;
+        
         this.init();
     }
     
@@ -22,6 +26,8 @@ export class EntryVehicle {
         this.createVehicleWithLOD();
         this.createHeatEffects();
         this.createThrusterSystem();
+        this.createLocalCoordinateAxes();
+        this.createVelocityVector();
     }
     
     createVehicleWithLOD() {
@@ -46,8 +52,17 @@ export class EntryVehicle {
     createHighDetailVehicle() {
         const group = new THREE.Group();
         
+        // MSL Aeroshell actual dimensions: 4.5m diameter
+        // At true scale (0.0000225 units) it would be invisible
+        // Using 0.1 unit radius (10km equivalent) for visibility
+        // This is ~4,444x larger than actual size but necessary for visualization
+        const scaleFactor = 0.1; // Minimum visible size
+        
         // Detailed aeroshell with PBR materials
-        const shellGeometry = new THREE.ConeGeometry(0.5, 0.8, 32, 16);
+        // Proportions based on actual MSL: diameter 4.5m, height ~3m
+        const shellRadius = scaleFactor;
+        const shellHeight = scaleFactor * 1.3; // Maintain proportions
+        const shellGeometry = new THREE.ConeGeometry(shellRadius, shellHeight, 32, 16);
         const shellMaterial = new THREE.MeshStandardMaterial({
             color: 0x8B7355,
             metalness: 0.3,
@@ -58,13 +73,14 @@ export class EntryVehicle {
         
         const shell = new THREE.Mesh(shellGeometry, shellMaterial);
         shell.rotation.x = Math.PI;
-        shell.position.y = 0.4;
+        shell.position.y = shellHeight / 2;
         shell.castShadow = true;
         shell.receiveShadow = true;
         group.add(shell);
         
         // Heat shield with emissive properties
-        const shieldGeometry = new THREE.CylinderGeometry(0.7, 0.6, 0.1, 32);
+        const shieldRadius = scaleFactor * 1.2; // Slightly larger than cone base
+        const shieldGeometry = new THREE.CylinderGeometry(shieldRadius, shieldRadius * 0.9, scaleFactor * 0.15, 32);
         const shieldMaterial = new THREE.MeshPhysicalMaterial({
             color: 0x2F1B14,
             metalness: 0.1,
@@ -76,7 +92,7 @@ export class EntryVehicle {
         });
         
         const shield = new THREE.Mesh(shieldGeometry, shieldMaterial);
-        shield.position.y = -0.3;
+        shield.position.y = -shellHeight * 0.3;
         shield.name = 'heatShield';
         group.add(shield);
         
@@ -86,7 +102,11 @@ export class EntryVehicle {
     createMediumDetailVehicle() {
         const group = new THREE.Group();
         
-        const geometry = new THREE.ConeGeometry(0.5, 0.8, 16, 8);
+        const scaleFactor = 0.1; // Same scale as high detail
+        const shellRadius = scaleFactor;
+        const shellHeight = scaleFactor * 1.3;
+        
+        const geometry = new THREE.ConeGeometry(shellRadius, shellHeight, 16, 8);
         const material = new THREE.MeshStandardMaterial({
             color: 0x8B7355,
             metalness: 0.3,
@@ -95,7 +115,7 @@ export class EntryVehicle {
         
         const vehicle = new THREE.Mesh(geometry, material);
         vehicle.rotation.x = Math.PI;
-        vehicle.position.y = 0.4;
+        vehicle.position.y = shellHeight / 2;
         group.add(vehicle);
         
         return group;
@@ -104,14 +124,18 @@ export class EntryVehicle {
     createLowDetailVehicle() {
         const group = new THREE.Group();
         
-        const geometry = new THREE.ConeGeometry(0.5, 0.8, 8, 4);
+        const scaleFactor = 0.1; // Same scale for consistency
+        const shellRadius = scaleFactor;
+        const shellHeight = scaleFactor * 1.3;
+        
+        const geometry = new THREE.ConeGeometry(shellRadius, shellHeight, 8, 4);
         const material = new THREE.MeshBasicMaterial({
             color: 0x8B7355
         });
         
         const vehicle = new THREE.Mesh(geometry, material);
         vehicle.rotation.x = Math.PI;
-        vehicle.position.y = 0.4;
+        vehicle.position.y = shellHeight / 2;
         group.add(vehicle);
         
         return group;
@@ -250,8 +274,79 @@ export class EntryVehicle {
         this.group.add(this.thrusterMesh);
     }
     
+    createLocalCoordinateAxes() {
+        // Create axes helper for spacecraft local reference frame
+        const axesGroup = new THREE.Group();
+        const axisLength = 0.3; // Scaled to new spacecraft size
+        
+        // X-axis (Red) - Forward
+        const xGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(axisLength, 0, 0)
+        ]);
+        const xMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
+        const xAxis = new THREE.Line(xGeometry, xMaterial);
+        axesGroup.add(xAxis);
+        
+        // Y-axis (Green) - Up
+        const yGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, axisLength, 0)
+        ]);
+        const yMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 });
+        const yAxis = new THREE.Line(yGeometry, yMaterial);
+        axesGroup.add(yAxis);
+        
+        // Z-axis (Blue) - Right
+        const zGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0, axisLength)
+        ]);
+        const zMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 2 });
+        const zAxis = new THREE.Line(zGeometry, zMaterial);
+        axesGroup.add(zAxis);
+        
+        this.localAxes = axesGroup;
+        this.group.add(this.localAxes);
+    }
+    
+    createVelocityVector() {
+        // Create arrow helper for velocity vector
+        const origin = new THREE.Vector3(0, 0, 0);
+        const direction = new THREE.Vector3(0, -1, 0); // Default downward
+        const length = 0.5; // Scaled to new spacecraft size
+        const color = 0xffff00; // Yellow for velocity
+        
+        this.velocityArrow = new THREE.ArrowHelper(direction, origin, length, color, 1, 0.5);
+        this.velocityArrow.cone.material = new THREE.MeshBasicMaterial({ color: color });
+        this.velocityArrow.line.material = new THREE.LineBasicMaterial({ color: color, linewidth: 3 });
+        
+        this.group.add(this.velocityArrow);
+    }
+    
+    updateVelocityVector(velocity) {
+        if (!this.velocityArrow || !velocity) return;
+        
+        // Update velocity arrow direction and length
+        if (velocity instanceof THREE.Vector3 && velocity.length() > 0.001) {
+            const direction = velocity.clone().normalize();
+            const length = Math.min(1, Math.max(0.2, velocity.length() * 20)); // Scale for new size
+            
+            this.velocityArrow.setDirection(direction);
+            this.velocityArrow.setLength(length, length * 0.3, length * 0.2);
+            this.velocityArrow.visible = true;
+        } else {
+            this.velocityArrow.visible = false;
+        }
+    }
+    
     update(time, vehicleData) {
         if (!vehicleData) return;
+        
+        // Update velocity vector visualization
+        if (vehicleData.velocity) {
+            this.updateVelocityVector(vehicleData.velocity);
+        }
         
         // Update heat effects based on altitude and velocity
         const altitude = vehicleData.altitude || 100;

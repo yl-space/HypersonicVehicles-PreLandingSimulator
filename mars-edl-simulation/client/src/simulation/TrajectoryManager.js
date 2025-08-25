@@ -102,9 +102,7 @@ export class TrajectoryManager {
         // Current position indicator - larger and more visible
         const markerGeometry = new THREE.SphereGeometry(0.5, 16, 16);
         const markerMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffff00,  // Yellow for visibility
-            emissive: 0xffff00,
-            emissiveIntensity: 1.0
+            color: 0xffff00  // Yellow for visibility
         });
         
         this.currentPositionMarker = new THREE.Mesh(markerGeometry, markerMaterial);

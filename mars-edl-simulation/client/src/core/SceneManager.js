@@ -119,9 +119,7 @@ export class SceneManager {
     createScenes() {
         // Mars Scene with optimizations
         const marsScene = new THREE.Scene();
-        // marsScene.background = new THREE.Color(0x000000); // Ensure black background
-        // marsScene.fog = new THREE.FogExp2(0x000000, 0.00001);
-        // marsScene.backgroundIntensity = 0.5;
+        marsScene.background = new THREE.Color(0x000000); // Ensure black background
         
         // Use environment map for better lighting
         const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
@@ -213,16 +211,10 @@ export class SceneManager {
         }
     }
     
-    // updatePlanetRotation(deltaTime) {
-    //     // Mars rotation (1 sol = 24.6 hours)
-    //     const marsRotationSpeed = (2 * Math.PI) / (24.6 * 3600) * deltaTime * 100; // Speed up for visualization
-        
-    //     this.scenes.mars?.traverse((child) => {
-    //         if (child.name === 'mars_surface') {
-    //             child.rotation.y += marsRotationSpeed;
-    //         }
-    //     });
-    // }
+    updatePlanetRotation(deltaTime) {
+        // Planet rotation removed - planets remain stationary in J2000 reference frame
+        // This method kept for compatibility but does nothing
+    }
     
     updateLighting(altitude, phase) {
         const sunLight = this.currentScene?.getObjectByProperty('type', 'DirectionalLight');

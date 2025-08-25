@@ -129,18 +129,7 @@ export class Earth {
                 new THREE.Vector3().subVectors(camera.position, this.group.position);
         }
         
-        // Rotation (Earth day = 24 hours)
-        this.surface.rotation.y += deltaTime * 0.02;
-        
-        // Clouds rotate slightly slower
-        if (this.clouds) {
-            this.clouds.rotation.y += deltaTime * 0.015;
-        }
-        
-        // Atmosphere doesn't rotate
-        if (this.atmosphere) {
-            this.atmosphere.rotation.y = 0;
-        }
+        // No rotation - Earth remains stationary in J2000 reference frame
     }
     
     getObject3D() {
