@@ -2,7 +2,7 @@
  * Earth.js - Earth planet with realistic textures
  */
 
-import * as THREE from 'three';
+import * as THREE from '/node_modules/three/build/three.module.js';
 
 export class Earth {
     constructor() {

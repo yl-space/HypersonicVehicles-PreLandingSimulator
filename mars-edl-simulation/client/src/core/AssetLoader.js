@@ -3,7 +3,7 @@
  * Handles loading and caching of 3D models, textures, and other assets
  */
 
-import * as THREE from 'three';
+import * as THREE from '/node_modules/three/build/three.module.js';
 
 export class AssetLoader {
     constructor() {

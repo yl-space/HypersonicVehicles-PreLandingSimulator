@@ -122,6 +122,15 @@ app.use('/assets', express.static(path.join(clientPath, 'assets')));
 // Serve data files
 app.use('/data', express.static(path.join(clientPath, 'assets', 'data')));
 
+// Serve Three.js and other node modules
+app.use('/node_modules', express.static(path.join(__dirname, '..', 'node_modules'), {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.js') || filePath.endsWith('.mjs')) {
+            res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+        }
+    }
+}));
+
 // API Routes
 app.use('/api/trajectories', trajectoriesAPI);
 app.use('/api/missions', missionsAPI);

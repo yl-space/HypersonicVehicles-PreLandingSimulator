@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from '/node_modules/three/build/three.module.js';
 
 export class EntryVehicle {
     constructor() {
@@ -25,7 +25,7 @@ export class EntryVehicle {
     init() {
         this.createVehicleWithLOD();
         this.createHeatEffects();
-        this.createThrusterSystem();
+        // this.createThrusterSystem();
         this.createLocalCoordinateAxes();
         this.createVelocityVector();
     }
@@ -188,7 +188,9 @@ export class EntryVehicle {
             depthWrite: false
         });
         
-        const glowGeometry = new THREE.SphereGeometry(1, 32, 32);
+        // Scale glow to match new spacecraft size (0.1 units)
+        const glowRadius = 0.15; // Slightly larger than spacecraft for glow effect
+        const glowGeometry = new THREE.SphereGeometry(glowRadius, 32, 32);
         this.effects.heatGlow = new THREE.Mesh(glowGeometry, glowMaterial);
         this.group.add(this.effects.heatGlow);
         
@@ -209,9 +211,10 @@ export class EntryVehicle {
             positions[i * 3 + 1] = 0;
             positions[i * 3 + 2] = 0;
             
-            velocities[i * 3] = (Math.random() - 0.5) * 0.1;
-            velocities[i * 3 + 1] = -Math.random() * 0.2;
-            velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.1;
+            // Scale velocities for smaller spacecraft
+            velocities[i * 3] = (Math.random() - 0.5) * 0.02;
+            velocities[i * 3 + 1] = -Math.random() * 0.04;
+            velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
             
             lifetimes[i] = Math.random();
         }
@@ -221,7 +224,7 @@ export class EntryVehicle {
         geometry.setAttribute('lifetime', new THREE.BufferAttribute(lifetimes, 1));
         
         const material = new THREE.PointsMaterial({
-            size: 0.1,
+            size: 0.02,  // Scaled down for smaller spacecraft
             color: 0xff6600,
             blending: THREE.AdditiveBlending,
             transparent: true,
@@ -235,44 +238,49 @@ export class EntryVehicle {
         this.group.add(this.effects.plasmaTail);
     }
     
-    createThrusterSystem() {
-        // Modern instanced thrusters
-        const thrusterGeometry = new THREE.ConeGeometry(0.1, 0.5, 8);
-        const thrusterMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffaa00,
-            transparent: true,
-            opacity: 0,
-            blending: THREE.AdditiveBlending
-        });
+    // createThrusterSystem() {
+    //     // Modern instanced thrusters - scaled for smaller spacecraft
+    //     const scaleFactor = 0.1; // Match spacecraft scale
+    //     const thrusterGeometry = new THREE.ConeGeometry(
+    //         scaleFactor * 0.2,  // Radius: 0.02 units
+    //         scaleFactor * 1.0,  // Height: 0.1 units
+    //         8
+    //     );
+    //     const thrusterMaterial = new THREE.MeshBasicMaterial({
+    //         color: 0xffaa00,
+    //         transparent: true,
+    //         opacity: 0,
+    //         blending: THREE.AdditiveBlending
+    //     });
         
-        // Create 8 thrusters using InstancedMesh
-        this.thrusterMesh = new THREE.InstancedMesh(
-            thrusterGeometry,
-            thrusterMaterial,
-            8
-        );
+    //     // Create 8 thrusters using InstancedMesh
+    //     this.thrusterMesh = new THREE.InstancedMesh(
+    //         thrusterGeometry,
+    //         thrusterMaterial,
+    //         8
+    //     );
         
-        const matrix = new THREE.Matrix4();
-        const position = new THREE.Vector3();
-        const rotation = new THREE.Euler();
-        const scale = new THREE.Vector3(1, 1, 1);
+    //     const matrix = new THREE.Matrix4();
+    //     const position = new THREE.Vector3();
+    //     const rotation = new THREE.Euler();
+    //     const scale = new THREE.Vector3(1, 1, 1);
         
-        for (let i = 0; i < 8; i++) {
-            const angle = (i / 8) * Math.PI * 2;
-            position.set(
-                Math.cos(angle) * 0.6,
-                -0.5,
-                Math.sin(angle) * 0.6
-            );
-            rotation.set(Math.PI, 0, angle);
+    //     for (let i = 0; i < 8; i++) {
+    //         const angle = (i / 8) * Math.PI * 2;
+    //         position.set(
+    //             Math.cos(angle) * scaleFactor * 1.2,  // Position around spacecraft
+    //             -scaleFactor * 0.8,                    // Below spacecraft
+    //             Math.sin(angle) * scaleFactor * 1.2
+    //         );
+    //         rotation.set(Math.PI, 0, angle);
             
-            matrix.compose(position, new THREE.Quaternion().setFromEuler(rotation), scale);
-            this.thrusterMesh.setMatrixAt(i, matrix);
-        }
+    //         matrix.compose(position, new THREE.Quaternion().setFromEuler(rotation), scale);
+    //         this.thrusterMesh.setMatrixAt(i, matrix);
+    //     }
         
-        this.thrusterMesh.instanceMatrix.needsUpdate = true;
-        this.group.add(this.thrusterMesh);
-    }
+    //     this.thrusterMesh.instanceMatrix.needsUpdate = true;
+    //     this.group.add(this.thrusterMesh);
+    // }
     
     createLocalCoordinateAxes() {
         // Create axes helper for spacecraft local reference frame
@@ -391,10 +399,10 @@ export class EntryVehicle {
             lifetimes.array[i] -= 0.01;
             
             if (lifetimes.array[i] <= 0) {
-                // Reset particle
-                positions.array[i * 3] = (Math.random() - 0.5) * 0.2;
-                positions.array[i * 3 + 1] = -0.5;
-                positions.array[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
+                // Reset particle - scaled for smaller spacecraft
+                positions.array[i * 3] = (Math.random() - 0.5) * 0.04;  // Scaled to spacecraft size
+                positions.array[i * 3 + 1] = -0.1;  // Start below smaller spacecraft
+                positions.array[i * 3 + 2] = (Math.random() - 0.5) * 0.04;
                 lifetimes.array[i] = 1;
             } else {
                 // Update position
@@ -444,10 +452,10 @@ export class EntryVehicle {
                 // Animate separation
                 const startPos = child.position.clone();
                 const animate = () => {
-                    child.position.y -= 0.05;
+                    child.position.y -= 0.01;  // Scaled for smaller spacecraft
                     child.rotation.x += 0.1;
                     
-                    if (child.position.y > startPos.y - 5) {
+                    if (child.position.y > startPos.y - 1) {  // Scaled separation distance
                         requestAnimationFrame(animate);
                     } else {
                         child.visible = false;

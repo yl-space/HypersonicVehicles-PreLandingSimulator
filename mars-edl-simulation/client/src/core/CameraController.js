@@ -1,8 +1,8 @@
 /**
- * Camera management for J2000 reference frame
+ * Camera management 
  */
 
-import * as THREE from 'three';
+import * as THREE from '/node_modules/three/build/three.module.js';
 
 export class CameraController {
     constructor(camera, renderer) {
@@ -10,14 +10,16 @@ export class CameraController {
         this.renderer = renderer;
         this.mode = 'follow'; // Default to follow mode like NASA's visualization
         this.target = null;
-        this.smoothness = 0.1; // Smoother transitions
+        this.smoothness = 0.15; // Increased for more responsive camera movement
         
-        // Camera state (adjusted for smaller spacecraft scale)
+        // Camera state (adjusted for better viewing angles)
         this.state = {
-            distance: 2,      // Very close for 0.1 unit spacecraft
-            height: 1,        // Small height offset
+            distance: 50,      // Better initial distance for planet scale
+            height: 20,        // Better height offset
             angle: 0,
-            defaultDistance: 2
+            defaultDistance: 50,
+            minDistance: 10,   // Minimum zoom distance
+            maxDistance: 500   // Maximum zoom distance
         };
         
         // Mouse controls for orbit mode
@@ -30,16 +32,33 @@ export class CameraController {
         // Orbit parameters
         this.orbit = {
             theta: Math.PI / 4,  // Azimuth
-            phi: Math.PI / 6,    // Elevation
-            radius: 3            // Orbit radius for smaller spacecraft
+            phi: Math.PI / 4,    // Elevation (better initial angle)
+            radius: 100,         // Better orbit radius for planet scale
+            minPhi: 0.1,         // Prevent camera from going below ground
+            maxPhi: Math.PI - 0.1  // Prevent camera flip
+        };
+        
+        // Touch support
+        this.touch = {
+            isActive: false,
+            startX: 0,
+            startY: 0,
+            startDistance: 0
+        };
+        
+        // Inertia for smooth camera movement
+        this.inertia = {
+            deltaX: 0,
+            deltaY: 0,
+            damping: 0.95
         };
         
         this.init();
     }
     
     init() {
-        // Set initial camera position for smaller spacecraft
-        this.camera.position.set(3, 2, 3);
+        // Set initial camera position for better planet viewing
+        this.camera.position.set(150, 100, 150);
         this.camera.lookAt(0, 0, 0);
         
         this.setupEventListeners();
@@ -50,7 +69,7 @@ export class CameraController {
         
         // Mouse controls for orbit mode
         canvas.addEventListener('mousedown', (e) => {
-            if (this.mode === 'orbit' || this.mode === 'free') {
+            if (this.mode === 'orbit') {
                 this.mouse.isDown = true;
                 this.mouse.lastX = e.clientX;
                 this.mouse.lastY = e.clientY;
@@ -58,35 +77,109 @@ export class CameraController {
         });
         
         canvas.addEventListener('mousemove', (e) => {
-            if ((this.mode === 'orbit' || this.mode === 'free') && this.mouse.isDown) {
+            if (this.mode === 'orbit' && this.mouse.isDown) {
                 const deltaX = e.clientX - this.mouse.lastX;
                 const deltaY = e.clientY - this.mouse.lastY;
                 
-                this.orbit.theta -= deltaX * 0.005;
-                this.orbit.phi = Math.max(0.1, Math.min(Math.PI - 0.1, 
-                    this.orbit.phi + deltaY * 0.005));
+                // Add inertia for smoother movement
+                this.inertia.deltaX = deltaX * 0.005;
+                this.inertia.deltaY = deltaY * 0.005;
+                
+                this.orbit.theta -= this.inertia.deltaX;
+                this.orbit.phi = Math.max(this.orbit.minPhi, Math.min(this.orbit.maxPhi, 
+                    this.orbit.phi + this.inertia.deltaY));
                 
                 this.mouse.lastX = e.clientX;
                 this.mouse.lastY = e.clientY;
             }
         });
         
-        canvas.addEventListener('mouseup', () => {
+        // Mouse up on both canvas and document to prevent stuck drag
+        const handleMouseUp = () => {
             this.mouse.isDown = false;
-        });
+        };
+        canvas.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('mouseup', handleMouseUp);
         
-        // Wheel for zoom - more controlled
+        // Handle mouse leave to prevent stuck state
+        canvas.addEventListener('mouseleave', handleMouseUp);
+        
+        // Wheel for zoom - intuitive direction
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
-            const zoomSpeed = 0.05; // Reduced zoom speed
-            const delta = e.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
+            const zoomSpeed = 0.1; // Better zoom speed
+            // Inverted: scroll up = zoom in (smaller distance)
+            const delta = e.deltaY < 0 ? 1 - zoomSpeed : 1 + zoomSpeed;
             
-            if (this.mode === 'orbit' || this.mode === 'free') {
-                this.orbit.radius = Math.max(0.5, Math.min(50, this.orbit.radius * delta));
+            if (this.mode === 'orbit') {
+                this.orbit.radius = Math.max(this.state.minDistance, 
+                    Math.min(this.state.maxDistance, this.orbit.radius * delta));
             } else if (this.mode === 'follow') {
-                this.state.distance = Math.max(0.5, Math.min(10, this.state.distance * delta));
+                this.state.distance = Math.max(this.state.minDistance, 
+                    Math.min(this.state.maxDistance, this.state.distance * delta));
             }
-        });
+        }, { passive: false });
+        
+        // Touch support for mobile devices
+        this.setupTouchControls(canvas);
+    }
+    
+    setupTouchControls(canvas) {
+        // Touch start
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (this.mode === 'orbit') {
+                if (e.touches.length === 1) {
+                    // Single touch for rotation
+                    this.touch.isActive = true;
+                    this.touch.startX = e.touches[0].clientX;
+                    this.touch.startY = e.touches[0].clientY;
+                } else if (e.touches.length === 2) {
+                    // Two finger pinch for zoom
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    this.touch.startDistance = Math.sqrt(dx * dx + dy * dy);
+                }
+            }
+        }, { passive: false });
+        
+        // Touch move
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (this.mode === 'orbit' && this.touch.isActive) {
+                if (e.touches.length === 1) {
+                    // Single touch rotation
+                    const deltaX = e.touches[0].clientX - this.touch.startX;
+                    const deltaY = e.touches[0].clientY - this.touch.startY;
+                    
+                    this.orbit.theta -= deltaX * 0.005;
+                    this.orbit.phi = Math.max(this.orbit.minPhi, 
+                        Math.min(this.orbit.maxPhi, this.orbit.phi + deltaY * 0.005));
+                    
+                    this.touch.startX = e.touches[0].clientX;
+                    this.touch.startY = e.touches[0].clientY;
+                } else if (e.touches.length === 2) {
+                    // Pinch zoom
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (this.touch.startDistance > 0) {
+                        const scale = distance / this.touch.startDistance;
+                        this.orbit.radius = Math.max(this.state.minDistance,
+                            Math.min(this.state.maxDistance, this.orbit.radius / scale));
+                        this.touch.startDistance = distance;
+                    }
+                }
+            }
+        }, { passive: false });
+        
+        // Touch end
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            this.touch.isActive = false;
+            this.touch.startDistance = 0;
+        }, { passive: false });
     }
     
     setMode(mode) {
@@ -96,9 +189,11 @@ export class CameraController {
         // Initialize orbit position when switching modes
         if (mode === 'orbit' && this.target) {
             const offset = this.camera.position.clone().sub(this.target.position);
-            this.orbit.radius = offset.length();
+            this.orbit.radius = Math.max(this.state.minDistance, 
+                Math.min(this.state.maxDistance, offset.length()));
             this.orbit.theta = Math.atan2(offset.x, offset.z);
-            this.orbit.phi = Math.acos(Math.max(-1, Math.min(1, offset.y / this.orbit.radius)));
+            const phi = Math.acos(Math.max(-1, Math.min(1, offset.y / this.orbit.radius)));
+            this.orbit.phi = Math.max(this.orbit.minPhi, Math.min(this.orbit.maxPhi, phi));
         }
     }
     
@@ -108,6 +203,18 @@ export class CameraController {
     
     update(deltaTime, vehicleData) {
         if (!this.target) return;
+        
+        // Apply inertia damping
+        if (this.mode === 'orbit' && !this.mouse.isDown) {
+            if (Math.abs(this.inertia.deltaX) > 0.0001 || Math.abs(this.inertia.deltaY) > 0.0001) {
+                this.orbit.theta -= this.inertia.deltaX;
+                this.orbit.phi = Math.max(this.orbit.minPhi, 
+                    Math.min(this.orbit.maxPhi, this.orbit.phi + this.inertia.deltaY));
+                
+                this.inertia.deltaX *= this.inertia.damping;
+                this.inertia.deltaY *= this.inertia.damping;
+            }
+        }
         
         const targetPos = this.target.position.clone();
         let desiredPosition = new THREE.Vector3();
@@ -126,6 +233,9 @@ export class CameraController {
                         desiredPosition.copy(targetPos);
                         desiredPosition.sub(velocity.clone().multiplyScalar(this.state.distance));
                         desiredPosition.y += this.state.height;
+                        
+                        // Ensure camera doesn't go below ground level
+                        desiredPosition.y = Math.max(5, desiredPosition.y);
                     } else {
                         // Static follow when no velocity
                         desiredPosition.set(
@@ -133,6 +243,9 @@ export class CameraController {
                             targetPos.y + this.state.height,
                             targetPos.z - this.state.distance * 0.7
                         );
+                        
+                        // Ensure camera doesn't go below ground level
+                        desiredPosition.y = Math.max(5, desiredPosition.y);
                     }
                 } else {
                     // Default follow position
@@ -155,22 +268,6 @@ export class CameraController {
                 desiredPosition.z = targetPos.z + 
                     this.orbit.radius * Math.sin(this.orbit.phi) * Math.cos(this.orbit.theta);
                 break;
-                
-            case 'free':
-                // Free mode - user controls camera with mouse drag
-                if (this.mouse.isDown) {
-                    // Use orbit controls for free camera movement
-                    desiredPosition.x = this.orbit.radius * Math.sin(this.orbit.phi) * Math.sin(this.orbit.theta);
-                    desiredPosition.y = this.orbit.radius * Math.cos(this.orbit.phi);
-                    desiredPosition.z = this.orbit.radius * Math.sin(this.orbit.phi) * Math.cos(this.orbit.theta);
-                    lookAtPoint.set(0, 0, 0); // Look at scene center
-                } else {
-                    // Keep current position when not dragging
-                    return;
-                }
-                break;
-                
-            // Cinematic mode removed - not needed
         }
         
         // Smooth camera movement
@@ -193,20 +290,24 @@ export class CameraController {
     }
     
     zoom(direction) {
-        const zoomSpeed = 0.1; // Reduced for finer control
-        const factor = direction > 0 ? 1 - zoomSpeed : 1 + zoomSpeed; // Inverted for intuitive control
+        const zoomSpeed = 0.15; // Better zoom speed
+        // Fixed zoom direction: 'in' means closer (smaller distance)
+        const factor = direction === 'in' ? 1 - zoomSpeed : 1 + zoomSpeed;
         
-        if (this.mode === 'orbit' || this.mode === 'free') {
-            this.orbit.radius = Math.max(0.5, Math.min(50, this.orbit.radius * factor));
+        if (this.mode === 'orbit') {
+            this.orbit.radius = Math.max(this.state.minDistance, 
+                Math.min(this.state.maxDistance, this.orbit.radius * factor));
         } else {
-            this.state.distance = Math.max(0.5, Math.min(10, this.state.distance * factor));
+            this.state.distance = Math.max(this.state.minDistance, 
+                Math.min(this.state.maxDistance, this.state.distance * factor));
         }
     }
     
     setDefaultDistance(distance) {
         this.state.defaultDistance = distance;
         this.state.distance = distance;
-        this.orbit.radius = distance * 2;
+        this.orbit.radius = Math.max(this.state.minDistance, 
+            Math.min(this.state.maxDistance, distance * 1.5));
     }
     
     handleResize() {
@@ -214,12 +315,16 @@ export class CameraController {
     }
     
     reset() {
-        // Reset camera to default position for smaller spacecraft
-        this.camera.position.set(3, 2, 3);
+        // Reset camera to default position for better viewing
+        this.camera.position.set(150, 100, 150);
         this.camera.lookAt(0, 0, 0);
         this.orbit.theta = Math.PI / 4;
-        this.orbit.phi = Math.PI / 6;
-        this.orbit.radius = 3;
-        this.state.distance = 2;
+        this.orbit.phi = Math.PI / 4;
+        this.orbit.radius = 100;
+        this.state.distance = 50;
+        
+        // Reset inertia
+        this.inertia.deltaX = 0;
+        this.inertia.deltaY = 0;
     }
 }

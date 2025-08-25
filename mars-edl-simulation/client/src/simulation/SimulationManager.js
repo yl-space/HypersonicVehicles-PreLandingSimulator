@@ -2,7 +2,7 @@
  * Main simulation controller with planet switching
  */
 
-import * as THREE from 'three';
+import * as THREE from '/node_modules/three/build/three.module.js';
 import { SceneManager } from '../core/SceneManager.js';
 import { CameraController } from '../core/CameraController.js';
 import { EntryVehicle } from '../components/spacecraft/EntryVehicle.js';
@@ -405,9 +405,6 @@ export class SimulationManager {
                 this.setCameraMode('follow');
                 break;
             case '2':
-                this.setCameraMode('free');
-                break;
-            case '3':
                 this.setCameraMode('orbit');
                 break;
             case 'r':

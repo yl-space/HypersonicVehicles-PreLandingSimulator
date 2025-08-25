@@ -3,15 +3,17 @@
  * Supersonic parachute component for HSV simulation
  */
 
-import * as THREE from 'three';
+import * as THREE from '/node_modules/three/build/three.module.js';
 
 export class Parachute extends THREE.Group {
     constructor() {
         super();
         
-        // Parachute parameters (based on MSL)
-        this.canopyDiameter = 21.5; // meters
-        this.lineLength = 50; // meters
+        // Parachute parameters (based on MSL) - scaled for 0.1 unit spacecraft
+        // Real MSL parachute: 21.5 meters diameter
+        // Scale factor: ~10x spacecraft size for visibility
+        this.canopyDiameter = 1.0; // Scaled for visualization (10x spacecraft)
+        this.lineLength = 2.0; // Scaled suspension lines
         this.isDeployed = false;
         this.deploymentProgress = 0;
         this.inflationProgress = 0;
@@ -45,8 +47,8 @@ export class Parachute extends THREE.Group {
     }
     
     createFoldedParachute() {
-        // Small cylinder representing packed parachute
-        const geometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 16);
+        // Small cylinder representing packed parachute - scaled
+        const geometry = new THREE.CylinderGeometry(0.05, 0.05, 0.2, 16);
         const material = new THREE.MeshStandardMaterial({
             color: 0xFFFFFF,
             metalness: 0.1,
@@ -54,7 +56,7 @@ export class Parachute extends THREE.Group {
         });
         
         this.foldedChute = new THREE.Mesh(geometry, material);
-        this.foldedChute.position.y = 5; // Above vehicle
+        this.foldedChute.position.y = 0.5; // Above smaller vehicle
         this.add(this.foldedChute);
     }
     

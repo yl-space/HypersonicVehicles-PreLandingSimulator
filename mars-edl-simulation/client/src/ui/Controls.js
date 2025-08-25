@@ -37,12 +37,6 @@ export class Controls {
                     </svg>
                     FOLLOW
                 </button>
-                <button class="camera-mode" data-mode="FREE">
-                    <svg width="20" height="20" viewBox="0 0 24 24">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" fill="currentColor"/>
-                    </svg>
-                    FREE
-                </button>
                 <button class="camera-mode" data-mode="ORBIT">
                     <svg width="20" height="20" viewBox="0 0 24 24">
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor"/>
@@ -207,8 +201,7 @@ export class Controls {
                 <dl>
                     <dt>Space</dt><dd>Play/Pause</dd>
                     <dt>1</dt><dd>Follow Camera</dd>
-                    <dt>2</dt><dd>Free Camera</dd>
-                    <dt>3</dt><dd>Orbit Camera</dd>
+                    <dt>2</dt><dd>Orbit Camera</dd>
                     <dt>←/→</dt><dd>Skip 5 seconds</dd>
                     <dt>↑/↓</dt><dd>Zoom In/Out</dd>
                     <dt>R</dt><dd>Restart Simulation</dd>

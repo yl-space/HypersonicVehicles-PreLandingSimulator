@@ -1,9 +1,9 @@
-import * as THREE from 'three';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import * as THREE from '/node_modules/three/build/three.module.js';
+import { EffectComposer } from '/node_modules/three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from '/node_modules/three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from '/node_modules/three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { SMAAPass } from '/node_modules/three/examples/jsm/postprocessing/SMAAPass.js';
+import { OutputPass } from '/node_modules/three/examples/jsm/postprocessing/OutputPass.js';
 
 export class SceneManager {
     constructor(container) {
@@ -80,7 +80,7 @@ export class SceneManager {
             100000  // Increased far plane for large scale scenes
         );
         
-        this.camera.position.set(50, 20, 50);
+        this.camera.position.set(150, 100, 150);
         this.camera.lookAt(0, 0, 0);
         
         // Add camera layers for selective rendering
