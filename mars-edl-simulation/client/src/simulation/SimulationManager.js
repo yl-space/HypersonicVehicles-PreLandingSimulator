@@ -411,6 +411,18 @@ export class SimulationManager {
             case 'R':
                 this.restart();
                 break;
+            case 'a':
+                this.offsetTrajectory(-1, 0);
+                break;
+            case 'd':
+                this.offsetTrajectory(1, 0);
+                break;
+            case 's':
+                this.offsetTrajectory(0, -1);
+                break;
+            case 'w':
+                this.offsetTrajectory(0, 1);
+                break;
         }
     }
     
@@ -594,6 +606,12 @@ export class SimulationManager {
     handleResize() {
         this.sceneManager.handleResize();
         this.cameraController.handleResize();
+    }
+
+    offsetTrajectory(directionX, directionY) {
+        if (!this.trajectoryManager) return;
+
+        this.trajectoryManager.offsetTrajectoryLinearlyFromCurrentTime(this.state.currentTime, directionX, directionY);
     }
     
     dispose() {
