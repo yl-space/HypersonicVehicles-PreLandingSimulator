@@ -164,6 +164,7 @@ function showWelcomeDialog() {
                     <li><kbd>Space</kbd> - Play/Pause</li>
                     <li><kbd>1/2/3</kbd> - Camera Modes</li>
                     <li><kbd>←/→</kbd> - Skip 5 seconds</li>
+                    <li><kbd>W/A/S/D</kbd> - Adjust Trajectory</li>
                     <li><kbd>Mouse Wheel</kbd> - Zoom</li>
                 </ul>
             </div>
