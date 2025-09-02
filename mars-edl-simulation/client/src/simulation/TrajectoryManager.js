@@ -99,26 +99,20 @@ export class TrajectoryManager {
     }
     
     createPositionMarker() {
-        // Current position indicator - larger and more visible
-        const markerGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+       
+        // Using a very small, transparent marker instead
+        const markerGeometry = new THREE.SphereGeometry(0.01, 8, 8);
         const markerMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffff00  // Yellow for visibility
+            color: 0xffff00,
+            transparent: true,
+            opacity: 0  // Fully transparent
         });
         
         this.currentPositionMarker = new THREE.Mesh(markerGeometry, markerMaterial);
         this.currentPositionMarker.castShadow = false;
+        this.currentPositionMarker.visible = false;  // Hide the marker completely
         
-        // Add glow effect
-        const glowGeometry = new THREE.SphereGeometry(0.8, 16, 16);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffff00,
-            transparent: true,
-            opacity: 0.5,
-            blending: THREE.AdditiveBlending
-        });
-        
-        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        this.currentPositionMarker.add(glow);
+
         
         this.group.add(this.currentPositionMarker);
     }

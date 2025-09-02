@@ -19,7 +19,7 @@ export class Controls {
     
     init() {
         this.createCameraControls();
-        this.createZoomControls();
+        // this.createZoomControls(); // Disabled - using HTML zoom controls instead
         this.createSettingsPanel();
         this.createKeyboardShortcuts();
         this.addStyles();

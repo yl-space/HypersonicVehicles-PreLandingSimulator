@@ -56,6 +56,13 @@
 
     <!-- Timeline Controls -->
     <div id="timeline-container" role="region" aria-label="Simulation Timeline Controls"></div>
+    
+    <!-- Zoom Controls -->
+    <div class="zoom-controls" role="group" aria-label="Zoom Controls">
+        <button class="zoom-btn zoom-in" aria-label="Zoom In" title="Zoom In">+</button>
+        <button class="zoom-btn zoom-reset" aria-label="Reset Zoom" title="Reset Zoom">⟲</button>
+        <button class="zoom-btn zoom-out" aria-label="Zoom Out" title="Zoom Out">−</button>
+    </div>
 
     <!-- Screen Reader Announcements -->
     <div class="sr-only" role="status" aria-live="polite" aria-atomic="true" id="sr-announcements"></div>
@@ -115,6 +122,75 @@
         import("./src/main.js").then((module) => {
             console.log('Main module loaded successfully:', module);
             // Main.js will handle hiding the loading screen
+            
+            // Add zoom control functionality
+            setTimeout(() => {
+                const zoomInBtn = document.querySelector('.zoom-in');
+                const zoomOutBtn = document.querySelector('.zoom-out');
+                const zoomResetBtn = document.querySelector('.zoom-reset');
+                
+                if (window.MarsEDL && window.MarsEDL.simulation) {
+                    // Fix: cameraController is directly on simulation, not on scene
+                    const cameraController = window.MarsEDL.simulation.cameraController;
+                    
+                    if (!cameraController) {
+                        console.error('Camera controller not found');
+                        return;
+                    }
+                    
+                    console.log('Setting up zoom controls, camera controller found:', cameraController);
+                    
+                    zoomInBtn?.addEventListener('click', () => {
+                        console.log('Zoom in clicked');
+                        if (cameraController.mode === 'orbit') {
+                            cameraController.orbit.radius *= 0.8;
+                            cameraController.orbit.radius = Math.max(
+                                cameraController.state.minDistance,
+                                cameraController.orbit.radius
+                            );
+                        } else {
+                            cameraController.state.distance *= 0.8;
+                            cameraController.state.distance = Math.max(
+                                cameraController.state.minDistance,
+                                cameraController.state.distance
+                            );
+                        }
+                    });
+                    
+                    zoomOutBtn?.addEventListener('click', () => {
+                        console.log('Zoom out clicked');
+                        if (cameraController.mode === 'orbit') {
+                            cameraController.orbit.radius *= 1.25;
+                            cameraController.orbit.radius = Math.min(
+                                cameraController.state.maxDistance,
+                                cameraController.orbit.radius
+                            );
+                        } else {
+                            cameraController.state.distance *= 1.25;
+                            cameraController.state.distance = Math.min(
+                                cameraController.state.maxDistance,
+                                cameraController.state.distance
+                            );
+                        }
+                    });
+                    
+                    zoomResetBtn?.addEventListener('click', () => {
+                        console.log('Zoom reset clicked');
+                        if (cameraController.mode === 'orbit') {
+                            cameraController.orbit.radius = 100;
+                        } else {
+                            cameraController.state.distance = cameraController.state.defaultDistance;
+                        }
+                    });
+                    
+                    // Make buttons visible
+                    if (zoomInBtn) zoomInBtn.style.display = 'flex';
+                    if (zoomOutBtn) zoomOutBtn.style.display = 'flex';
+                    if (zoomResetBtn) zoomResetBtn.style.display = 'flex';
+                } else {
+                    console.error('MarsEDL simulation not found');
+                }
+            }, 3000); // Wait for simulation to initialize
         }).catch(error => {
             console.error('Failed to load application:', error);
             document.getElementById('loading-screen').innerHTML = `

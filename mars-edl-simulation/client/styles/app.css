@@ -99,7 +99,7 @@ body {
     top: 0;
     left: 0;
     right: 0;
-    padding: 20px 40px;
+    padding: 10px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -115,41 +115,41 @@ body {
 .mission-info {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 12px;
 }
 
 .nasa-logo {
-    width: 50px;
-    height: 50px;
+    width: 35px;
+    height: 35px;
     background: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICAgIDxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQ1IiBmaWxsPSIjZmZmIi8+CiAgICA8dGV4dCB4PSI1MCIgeT0iNjUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvcnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSI0NSIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiMwMDAiPk48L3RleHQ+Cjwvc3ZnPg==') center/contain no-repeat;
 }
 
 .mission-title {
-    line-height: 1.4;
+    line-height: 1.2;
 }
 
 .mission-title strong {
-    font-size: 20px;
+    font-size: 16px;
     font-weight: 600;
     display: block;
-    letter-spacing: 2px;
-}
-
-.mission-title span {
-    font-size: 14px;
-    color: #aaa;
-    text-transform: uppercase;
     letter-spacing: 1px;
 }
 
+.mission-title span {
+    font-size: 11px;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
 .simulation-badge {
-    padding: 8px 20px;
+    padding: 5px 12px;
     background: rgba(255, 102, 0, 0.2);
     border: 1px solid rgba(255, 102, 0, 0.5);
-    border-radius: 20px;
-    font-size: 13px;
+    border-radius: 15px;
+    font-size: 10px;
     text-transform: uppercase;
-    letter-spacing: 2px;
+    letter-spacing: 1px;
     color: #ff6600;
     font-weight: 500;
 }
@@ -159,17 +159,34 @@ body {
    =========================== */
 #phase-info {
     position: absolute;
-    top: 100px;
-    left: 40px;
+    top: 60px;
+    left: 20px;
     background: rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    padding: 30px;
-    border-radius: 10px;
-    max-width: 450px;
+    padding: 15px;
+    border-radius: 8px;
+    max-width: 320px;
     z-index: 100;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    font-size: 13px;
+}
+
+#phase-info h2 {
+    font-size: 18px;
+    margin-bottom: 8px;
+}
+
+#phase-info h3 {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+#phase-info p {
+    font-size: 12px;
+    line-height: 1.4;
+    margin: 8px 0;
 }
 
 /* ===========================
@@ -177,19 +194,19 @@ body {
    =========================== */
 #timeline-container {
     position: absolute;
-    bottom: 40px;
+    bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    width: 80%;
-    max-width: 900px;
+    width: 70%;
+    max-width: 700px;
     background: rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    padding: 25px;
-    border-radius: 10px;
+    padding: 15px;
+    border-radius: 8px;
     z-index: 100;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
 /* ===========================
@@ -210,32 +227,122 @@ body {
 }
 
 /* ===========================
+   Zoom Controls
+   =========================== */
+.zoom-controls {
+    position: fixed !important;
+    right: 20px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    z-index: 1000 !important;
+    pointer-events: auto !important;
+}
+
+.zoom-btn {
+    width: 45px !important;
+    height: 45px !important;
+    background: rgba(0, 0, 0, 0.9) !important;
+    border: 2px solid rgba(255, 102, 0, 0.6) !important;
+    color: #ff6600 !important;
+    font-size: 24px !important;
+    font-weight: bold !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.3s ease !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5) !important;
+    pointer-events: auto !important;
+}
+
+.zoom-btn:hover {
+    background: rgba(255, 102, 0, 0.2) !important;
+    border-color: #ff6600 !important;
+    transform: scale(1.1) !important;
+    box-shadow: 0 0 15px rgba(255, 102, 0, 0.5) !important;
+}
+
+.zoom-btn:active {
+    transform: scale(0.95) !important;
+}
+
+.zoom-reset {
+    font-size: 20px !important;
+    font-weight: bold !important;
+}
+
+/* ===========================
+   Additional UI Scaling
+   =========================== */
+.ui-panel {
+    font-size: 12px;
+}
+
+.stats-item {
+    font-size: 11px;
+    padding: 4px 0;
+}
+
+.control-button {
+    font-size: 11px;
+    padding: 6px 12px;
+}
+
+.timeline-label {
+    font-size: 10px;
+}
+
+/* ===========================
    Responsive Design
    =========================== */
 @media (max-width: 768px) {
     .header {
-        padding: 15px 20px;
+        padding: 8px 15px;
     }
     
     .mission-title strong {
-        font-size: 16px;
+        font-size: 14px;
+    }
+    
+    .mission-title span {
+        font-size: 10px;
     }
     
     #phase-info {
-        left: 20px;
-        right: 20px;
+        left: 10px;
+        right: 10px;
         max-width: none;
-        padding: 20px;
+        padding: 12px;
+        font-size: 11px;
+    }
+    
+    #phase-info h2 {
+        font-size: 16px;
+    }
+    
+    #phase-info h3 {
+        font-size: 20px;
     }
     
     #timeline-container {
-        width: 95%;
-        bottom: 20px;
-        padding: 20px;
+        width: 90%;
+        bottom: 10px;
+        padding: 10px;
     }
     
     .simulation-badge {
         display: none;
+    }
+    
+    .nasa-logo {
+        width: 30px;
+        height: 30px;
     }
 }
 

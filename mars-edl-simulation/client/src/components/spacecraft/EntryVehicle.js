@@ -27,7 +27,7 @@ export class EntryVehicle {
         this.createHeatEffects();
         // this.createThrusterSystem();
         this.createLocalCoordinateAxes();
-        this.createVelocityVector();
+        // this.createVelocityVector(); // Disabled - blocking spacecraft view
     }
     
     createVehicleWithLOD() {
@@ -329,7 +329,8 @@ export class EntryVehicle {
         this.velocityArrow.cone.material = new THREE.MeshBasicMaterial({ color: color });
         this.velocityArrow.line.material = new THREE.LineBasicMaterial({ color: color, linewidth: 3 });
         
-        this.group.add(this.velocityArrow);
+        // Disabled - not adding to group to prevent yellow arrow from showing
+        // this.group.add(this.velocityArrow);
     }
     
     updateVelocityVector(velocity) {
@@ -351,10 +352,10 @@ export class EntryVehicle {
     update(time, vehicleData) {
         if (!vehicleData) return;
         
-        // Update velocity vector visualization
-        if (vehicleData.velocity) {
-            this.updateVelocityVector(vehicleData.velocity);
-        }
+        // Update velocity vector visualization - DISABLED
+        // if (vehicleData.velocity) {
+        //     this.updateVelocityVector(vehicleData.velocity);
+        // }
         
         // Update heat effects based on altitude and velocity
         const altitude = vehicleData.altitude || 100;
