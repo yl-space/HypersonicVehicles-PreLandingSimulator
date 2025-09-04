@@ -417,12 +417,6 @@ export class SimulationManager {
             case 'd':
                 this.offsetTrajectory(1, 0);
                 break;
-            case 's':
-                this.offsetTrajectory(0, -1);
-                break;
-            case 'w':
-                this.offsetTrajectory(0, 1);
-                break;
         }
     }
     
