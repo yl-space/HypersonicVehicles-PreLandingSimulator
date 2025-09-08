@@ -8,6 +8,7 @@ export class Controls {
             onCameraMode: () => {},
             onZoom: () => {},
             onSettings: () => {},
+            onBankAngle: () => {},
             ...options
         };
         
@@ -19,6 +20,7 @@ export class Controls {
     
     init() {
         this.createCameraControls();
+        this.createBankAngleControls();
         this.createZoomControls();
         this.createSettingsPanel();
         this.createKeyboardShortcuts();
@@ -57,6 +59,36 @@ export class Controls {
         });
         
         this.elements.cameraControls = container;
+    }
+    
+    createBankAngleControls() {
+        const container = document.createElement('div');
+        container.className = 'bank-angle-controls';
+        container.innerHTML = `
+            <div class="control-group">
+                <h3 class="control-label">BANK ANGLE</h3>
+                <div class="bank-slider-row">
+                    <input type="range" min="-90" max="90" value="0" step="1" class="bank-slider" id="bank-angle-slider">
+                    <span class="bank-angle-value" id="bank-angle-value">0°</span>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(container);
+
+        // Event listener for slider
+        const slider = container.querySelector('#bank-angle-slider');
+        const valueLabel = container.querySelector('#bank-angle-value');
+        slider.addEventListener('input', () => {
+            valueLabel.textContent = `${slider.value}°`;
+            if (this.options.onBankAngle) {
+                this.options.onBankAngle(Number(slider.value));
+            }
+        });
+
+        this.elements.bankAngleControls = container;
+        this.elements.bankAngleSlider = slider;
+        this.elements.bankAngleValue = valueLabel;
     }
     
     createZoomControls() {
@@ -234,6 +266,42 @@ export class Controls {
     addStyles() {
         const style = document.createElement('style');
         style.textContent = `
+            /* Bank Angle Controls */
+            .bank-angle-controls {
+                position: absolute;
+                right: 20px;
+                top: calc(50% + 85px);
+                background: rgba(0, 0, 0, 0.8);
+                padding: 15px;
+                border-radius: 8px;
+                backdrop-filter: blur(10px);
+                z-index: 100;
+                margin-top: 10px;
+                width: 180px;
+            }
+            .bank-slider-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .bank-slider {
+                flex: 1;
+                accent-color: #f60;
+                height: 3px;
+                background: rgba(255,255,255,0.1);
+                border-radius: 2px;
+                cursor: pointer;
+            }
+            .bank-slider:focus {
+                outline: none;
+            }
+            .bank-angle-value {
+                min-width: 32px;
+                color: #fff;
+                font-family: 'Courier New', monospace;
+                font-size: 13px;
+            }
+            
             /* Camera Controls */
             .camera-controls {
                 position: absolute;
