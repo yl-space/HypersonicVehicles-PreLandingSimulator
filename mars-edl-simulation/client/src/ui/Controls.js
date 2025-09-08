@@ -12,6 +12,7 @@ export class Controls {
             ...options
         };
         
+        this.lastSliderValue = 0;
         this.elements = {};
         this.activeCamera = 'FOLLOW';
         
@@ -67,7 +68,7 @@ export class Controls {
         container.innerHTML = `
             <div class="control-group">
                 <h3 class="control-label">BANK ANGLE</h3>
-                <div class="bank-slider-row">
+                <div class="bank-slider-row bank-slider-relative">
                     <input type="range" min="-90" max="90" value="0" step="1" class="bank-slider" id="bank-angle-slider">
                     <span class="bank-angle-value" id="bank-angle-value">0°</span>
                 </div>
@@ -79,10 +80,17 @@ export class Controls {
         // Event listener for slider
         const slider = container.querySelector('#bank-angle-slider');
         const valueLabel = container.querySelector('#bank-angle-value');
+        this.lastSliderValue = slider.value;
         slider.addEventListener('input', () => {
             valueLabel.textContent = `${slider.value}°`;
+        });
+        slider.addEventListener('change', () => {
             if (this.options.onBankAngle) {
-                this.options.onBankAngle(Number(slider.value));
+                const newValue = Number(slider.value);
+                // Prevent redundant calls if value hasn't changed
+                if (newValue === this.lastSliderValue) return;
+                this.options.onBankAngle(this.lastSliderValue, newValue);
+                this.lastSliderValue = newValue;
             }
         });
 
@@ -90,7 +98,20 @@ export class Controls {
         this.elements.bankAngleSlider = slider;
         this.elements.bankAngleValue = valueLabel;
     }
-    
+
+    updateBankAngleRelative(adjustment) {
+        const currentValue = Number(this.elements.bankAngleSlider.value);
+        this.elements.bankAngleSlider.value = currentValue + adjustment;
+        this.elements.bankAngleValue.textContent = `${this.elements.bankAngleSlider.value}°`;
+        if (this.options.onBankAngle) {
+            const newValue = Number(this.elements.bankAngleSlider.value);
+            // Prevent redundant calls if value hasn't changed
+            if (newValue === this.lastSliderValue) return;
+            this.options.onBankAngle(this.lastSliderValue, newValue);
+            this.lastSliderValue = newValue;
+        }
+    }
+
     createZoomControls() {
         const container = document.createElement('div');
         container.className = 'zoom-controls';
@@ -277,12 +298,16 @@ export class Controls {
                 backdrop-filter: blur(10px);
                 z-index: 100;
                 margin-top: 10px;
-                width: 180px;
+                width: 170px;
             }
             .bank-slider-row {
+                position: relative;
                 display: flex;
                 align-items: center;
-                gap: 10px;
+                /* gap removed for absolute positioning */
+            }
+            .bank-slider-relative {
+                position: relative;
             }
             .bank-slider {
                 flex: 1;
@@ -296,10 +321,17 @@ export class Controls {
                 outline: none;
             }
             .bank-angle-value {
+                position: absolute;
+                right: 0;
+                top: 0;
+                transform: translate(10px, -160%);
                 min-width: 32px;
                 color: #fff;
                 font-family: 'Courier New', monospace;
                 font-size: 13px;
+                padding: 2px 8px;
+                border-radius: 4px;
+                pointer-events: none;
             }
             
             /* Camera Controls */
