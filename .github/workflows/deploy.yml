@@ -1,0 +1,19 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: self-hosted 
+    steps:
+      - name: Pull latest code
+        run: |
+          git checkout main
+          git pull origin main
+      - name: Rebuild and restart services
+        run: |
+          cd mars-edl-simulation
+          docker compose build --pull
+          docker compose up -d
