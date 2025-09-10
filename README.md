@@ -50,6 +50,26 @@ npm start
 
 ## 🖥️ Running the Application
 
+## Server Deployment
+
+**Install Docker:**
+1. https://docs.docker.com/engine/install/ubuntu/ (apt instructions)
+2. https://docs.docker.com/engine/install/ubuntu/ (post install instructions)
+3. `sudo chmod 666 /var/run/docker.sock`
+
+**Start Server Manually:**
+1. `cd mars-edl-simulation`
+2. `docker compose build --pull`
+3. `docker compose up -d`
+
+Note: Since both the server and nginx are set to always restart, this will continue to work in the case of either the server crashing or the host restarting.
+
+**Deploy on push to main:**
+
+https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners#adding-a-self-hosted-runner-to-a-repository
+
+We already have a GitHub action that will perform this action, so besides registering the server as a runner, there are no other tasks required.
+
 ### Development Mode
 ```bash
 # Start the server

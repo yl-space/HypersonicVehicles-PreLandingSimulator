@@ -36,12 +36,12 @@ COPY package*.json ./
 RUN npm ci --only=production && npm cache clean --force
 
 # Copy built application from builder stage
-COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/client ./client
 COPY --from=builder --chown=nodejs:nodejs /app/server ./server
 
 # Create necessary directories
-RUN mkdir -p server/data/trajectories server/data/missions uploads && \
-    chown -R nodejs:nodejs server/data uploads
+RUN mkdir -p server/data/trajectories server/data/missions uploads logs && \
+    chown -R nodejs:nodejs server/data uploads logs
 
 # Switch to nodejs user
 USER nodejs
