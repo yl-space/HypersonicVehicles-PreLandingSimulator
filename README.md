@@ -66,9 +66,17 @@ Note: Since both the server and nginx are set to always restart, this will conti
 
 **Deploy on push to main:**
 
+Adding a self-hosted github actions runner:
 https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners#adding-a-self-hosted-runner-to-a-repository
 
+Configuring the runner to automatically run on the server in the background:
+https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/configure-the-application
+
 We already have a GitHub action that will perform this action, so besides registering the server as a runner, there are no other tasks required.
+
+The actions runner on the hypersonics.wpi.edu server is stored under wlgoldman/actions-runner.
+
+See the runner configuration link above to control it via systemd.
 
 ### Development Mode
 ```bash

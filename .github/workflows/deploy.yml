@@ -14,6 +14,6 @@ jobs:
           git pull origin main
       - name: Rebuild and restart services
         run: |
-          cd mars-edl-simulation
+          cd /opt/HypersonicVehicles-PreLandingSimulator/mars-edl-simulation
           docker compose build --pull
           docker compose up -d
