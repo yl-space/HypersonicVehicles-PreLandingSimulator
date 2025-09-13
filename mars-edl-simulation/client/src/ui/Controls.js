@@ -187,6 +187,12 @@ export class Controls {
                     </label>
                 </div>
                 
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="show-vectors">
+                        Orientation Vectors
+                    </label>
+                </div>
                 
                 <div class="setting-separator"></div>
                 
@@ -227,6 +233,7 @@ export class Controls {
             showTelemetry: container.querySelector('#show-telemetry'),
             showEffects: container.querySelector('#show-effects'),
             showLandingSite: container.querySelector('#show-landing-site'),
+            showVectors: container.querySelector('#show-vectors'),
             quality: container.querySelector('#quality-setting'),
             units: container.querySelector('#units-setting')
         };
@@ -257,6 +264,8 @@ export class Controls {
                     <dt>2</dt><dd>Orbit Camera</dd>
                     <dt>←/→</dt><dd>Skip 5 seconds</dd>
                     <dt>↑/↓</dt><dd>Zoom In/Out</dd>
+                    <dt>A/D</dt><dd>Adjust Bank Angle</dd>
+                    <dt>V</dt><dd>Toggle Vectors</dd>
                     <dt>R</dt><dd>Restart Simulation</dd>
                     <dt>F</dt><dd>Fullscreen</dd>
                     <dt>S</dt><dd>Toggle Settings</dd>

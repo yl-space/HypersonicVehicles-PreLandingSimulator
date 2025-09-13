@@ -18,6 +18,10 @@ export class EntryVehicle {
         // Add coordinate axes and velocity vector
         this.localAxes = null;
         this.velocityArrow = null;
+        this.bankAngleArrow = null;
+        this.positionArrow = null;
+        this.vectorsVisible = false;
+        this.vectorFadeTimer = null;
         
         this.init();
     }
@@ -27,7 +31,7 @@ export class EntryVehicle {
         this.createHeatEffects();
         // this.createThrusterSystem();
         this.createLocalCoordinateAxes();
-        // this.createVelocityVector(); // Disabled - blocking spacecraft view
+        this.createOrientationVectors();
     }
     
     createVehicleWithLOD() {
@@ -318,44 +322,118 @@ export class EntryVehicle {
         this.group.add(this.localAxes);
     }
     
-    createVelocityVector() {
+    createOrientationVectors() {
         // Create arrow helper for velocity vector
         const origin = new THREE.Vector3(0, 0, 0);
-        const direction = new THREE.Vector3(0, -1, 0); // Default downward
-        const length = 0.5; // Scaled to new spacecraft size
-        const color = 0xffff00; // Yellow for velocity
+        const direction = new THREE.Vector3(0, -1, 0);
+        const length = 0.5;
         
-        this.velocityArrow = new THREE.ArrowHelper(direction, origin, length, color, 1, 0.5);
-        this.velocityArrow.cone.material = new THREE.MeshBasicMaterial({ color: color });
-        this.velocityArrow.line.material = new THREE.LineBasicMaterial({ color: color, linewidth: 3 });
+        // Velocity vector (yellow)
+        this.velocityArrow = new THREE.ArrowHelper(direction, origin, length, 0xffff00, length * 0.3, length * 0.2);
+        this.velocityArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        this.velocityArrow.line.material = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 3 });
+        this.velocityArrow.visible = false;
+        this.group.add(this.velocityArrow);
         
-        // Disabled - not adding to group to prevent yellow arrow from showing
-        // this.group.add(this.velocityArrow);
+        // Bank angle vector (cyan) - orthogonal to velocity
+        this.bankAngleArrow = new THREE.ArrowHelper(direction, origin, length, 0x00ffff, length * 0.3, length * 0.2);
+        this.bankAngleArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+        this.bankAngleArrow.line.material = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 3 });
+        this.bankAngleArrow.visible = false;
+        this.group.add(this.bankAngleArrow);
+        
+        // Position vector from planet center (magenta)
+        this.positionArrow = new THREE.ArrowHelper(direction, origin, length, 0xff00ff, length * 0.3, length * 0.2);
+        this.positionArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0xff00ff });
+        this.positionArrow.line.material = new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 3 });
+        this.positionArrow.visible = false;
+        this.group.add(this.positionArrow);
     }
     
-    updateVelocityVector(velocity) {
-        if (!this.velocityArrow || !velocity) return;
+    updateOrientationVectors(velocity, position, bankAngle = 0) {
+        if (!velocity || !position) return;
         
-        // Update velocity arrow direction and length
-        if (velocity instanceof THREE.Vector3 && velocity.length() > 0.001) {
+        // Update velocity arrow
+        if (this.velocityArrow && velocity instanceof THREE.Vector3 && velocity.length() > 0.001) {
             const direction = velocity.clone().normalize();
-            const length = Math.min(1, Math.max(0.2, velocity.length() * 20)); // Scale for new size
+            const length = Math.min(1, Math.max(0.3, velocity.length() * 50));
             
             this.velocityArrow.setDirection(direction);
             this.velocityArrow.setLength(length, length * 0.3, length * 0.2);
-            this.velocityArrow.visible = true;
-        } else {
-            this.velocityArrow.visible = false;
+        }
+        
+        // Update position arrow (from planet center to spacecraft)
+        if (this.positionArrow && position instanceof THREE.Vector3 && position.length() > 0.001) {
+            const posDirection = position.clone().normalize();
+            const posLength = 0.8;
+            
+            this.positionArrow.setDirection(posDirection);
+            this.positionArrow.setLength(posLength, posLength * 0.3, posLength * 0.2);
+        }
+        
+        // Calculate bank angle vector (orthogonal to velocity, coplanar with position)
+        if (this.bankAngleArrow && velocity.length() > 0.001 && position.length() > 0.001) {
+            const velocityNorm = velocity.clone().normalize();
+            const positionNorm = position.clone().normalize();
+            
+            // Project position onto plane perpendicular to velocity
+            const dotProduct = velocityNorm.dot(positionNorm);
+            const projection = velocityNorm.clone().multiplyScalar(dotProduct);
+            let bankDirection = positionNorm.clone().sub(projection).normalize();
+            
+            // If position and velocity are parallel, use a default up vector
+            if (bankDirection.length() < 0.001) {
+                bankDirection = new THREE.Vector3(0, 1, 0);
+                const dot = velocityNorm.dot(bankDirection);
+                const proj = velocityNorm.clone().multiplyScalar(dot);
+                bankDirection.sub(proj).normalize();
+            }
+            
+            // Apply bank angle rotation around velocity axis
+            if (Math.abs(bankAngle) > 0.001) {
+                const quaternion = new THREE.Quaternion();
+                quaternion.setFromAxisAngle(velocityNorm, THREE.MathUtils.degToRad(bankAngle));
+                bankDirection.applyQuaternion(quaternion);
+            }
+            
+            const bankLength = 0.6;
+            this.bankAngleArrow.setDirection(bankDirection);
+            this.bankAngleArrow.setLength(bankLength, bankLength * 0.3, bankLength * 0.2);
         }
     }
     
-    update(time, vehicleData) {
+    setVectorsVisible(visible, autoFade = false) {
+        this.vectorsVisible = visible;
+        
+        if (this.velocityArrow) this.velocityArrow.visible = visible;
+        if (this.bankAngleArrow) this.bankAngleArrow.visible = visible;
+        if (this.positionArrow) this.positionArrow.visible = visible;
+        
+        // Clear any existing fade timer
+        if (this.vectorFadeTimer) {
+            clearTimeout(this.vectorFadeTimer);
+            this.vectorFadeTimer = null;
+        }
+        
+        // Set up auto-fade if requested
+        if (visible && autoFade) {
+            this.vectorFadeTimer = setTimeout(() => {
+                this.setVectorsVisible(false);
+            }, 3000); // Hide after 3 seconds
+        }
+    }
+    
+    toggleVectors() {
+        this.setVectorsVisible(!this.vectorsVisible);
+    }
+    
+    update(time, vehicleData, bankAngle = 0) {
         if (!vehicleData) return;
         
-        // Update velocity vector visualization - DISABLED
-        // if (vehicleData.velocity) {
-        //     this.updateVelocityVector(vehicleData.velocity);
-        // }
+        // Update orientation vectors if visible
+        if (this.vectorsVisible && vehicleData.velocity && vehicleData.position) {
+            this.updateOrientationVectors(vehicleData.velocity, vehicleData.position, bankAngle);
+        }
         
         // Update heat effects based on altitude and velocity
         const altitude = vehicleData.altitude || 100;

@@ -57,7 +57,8 @@ export class SimulationManager {
             playbackSpeed: 1,
             currentPhase: 0,
             vehicleData: null,
-            currentPlanet: 'jupiter'
+            currentPlanet: 'jupiter',
+            bankAngle: 0
         };
         
         // Animation
@@ -161,6 +162,7 @@ export class SimulationManager {
             onCameraMode: (mode) => this.setCameraMode(mode),
             onZoom: (direction) => this.handleZoom(direction),
             onBankAngle: (lastAngle, angle) => this.handleBankAngle(lastAngle, angle),
+            onSettings: (setting) => this.handleSettings(setting)
         });
         
         // Add planet switching buttons to existing UI
@@ -418,6 +420,12 @@ export class SimulationManager {
             case 'd':
                 this.controls.updateBankAngleRelative(5);
                 break;
+            case 'v':
+            case 'V':
+                if (this.entryVehicle) {
+                    this.entryVehicle.toggleVectors();
+                }
+                break;
         }
     }
     
@@ -475,7 +483,7 @@ export class SimulationManager {
         this.cameraController.update(deltaTime, this.state.vehicleData);
         
         // Update entry vehicle effects
-        this.entryVehicle.update(this.state.currentTime, this.state.vehicleData);
+        this.entryVehicle.update(this.state.currentTime, this.state.vehicleData, this.state.bankAngle);
         
         // Update current planet
         if (this.currentPlanet) {
@@ -604,7 +612,21 @@ export class SimulationManager {
     }
 
     handleBankAngle(lastAngle, angle) {
+        this.state.bankAngle = angle;
         this.offsetTrajectory(angle - lastAngle, 0);
+        
+        // Show vectors automatically when bank angle changes
+        if (this.entryVehicle) {
+            this.entryVehicle.setVectorsVisible(true, true); // true for auto-fade
+        }
+    }
+    
+    handleSettings(setting) {
+        if (setting.type === 'showVectors') {
+            if (this.entryVehicle) {
+                this.entryVehicle.setVectorsVisible(setting.value);
+            }
+        }
     }
 
     offsetTrajectory(directionX, directionY) {
