@@ -69,6 +69,12 @@ The actions runner on the hypersonics.wpi.edu server is stored under wlgoldman/a
 
 See the runner configuration link above to control it via systemd.
 
+**Logging:**
+
+To ensure that the app can log to the `logs` folder within this codebase, we open write permissions to that folder:
+
+`sudo chmod -R 777 logs`
+
 ### Development Mode
 ```bash
 # Start the server
