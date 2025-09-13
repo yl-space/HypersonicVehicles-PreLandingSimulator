@@ -3,7 +3,7 @@
  * Visualizes the J2000 reference frame axes
  */
 
-import * as THREE from 'three';
+import * as THREE from '/node_modules/three/build/three.module.js';
 
 export class CoordinateAxes {
     constructor(size = 5000) {
@@ -171,6 +171,14 @@ export class CoordinateAxes {
         this.group.add(tick);
     }
     
+    update(camera) {
+        // Update labels to face camera if they exist
+        if (this.labels && this.labels.length > 0) {
+            this.labels.forEach(label => {
+                label.lookAt(camera.position);
+            });
+        }
+    }
     
     setVisibility(visible) {
         this.group.visible = visible;

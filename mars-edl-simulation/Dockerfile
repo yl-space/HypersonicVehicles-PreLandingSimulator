@@ -36,22 +36,18 @@ COPY package*.json ./
 RUN npm ci --only=production && npm cache clean --force
 
 # Copy built application from builder stage
-COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/client ./client
 COPY --from=builder --chown=nodejs:nodejs /app/server ./server
 
 # Create necessary directories
-RUN mkdir -p server/data/trajectories server/data/missions uploads && \
-    chown -R nodejs:nodejs server/data uploads
+RUN mkdir -p server/data/trajectories server/data/missions uploads logs && \
+    chown -R nodejs:nodejs server/data uploads logs
 
 # Switch to nodejs user
 USER nodejs
 
 # Expose port
-EXPOSE 5000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:5000/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"
+EXPOSE 3001
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]

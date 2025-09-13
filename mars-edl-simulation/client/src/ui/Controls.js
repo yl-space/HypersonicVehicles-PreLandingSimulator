@@ -8,9 +8,11 @@ export class Controls {
             onCameraMode: () => {},
             onZoom: () => {},
             onSettings: () => {},
+            onBankAngle: () => {},
             ...options
         };
         
+        this.lastSliderValue = 0;
         this.elements = {};
         this.activeCamera = 'FOLLOW';
         
@@ -19,6 +21,7 @@ export class Controls {
     
     init() {
         this.createCameraControls();
+        this.createBankAngleControls();
         this.createZoomControls();
         this.createSettingsPanel();
         this.createKeyboardShortcuts();
@@ -37,23 +40,11 @@ export class Controls {
                     </svg>
                     FOLLOW
                 </button>
-                <button class="camera-mode" data-mode="FREE">
-                    <svg width="20" height="20" viewBox="0 0 24 24">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" fill="currentColor"/>
-                    </svg>
-                    FREE
-                </button>
                 <button class="camera-mode" data-mode="ORBIT">
                     <svg width="20" height="20" viewBox="0 0 24 24">
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor"/>
                     </svg>
                     ORBIT
-                </button>
-                <button class="camera-mode" data-mode="FIXED">
-                    <svg width="20" height="20" viewBox="0 0 24 24">
-                        <path d="M16.48 2.52c3.27 1.55 5.61 4.72 5.97 8.48h1.5C23.44 4.84 18.29 0 12 0l-.66.03 3.81 3.81 1.33-1.32zm-6.25-.77c-.59-.59-1.54-.59-2.12 0L1.75 8.11c-.59.59-.59 1.54 0 2.12l12.02 12.02c.59.59 1.54.59 2.12 0l6.36-6.36c.59-.59.59-1.54 0-2.12L10.23 1.75zm4.6 19.44L2.81 9.17l6.36-6.36 12.02 12.02-6.36 6.36zm-7.31.29C4.25 19.94 1.91 16.76 1.55 13H.05C.56 19.16 5.71 24 12 24l.66-.03-3.81-3.81-1.33 1.32z" fill="currentColor"/>
-                    </svg>
-                    FIXED
                 </button>
             </div>
         `;
@@ -71,6 +62,56 @@ export class Controls {
         this.elements.cameraControls = container;
     }
     
+    createBankAngleControls() {
+        const container = document.createElement('div');
+        container.className = 'bank-angle-controls';
+        container.innerHTML = `
+            <div class="control-group">
+                <h3 class="control-label">BANK ANGLE</h3>
+                <div class="bank-slider-row bank-slider-relative">
+                    <input type="range" min="-90" max="90" value="0" step="1" class="bank-slider" id="bank-angle-slider">
+                    <span class="bank-angle-value" id="bank-angle-value">0°</span>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(container);
+
+        // Event listener for slider
+        const slider = container.querySelector('#bank-angle-slider');
+        const valueLabel = container.querySelector('#bank-angle-value');
+        this.lastSliderValue = slider.value;
+        slider.addEventListener('input', () => {
+            valueLabel.textContent = `${slider.value}°`;
+        });
+        slider.addEventListener('change', () => {
+            if (this.options.onBankAngle) {
+                const newValue = Number(slider.value);
+                // Prevent redundant calls if value hasn't changed
+                if (newValue === this.lastSliderValue) return;
+                this.options.onBankAngle(this.lastSliderValue, newValue);
+                this.lastSliderValue = newValue;
+            }
+        });
+
+        this.elements.bankAngleControls = container;
+        this.elements.bankAngleSlider = slider;
+        this.elements.bankAngleValue = valueLabel;
+    }
+
+    updateBankAngleRelative(adjustment) {
+        const currentValue = Number(this.elements.bankAngleSlider.value);
+        this.elements.bankAngleSlider.value = currentValue + adjustment;
+        this.elements.bankAngleValue.textContent = `${this.elements.bankAngleSlider.value}°`;
+        if (this.options.onBankAngle) {
+            const newValue = Number(this.elements.bankAngleSlider.value);
+            // Prevent redundant calls if value hasn't changed
+            if (newValue === this.lastSliderValue) return;
+            this.options.onBankAngle(this.lastSliderValue, newValue);
+            this.lastSliderValue = newValue;
+        }
+    }
+
     createZoomControls() {
         const container = document.createElement('div');
         container.className = 'zoom-controls';
@@ -146,12 +187,6 @@ export class Controls {
                     </label>
                 </div>
                 
-                <div class="setting-item">
-                    <label>
-                        <input type="checkbox" id="auto-rotate" unchecked>
-                        Auto-rotate Mars
-                    </label>
-                </div>
                 
                 <div class="setting-separator"></div>
                 
@@ -192,7 +227,6 @@ export class Controls {
             showTelemetry: container.querySelector('#show-telemetry'),
             showEffects: container.querySelector('#show-effects'),
             showLandingSite: container.querySelector('#show-landing-site'),
-            autoRotate: container.querySelector('#auto-rotate'),
             quality: container.querySelector('#quality-setting'),
             units: container.querySelector('#units-setting')
         };
@@ -220,9 +254,7 @@ export class Controls {
                 <dl>
                     <dt>Space</dt><dd>Play/Pause</dd>
                     <dt>1</dt><dd>Follow Camera</dd>
-                    <dt>2</dt><dd>Free Camera</dd>
-                    <dt>3</dt><dd>Orbit Camera</dd>
-                    <dt>4</dt><dd>Fixed Camera</dd>
+                    <dt>2</dt><dd>Orbit Camera</dd>
                     <dt>←/→</dt><dd>Skip 5 seconds</dd>
                     <dt>↑/↓</dt><dd>Zoom In/Out</dd>
                     <dt>R</dt><dd>Restart Simulation</dd>
@@ -255,6 +287,53 @@ export class Controls {
     addStyles() {
         const style = document.createElement('style');
         style.textContent = `
+            /* Bank Angle Controls */
+            .bank-angle-controls {
+                position: absolute;
+                right: 20px;
+                top: calc(50% + 85px);
+                background: rgba(0, 0, 0, 0.8);
+                padding: 15px;
+                border-radius: 8px;
+                backdrop-filter: blur(10px);
+                z-index: 100;
+                margin-top: 10px;
+                width: 170px;
+            }
+            .bank-slider-row {
+                position: relative;
+                display: flex;
+                align-items: center;
+                /* gap removed for absolute positioning */
+            }
+            .bank-slider-relative {
+                position: relative;
+            }
+            .bank-slider {
+                flex: 1;
+                accent-color: #f60;
+                height: 3px;
+                background: rgba(255,255,255,0.1);
+                border-radius: 2px;
+                cursor: pointer;
+            }
+            .bank-slider:focus {
+                outline: none;
+            }
+            .bank-angle-value {
+                position: absolute;
+                right: 0;
+                top: 0;
+                transform: translate(10px, -160%);
+                min-width: 32px;
+                color: #fff;
+                font-family: 'Courier New', monospace;
+                font-size: 13px;
+                padding: 2px 8px;
+                border-radius: 4px;
+                pointer-events: none;
+            }
+            
             /* Camera Controls */
             .camera-controls {
                 position: absolute;

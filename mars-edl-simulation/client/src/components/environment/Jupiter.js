@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from '/node_modules/three/build/three.module.js';
 
 export class Jupiter {
     constructor() {
@@ -123,13 +123,7 @@ export class Jupiter {
             this.atmosphere.material.uniforms.time.value += deltaTime;
         }
         
-        // Fast rotation (Jupiter day = 9.9 hours)
-        this.surface.rotation.y += deltaTime * 0.04;
-        
-        // Atmosphere doesn't rotate
-        if (this.atmosphere) {
-            this.atmosphere.rotation.y = 0;
-        }
+        // No rotation - Jupiter remains stationary in J2000 reference frame
     }
     
     getObject3D() {

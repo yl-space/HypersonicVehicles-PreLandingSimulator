@@ -2,7 +2,7 @@
  * Main simulation controller with planet switching
  */
 
-import * as THREE from 'three';
+import * as THREE from '/node_modules/three/build/three.module.js';
 import { SceneManager } from '../core/SceneManager.js';
 import { CameraController } from '../core/CameraController.js';
 import { EntryVehicle } from '../components/spacecraft/EntryVehicle.js';
@@ -66,7 +66,7 @@ export class SimulationManager {
 
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
-        this.clickEnabled = false; // Disabled to prevent accidental trajectory clicks
+        this.clickEnabled = true; // Enable trajectory click functionality
         this.lastClickTime = 0;
         this.clickCooldown = 500;
         
@@ -159,7 +159,8 @@ export class SimulationManager {
         // Camera and zoom controls
         this.controls = new Controls({
             onCameraMode: (mode) => this.setCameraMode(mode),
-            onZoom: (direction) => this.handleZoom(direction)
+            onZoom: (direction) => this.handleZoom(direction),
+            onBankAngle: (lastAngle, angle) => this.handleBankAngle(lastAngle, angle),
         });
         
         // Add planet switching buttons to existing UI
@@ -262,11 +263,11 @@ export class SimulationManager {
                 btn.textContent.toLowerCase() === planetName.toLowerCase());
         });
         
-        // Adjust camera for different planet sizes (much closer view)
+        // Adjust camera for different planet sizes with smaller spacecraft
         const cameraDistances = {
-            mars: 50,     // View distance for Mars
-            earth: 80,    // View distance for Earth  
-            jupiter: 200  // View distance for Jupiter
+            mars: 5,      // View distance for Mars with small spacecraft
+            earth: 8,     // View distance for Earth  
+            jupiter: 20   // View distance for Jupiter (larger planet)
         };
         
         if (cameraDistances[planetName]) {
@@ -405,17 +406,17 @@ export class SimulationManager {
                 this.setCameraMode('follow');
                 break;
             case '2':
-                this.setCameraMode('free');
-                break;
-            case '3':
                 this.setCameraMode('orbit');
-                break;
-            case '4':
-                this.setCameraMode('fixed');
                 break;
             case 'r':
             case 'R':
                 this.restart();
+                break;
+            case 'a':
+                this.controls.updateBankAngleRelative(-5);
+                break;
+            case 'd':
+                this.controls.updateBankAngleRelative(5);
                 break;
         }
     }
@@ -491,8 +492,7 @@ export class SimulationManager {
             this.coordinateAxes.update(this.cameraController.camera);
         }
         
-        // Update planet rotation
-        this.sceneManager.updatePlanetRotation(deltaTime);
+        // Planet rotation removed - planets remain stationary in J2000 reference frame
         
         // Update trajectory visibility
         this.trajectoryManager.updateTrajectoryVisibility(this.state.currentTime);
@@ -531,7 +531,7 @@ export class SimulationManager {
     }
     
     onMouseClick(event) {
-        if (!this.clickEnabled || !this.state.isPlaying) return;
+        if (!this.clickEnabled) return; // Allow clicking even when paused
         
         const now = Date.now();
         if (now - this.lastClickTime < this.clickCooldown) return;
@@ -601,6 +601,16 @@ export class SimulationManager {
     handleResize() {
         this.sceneManager.handleResize();
         this.cameraController.handleResize();
+    }
+
+    handleBankAngle(lastAngle, angle) {
+        this.offsetTrajectory(angle - lastAngle, 0);
+    }
+
+    offsetTrajectory(directionX, directionY) {
+        if (!this.trajectoryManager) return;
+
+        this.trajectoryManager.offsetTrajectoryLinearlyFromCurrentTime(this.state.currentTime, directionX, directionY);
     }
     
     dispose() {

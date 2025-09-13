@@ -3,7 +3,7 @@
  * Mars planet with correct NASA dimensions
  */
 
-import * as THREE from 'three';
+import * as THREE from '/node_modules/three/build/three.module.js';
 
 export class Mars {
     constructor() {
@@ -18,7 +18,7 @@ export class Mars {
     
     init() {
         this.createSurface();
-        this.createSurfaceFeatures();
+        // Surface features removed for clean visualization
     }
     
     createSurface() {
@@ -49,40 +49,8 @@ export class Mars {
         this.group.add(this.surface);
     }
     
-    // createSurfaceFeatures() {
-    //     // Major surface features markers
-    //     const features = [
-    //         { name: 'Olympus Mons', lat: 18.65, lon: 226.2, scale: 30 },
-    //         { name: 'Valles Marineris', lat: -14, lon: 301, scale: 50 },
-    //         { name: 'Hellas Planitia', lat: -42.5, lon: 70, scale: 40 }
-    //     ];
-        
-    //     features.forEach(feature => {
-    //         const phi = (90 - feature.lat) * Math.PI / 180;
-    //         const theta = feature.lon * Math.PI / 180;
-            
-    //         const x = this.radius * Math.sin(phi) * Math.cos(theta);
-    //         const y = this.radius * Math.cos(phi);
-    //         const z = this.radius * Math.sin(phi) * Math.sin(theta);
-            
-    //         // Add subtle marker
-    //         const markerGeometry = new THREE.SphereGeometry(feature.scale, 8, 8);
-    //         const markerMaterial = new THREE.MeshBasicMaterial({
-    //             color: 0x663300,
-    //             opacity: 0.3,
-    //             transparent: true
-    //         });
-            
-    //         const marker = new THREE.Mesh(markerGeometry, markerMaterial);
-    //         marker.position.set(x, y, z);
-    //         this.group.add(marker);
-    //     });
-    // }
-    
     update(camera, deltaTime) {
-        // Slow rotation (Mars day = 24.6 hours)
-        // For visualization, we'll make it rotate slowly
-        this.surface.rotation.y += deltaTime * 0.01;
+        // No rotation - Mars remains stationary in J2000 reference frame
     }
     
     getObject3D() {

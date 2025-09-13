@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from '/node_modules/three/build/three.module.js';
 
 export class TrajectoryManager {
     constructor() {
@@ -102,9 +102,7 @@ export class TrajectoryManager {
         // Current position indicator - larger and more visible
         const markerGeometry = new THREE.SphereGeometry(0.5, 16, 16);
         const markerMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffff00,  // Yellow for visibility
-            emissive: 0xffff00,
-            emissiveIntensity: 1.0
+            color: 0xffff00  // Yellow for visibility
         });
         
         this.currentPositionMarker = new THREE.Mesh(markerGeometry, markerMaterial);
@@ -450,6 +448,113 @@ export class TrajectoryManager {
         if (this.futureLine) {
             this.futureLine.material.opacity = 0.5 * (1 - progress * 0.5);
         }
+    }
+
+    /**
+     * Starting from the current time, offset the trajectory linearly in the specified direction.
+     * 
+     * Direction x and y are based on the current velocity/direction of the spacecraft. So x is horizontal relative to 
+     * the spacecraft, and y is towards or away from the planet radially.
+     * 
+     * The current position will not be moved at all in the target direction, but the amount that the 
+     * trajectory points are offset is increased linearly from 0% at the current position to finalPercent at the end.
+     * 
+     * @param {number} currentTime 
+     * @param {number} directionX 
+     * @param {number} directionY 
+     * @param {number} finalPercent
+     */
+    offsetTrajectoryLinearlyFromCurrentTime(currentTime, directionX, directionY, finalPercent = 0.1) {
+        if (!this.trajectoryData.length) return;
+
+        // Find the current index in the trajectory
+        let currentIndex = 0;
+        for (let i = 0; i < this.trajectoryData.length - 1; i++) {
+            if (this.trajectoryData[i].time <= currentTime && this.trajectoryData[i + 1].time > currentTime) {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        // Get interpolated data at currentTime
+        const currentData = this.getDataAtTime(currentTime);
+        if (!currentData) return;
+
+        // "Up" is from Mars center to position (radial)
+        const up = currentData.position.clone().normalize();
+
+        // Velocity is the direction of motion
+        const velocity = currentData.velocity.clone().normalize();
+
+        // "Horizontal" is perpendicular to velocity and up (in local tangent plane)
+        // The cross product is in this order due to the right-hand rule.
+        // In this order, the horizontal vector points "right", rather than "left" horizontally.
+        let horizontal = new THREE.Vector3().crossVectors(velocity, up).normalize();
+        if (horizontal.lengthSq() < 1e-8) {
+            // If velocity is parallel to up, pick arbitrary perpendicular
+            horizontal = new THREE.Vector3(1, 0, 0).cross(up).normalize();
+        }
+
+        // Compose the offset direction in world space
+        const offsetDir = new THREE.Vector3()
+            .addScaledVector(horizontal, directionX)
+            .addScaledVector(up, directionY);
+
+        if (offsetDir.lengthSq() < 1e-8) return; // No direction
+
+        offsetDir.normalize();
+
+        // Copy trajectory data and apply offset to positions
+        const newData = this.trajectoryData.map((pt, i) => {
+            if (i <= currentIndex) {
+                return {
+                    ...pt,
+                    position: pt.position.clone()
+                };
+            }
+
+            // Linear percent from currentIndex to end
+            const percent = (i - currentIndex) / (this.trajectoryData.length - 1 - currentIndex);
+            const offsetAmount = finalPercent * percent;
+
+            // Offset is proportional to the distance from current position to this point
+            const baseDist = pt.position.distanceTo(currentData.position);
+            const offset = offsetDir.clone().multiplyScalar(baseDist * offsetAmount);
+
+            return {
+                ...pt,
+                position: pt.position.clone().add(offset)
+            };
+        });
+
+        // Recompute velocity, altitude, velocityMagnitude, distanceToLanding for all points
+        for (let i = 0; i < newData.length; i++) {
+            const pt = newData[i];
+            // Unscale for calculations
+            const unscaledPos = pt.position.clone().multiplyScalar(1 / this.SCALE_FACTOR);
+            const rawDistance = unscaledPos.length();
+            pt.altitude = (rawDistance - this.marsRadius) * 0.001; // km
+            pt.distanceToLanding = rawDistance * 0.001; // km
+
+            // Velocity
+            if (i > 0) {
+                const prevPt = newData[i - 1];
+                const dt = pt.time - prevPt.time;
+                if (dt > 0) {
+                    pt.velocity = pt.position.clone().sub(prevPt.position).divideScalar(dt);
+                    pt.velocityMagnitude = pt.velocity.length() / this.SCALE_FACTOR;
+                } else {
+                    pt.velocity = prevPt.velocity.clone();
+                    pt.velocityMagnitude = prevPt.velocityMagnitude;
+                }
+            } else {
+                // First point: keep original or set to zero
+                pt.velocity = pt.velocity ? pt.velocity.clone() : new THREE.Vector3(0, -1, 0);
+                pt.velocityMagnitude = pt.velocity.length() / this.SCALE_FACTOR;
+            }
+        }
+
+        this.setTrajectoryData(newData);
     }
     
     dispose() {

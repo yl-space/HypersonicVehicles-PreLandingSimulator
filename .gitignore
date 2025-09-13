@@ -6,6 +6,8 @@ node_modules/
 dist/
 .pdf
 
+.claude/ 
+
 # Dependencies
 node_modules/
 npm-debug.log*
