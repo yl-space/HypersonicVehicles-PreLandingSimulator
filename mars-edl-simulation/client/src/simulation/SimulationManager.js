@@ -159,7 +159,8 @@ export class SimulationManager {
         // Camera and zoom controls
         this.controls = new Controls({
             onCameraMode: (mode) => this.setCameraMode(mode),
-            onZoom: (direction) => this.handleZoom(direction)
+            onZoom: (direction) => this.handleZoom(direction),
+            onBankAngle: (lastAngle, angle) => this.handleBankAngle(lastAngle, angle),
         });
         
         // Add planet switching buttons to existing UI
@@ -411,6 +412,12 @@ export class SimulationManager {
             case 'R':
                 this.restart();
                 break;
+            case 'a':
+                this.controls.updateBankAngleRelative(-5);
+                break;
+            case 'd':
+                this.controls.updateBankAngleRelative(5);
+                break;
         }
     }
     
@@ -594,6 +601,16 @@ export class SimulationManager {
     handleResize() {
         this.sceneManager.handleResize();
         this.cameraController.handleResize();
+    }
+
+    handleBankAngle(lastAngle, angle) {
+        this.offsetTrajectory(angle - lastAngle, 0);
+    }
+
+    offsetTrajectory(directionX, directionY) {
+        if (!this.trajectoryManager) return;
+
+        this.trajectoryManager.offsetTrajectoryLinearlyFromCurrentTime(this.state.currentTime, directionX, directionY);
     }
     
     dispose() {
