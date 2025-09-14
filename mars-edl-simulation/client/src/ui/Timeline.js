@@ -40,25 +40,23 @@ export class Timeline {
                 <div class="timeline-info">
                     <span class="current-time" id="current-time">Feb 18, 2021 03:48:41 pm</span>
                     <span class="separator">|</span>
-                    <span class="playback-rate">
-                        RATE 
-                        <select id="playback-speed">
-                            <option value="0.25">0.25x</option>
-                            <option value="0.5">0.5x</option>
-                            <option value="1" selected>1x</option>
-                            <option value="2">2x</option>
-                            <option value="5">5x</option>
-                            <option value="10">10x</option>
-                        </select>
-                        SEC(S)/SEC
-                    </span>
+                    <div class="playback-rate">
+                        <span class="rate-label">RATE</span>
+                        <div class="rate-buttons" id="rate-buttons">
+                            <button class="rate-button" data-rate="0.25">0.25</button>
+                            <button class="rate-button" data-rate="0.5">0.5</button>
+                            <button class="rate-button active" data-rate="1">1</button>
+                            <button class="rate-button" data-rate="2">2</button>
+                            <button class="rate-button" data-rate="3">3</button>
+                        </div>
+                        <span class="rate-label">SEC(S)/SEC</span>
+                    </div>
                 </div>
                 
                 <button class="replay-button" id="replay-button">
                     <svg width="20" height="20" viewBox="0 0 24 24">
                         <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" fill="currentColor"/>
                     </svg>
-                    REPLAY
                 </button>
             </div>
             
@@ -85,7 +83,7 @@ export class Timeline {
             playIcon: this.options.container.querySelector('.play-icon'),
             pauseIcon: this.options.container.querySelector('.pause-icon'),
             currentTime: document.getElementById('current-time'),
-            playbackSpeed: document.getElementById('playback-speed'),
+            rateButtons: document.getElementById('rate-buttons'),
             replayButton: document.getElementById('replay-button'),
             scrubber: document.getElementById('timeline-scrubber'),
             progress: document.getElementById('timeline-progress'),
@@ -102,11 +100,22 @@ export class Timeline {
             this.options.onPlayPause();
         });
         
-        // Playback speed
-        this.elements.playbackSpeed.addEventListener('change', (e) => {
-            this.state.playbackSpeed = parseFloat(e.target.value);
-            if (this.options.onSpeedChange) {
-                this.options.onSpeedChange(this.state.playbackSpeed);
+        // Playback speed buttons
+        this.elements.rateButtons.addEventListener('click', (e) => {
+            if (e.target.classList.contains('rate-button')) {
+                // Remove active class from all buttons
+                this.elements.rateButtons.querySelectorAll('.rate-button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                // Add active class to clicked button
+                e.target.classList.add('active');
+                
+                // Update playback speed
+                this.state.playbackSpeed = parseFloat(e.target.dataset.rate);
+                if (this.options.onSpeedChange) {
+                    this.options.onSpeedChange(this.state.playbackSpeed);
+                }
             }
         });
         
@@ -283,6 +292,13 @@ export class Timeline {
     
     setPlaybackSpeed(speed) {
         this.state.playbackSpeed = speed;
-        this.elements.playbackSpeed.value = speed;
+        
+        // Update active button
+        this.elements.rateButtons.querySelectorAll('.rate-button').forEach(btn => {
+            btn.classList.remove('active');
+            if (parseFloat(btn.dataset.rate) === speed) {
+                btn.classList.add('active');
+            }
+        });
     }
 }

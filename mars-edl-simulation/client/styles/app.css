@@ -199,16 +199,16 @@ body {
    =========================== */
 #timeline-container {
     position: absolute;
-    bottom: 40px;
+    bottom: 30px;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(-45%);
     width: auto;
     max-width: none;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(50px);
+    -webkit-backdrop-filter: blur(50px);
     padding: 12px 24px;
-    border-radius: 6px;
+    border-radius: 15px;
     z-index: 100;
     border: none;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
@@ -266,17 +266,55 @@ body {
 .playback-rate {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 8px;
+    color: #FFFFFF;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }
 
-#playback-speed {
+.rate-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0;
     background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #fff;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.rate-button {
+    background: transparent;
+    border: none;
+    color: #FFFFFF;
     padding: 4px 8px;
-    border-radius: 3px;
+    font-family: 'Helvetica Neue', 'Arial', sans-serif;
     font-size: 11px;
+    font-weight: 400;
     cursor: pointer;
+    transition: all 0.2s;
+    border-right: 1px solid rgba(255, 255, 255, 0.2);
+    outline: none;
+}
+
+.rate-button:last-child {
+    border-right: none;
+}
+
+.rate-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.rate-button.active {
+    background: rgba(255, 255, 255, 0.3);
+    color: #FFFFFF;
+    font-weight: 600;
+}
+
+.rate-label {
+    font-size: 11px;
+    color: #FFFFFF;
+    font-weight: 400;
 }
 
 .replay-button {
