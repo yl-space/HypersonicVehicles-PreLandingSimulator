@@ -161,16 +161,17 @@ body {
     position: absolute;
     top: 60px;
     left: 20px;
-    background: rgba(0, 0, 0, 0.85);
+    background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     padding: 15px;
     border-radius: 8px;
-    max-width: 320px;
+    max-width: 520px;
     z-index: 100;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     font-size: 13px;
+    overflow-y: hidden;
 }
 
 #phase-info h2 {
@@ -727,6 +728,273 @@ body {
     background: #f60;
 }
 
+/* ===========================
+   Phase Info Panel Styles
+   =========================== */
+
+.phase-info {
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.phase-title {
+    font-size: 26px;
+    font-weight: 300;
+    margin-bottom: 20px;
+    letter-spacing: -0.5px;
+    animation: slideIn 0.6s ease-out;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(-30px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.telemetry {
+    margin: 20px 0;
+}
+
+.telemetry-item {
+    margin: 10px 0;
+    font-size: 14px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.telemetry-label {
+    font-weight: 600;
+    color: #ccc;
+}
+
+.telemetry-value {
+    font-family: 'Courier New', monospace;
+    font-size: 15px;
+    font-weight: bold;
+    color: #fff;
+    min-width: 100px;
+    display: inline-block;
+}
+
+.phase-description {
+    margin: 25px 0;
+    line-height: 1.7;
+    color: #aaa;
+    font-size: 15px;
+    overflow-y: hidden;
+}
+
+.countdown {
+    margin: 25px 0;
+    padding: 15px;
+    background: rgba(255, 102, 0, 0.1);
+    border-left: 3px solid #f60;
+    border-radius: 0 5px 5px 0;
+}
+
+.countdown-label {
+    font-size: 14px;
+    color: #999;
+    margin-right: 10px;
+}
+
+.countdown-value {
+    font-size: 14px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    color: #f60;
+}
+
+.next-phase {
+    margin: 20px 0;
+    font-size: 14px;
+    color: #888;
+}
+
+.next-phase-label {
+    margin-bottom: 5px;
+}
+
+.next-phase-info {
+    color: #ccc;
+}
+
+#next-phase-name {
+    color: #fff;
+    font-weight: 600;
+}
+
+#next-phase-time {
+    font-family: 'Courier New', monospace;
+    color: #f60;
+}
+
+.phase-progress {
+    margin: 30px 0 20px;
+}
+
+.progress-bar {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f60, #ff8800);
+    border-radius: 2px;
+    width: var(--progress-width, 0%);
+    transition: width 0.3s ease-out;
+}
+
+.progress-label {
+    font-size: 11px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.additional-telemetry {
+    margin-top: 10px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.telemetry-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+}
+
+.telemetry-cell {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 12px 15px;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.cell-label {
+    font-size: 11px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cell-value {
+    font-size: 14px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+}
+
+.scroll-indicator {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: #666;
+    animation: bounce 2s infinite;
+    cursor: pointer;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(5px); }
+}
+
+.scroll-indicator:hover {
+    color: #999;
+}
+
+.phase-alert {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    color: #fff;
+    padding: 15px 25px;
+    border-radius: 5px;
+    font-weight: bold;
+    z-index: 1000;
+}
+
+.alert-warning {
+    background: #ff6600;
+}
+
+.alert-info {
+    background: #00ccff;
+}
+
+@keyframes alertSlide {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.alert-slide-in {
+    animation: alertSlide 0.5s ease-out;
+}
+
+.alert-slide-out {
+    animation: alertSlide 0.5s ease-out reverse;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.no-animation {
+    animation: none !important;
+}
+
+.slide-in-animation {
+    animation: slideIn 0.6s ease-out;
+}
+
+.fade-in-delayed-animation {
+    animation: fadeIn 0.6s ease-out 0.2s both;
+}
+
+.value-normal {
+    color: #00ff66 !important;
+}
+
+.value-warning {
+    color: #ff9933 !important;
+}
+
+.value-danger {
+    color: #ff3333 !important;
+}
+
+.notification-slide-in {
+    animation: slideInRight 0.3s ease-out;
+}
+
+.notification-slide-out {
+    animation: slideOutRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideOutRight {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+}
+
 /* Responsive Controls */
 @media (max-width: 768px) {
     .camera-controls {
@@ -750,6 +1018,18 @@ body {
     .settings-content {
         left: 0;
         right: auto;
+    }
+    
+    .phase-title {
+        font-size: 28px;
+    }
+    
+    .telemetry-value {
+        font-size: 14px;
+    }
+    
+    .telemetry-grid {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -776,11 +1056,11 @@ body {
 .zoom-controls {
     position: fixed !important;
     right: 15px !important;
-    bottom: 180px !important;
+    bottom: 80px !important;
     display: flex !important;
     flex-direction: column !important;
     gap: 4px !important;
-    z-index: 1000 !important;
+    z-index: 100 !important;
     pointer-events: auto !important;
 }
 
@@ -861,6 +1141,7 @@ body {
         max-width: none;
         padding: 12px;
         font-size: 11px;
+        overflow-y: hidden;
     }
     
     #phase-info h2 {

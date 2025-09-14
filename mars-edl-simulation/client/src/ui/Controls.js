@@ -309,23 +309,12 @@ export class Controls {
         const notification = document.createElement('div');
         notification.className = `control-notification notification-${type}`;
         notification.textContent = message;
-        notification.style.cssText = `
-            position: fixed;
-            top: 80px;
-            right: 20px;
-            background: ${type === 'success' ? '#00cc44' : '#f60'};
-            color: #fff;
-            padding: 15px 25px;
-            border-radius: 5px;
-            font-weight: 500;
-            animation: slideInRight 0.3s ease-out;
-            z-index: 1000;
-        `;
+        notification.classList.add('notification-slide-in');
         
         document.body.appendChild(notification);
         
         setTimeout(() => {
-            notification.style.animation = 'slideOutRight 0.3s ease-out';
+            notification.classList.add('notification-slide-out');
             setTimeout(() => notification.remove(), 300);
         }, 3000);
     }
