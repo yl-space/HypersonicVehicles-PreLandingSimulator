@@ -159,19 +159,23 @@ body {
    =========================== */
 #phase-info {
     position: absolute;
-    top: 60px;
-    left: 20px;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    padding: 15px;
-    border-radius: 8px;
-    max-width: 520px;
+    top: 120px;
+    left: 48px;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: 0;
+    border-radius: 0;
+    max-width: 450px;
+    max-height: none;
     z-index: 100;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    font-size: 13px;
-    overflow-y: hidden;
+    border: none;
+    box-shadow: none;
+    font-size: 14px;
+    font-family: 'Helvetica Neue', 'Arial', sans-serif;
+    font-weight: 300;
+    overflow-y: visible;
+    color: #FFFFFF;
 }
 
 #phase-info h2 {
@@ -195,42 +199,44 @@ body {
    =========================== */
 #timeline-container {
     position: absolute;
-    bottom: 15px;
+    bottom: 40px;
     left: 50%;
     transform: translateX(-50%);
-    width: 60%;
-    max-width: 600px;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(25px);
-    -webkit-backdrop-filter: blur(25px);
-    padding: 12px;
+    width: auto;
+    max-width: none;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 12px 24px;
     border-radius: 6px;
     z-index: 100;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    font-size: 12px;
+    border: none;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    font-size: 14px;
+    font-family: 'Helvetica Neue', 'Arial', sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-direction: row;
 }
 
 .timeline-controls {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 10px;
-    font-size: 12px;
+    display: contents;
 }
 
 .play-button {
     width: 36px;
     height: 36px;
     background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 4px;
-    color: #fff;
+    color: #FFFFFF;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
+    order: 2;
 }
 
 .play-button:hover {
@@ -246,8 +252,11 @@ body {
 }
 
 .current-time {
-    color: #fff;
-    font-weight: 500;
+    color: #FFFFFF;
+    font-weight: 400;
+    font-size: 14px;
+    order: 1;
+    white-space: nowrap;
 }
 
 .separator {
@@ -273,19 +282,21 @@ body {
 .replay-button {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #fff;
-    padding: 6px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #FFFFFF;
+    padding: 8px 16px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 11px;
-    font-weight: 500;
-    margin-left: auto;
+    font-size: 12px;
+    font-weight: 400;
     transition: all 0.2s;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
+    order: 0;
+    white-space: nowrap;
+    margin-left: 0;
 }
 
 .replay-button:hover {
@@ -294,16 +305,21 @@ body {
 
 .timeline-scrubber {
     position: relative;
-    height: 32px;
-    padding: 8px 0;
+    height: 6px;
     cursor: pointer;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    width: 300px;
+    margin: 0;
+    padding: 0;
+    order: 3;
 }
 
 .timeline-track {
     position: relative;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
+    height: 100%;
+    background: transparent;
+    border-radius: 3px;
     overflow: visible;
 }
 
@@ -318,8 +334,8 @@ body {
 .timeline-progress {
     position: absolute;
     height: 100%;
-    background: #f60;
-    border-radius: 2px;
+    background: #FFFFFF;
+    border-radius: 3px;
     width: 0%;
     transition: width 0.1s ease-out;
 }
@@ -742,10 +758,15 @@ body {
 }
 
 .phase-title {
-    font-size: 26px;
-    font-weight: 300;
-    margin-bottom: 20px;
-    letter-spacing: -0.5px;
+    font-size: 48px;
+    font-weight: 200;
+    margin-bottom: 24px;
+    letter-spacing: -1px;
+    line-height: 1;
+    text-transform: none;
+    color: #FFFFFF;
+    border-bottom: none;
+    padding-bottom: 0;
     animation: slideIn 0.6s ease-out;
 }
 
@@ -755,143 +776,191 @@ body {
 }
 
 .telemetry {
-    margin: 20px 0;
+    margin: 0 0 24px 0;
 }
 
 .telemetry-item {
-    margin: 10px 0;
-    font-size: 14px;
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
+    margin: 0;
+    font-size: 16px;
+    display: block;
+    line-height: 1.4;
+    padding: 0;
+    border-bottom: none;
 }
 
 .telemetry-label {
-    font-weight: 600;
-    color: #ccc;
+    font-weight: 700;
+    color: #FFFFFF;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 16px;
+    display: inline;
 }
 
 .telemetry-value {
-    font-family: 'Courier New', monospace;
-    font-size: 15px;
-    font-weight: bold;
-    color: #fff;
-    min-width: 100px;
-    display: inline-block;
+    font-family: 'Helvetica Neue', 'Arial', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: #FFFFFF;
+    display: inline;
+    margin-right: 8px;
 }
 
 .phase-description {
-    margin: 25px 0;
-    line-height: 1.7;
-    color: #aaa;
-    font-size: 15px;
-    overflow-y: hidden;
+    margin: 24px 0;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 16px;
+    max-height: none;
+    overflow-y: visible;
+    display: block;
+    -webkit-line-clamp: none;
+    -webkit-box-orient: none;
+    text-overflow: none;
+    font-style: normal;
+    border-left: none;
+    padding-left: 0;
+    max-width: 420px;
 }
 
 .countdown {
-    margin: 25px 0;
-    padding: 15px;
-    background: rgba(255, 102, 0, 0.1);
-    border-left: 3px solid #f60;
-    border-radius: 0 5px 5px 0;
+    margin: 24px 0;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+    text-align: left;
 }
 
 .countdown-label {
-    font-size: 14px;
-    color: #999;
-    margin-right: 10px;
+    font-size: 16px;
+    color: #FFFFFF;
+    text-transform: none;
+    letter-spacing: 0;
+    display: inline;
+    margin-bottom: 0;
+    font-weight: 700;
 }
 
 .countdown-value {
-    font-size: 14px;
-    font-weight: bold;
-    font-family: 'Courier New', monospace;
-    color: #f60;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: 'Helvetica Neue', 'Arial', sans-serif;
+    color: #FFFFFF;
+    display: inline;
+    margin-left: 8px;
 }
 
 .next-phase {
-    margin: 20px 0;
-    font-size: 14px;
-    color: #888;
+    margin: 24px 0 0 0;
+    font-size: 16px;
+    color: #FFFFFF;
+    padding: 0;
+    background: none;
+    border-radius: 0;
 }
 
 .next-phase-label {
-    margin-bottom: 5px;
+    margin-bottom: 8px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 700;
+    color: #FFFFFF;
+    display: block;
 }
 
 .next-phase-info {
-    color: #ccc;
+    color: #FFFFFF;
+    font-size: 16px;
+    font-weight: 400;
 }
 
 #next-phase-name {
-    color: #fff;
-    font-weight: 600;
+    color: #FFFFFF;
+    font-weight: 400;
+    text-transform: none;
+    display: inline;
 }
 
 #next-phase-time {
-    font-family: 'Courier New', monospace;
-    color: #f60;
+    font-family: 'Helvetica Neue', 'Arial', sans-serif;
+    color: #FFFFFF;
+    font-weight: 700;
+    display: inline;
+    margin-left: 8px;
 }
 
 .phase-progress {
-    margin: 30px 0 20px;
+    margin: 15px 0 10px;
 }
 
 .progress-bar {
-    height: 4px;
+    height: 6px;
     background: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
+    border-radius: 1px;
     overflow: hidden;
     margin-bottom: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #f60, #ff8800);
-    border-radius: 2px;
+    background: linear-gradient(90deg, #FF6B35, #FF8F00);
+    border-radius: 1px;
     width: var(--progress-width, 0%);
-    transition: width 0.3s ease-out;
+    transition: width 0.5s ease-out;
+    box-shadow: 0 0 10px rgba(255, 107, 53, 0.3);
 }
 
 .progress-label {
-    font-size: 11px;
-    color: #666;
+    font-size: 10px;
+    color: #B0B0B0;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
+    font-weight: 600;
 }
 
 .additional-telemetry {
-    margin-top: 10px;
-    padding-top: 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .telemetry-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 15px;
+    gap: 12px;
 }
 
 .telemetry-cell {
-    background: rgba(0, 0, 0, 0.3);
-    padding: 12px 15px;
-    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 10px;
+    border-radius: 2px;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
+    transition: background-color 0.3s ease;
+}
+
+.telemetry-cell:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 107, 53, 0.3);
 }
 
 .cell-label {
-    font-size: 11px;
-    color: #888;
+    font-size: 9px;
+    color: #B0B0B0;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    font-weight: 600;
 }
 
 .cell-value {
-    font-size: 14px;
-    font-weight: bold;
+    font-size: 12px;
+    font-weight: 700;
     font-family: 'Courier New', monospace;
+    color: #FFFFFF;
 }
 
 .scroll-indicator {
@@ -1139,17 +1208,18 @@ body {
         left: 10px;
         right: 10px;
         max-width: none;
-        padding: 12px;
-        font-size: 11px;
-        overflow-y: hidden;
+        max-height: 350px;
+        padding: 10px;
+        font-size: 10px;
+        overflow-y: auto;
     }
     
     #phase-info h2 {
-        font-size: 16px;
+        font-size: 14px;
     }
     
     #phase-info h3 {
-        font-size: 20px;
+        font-size: 16px;
     }
     
     #timeline-container {
