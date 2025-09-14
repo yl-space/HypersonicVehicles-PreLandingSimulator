@@ -57,7 +57,7 @@ export class SimulationManager {
             playbackSpeed: 1,
             currentPhase: 0,
             vehicleData: null,
-            currentPlanet: 'jupiter',
+            currentPlanet: 'mars',
             bankAngle: 0
         };
         
@@ -82,8 +82,8 @@ export class SimulationManager {
             this.sceneManager.renderer
         );
         
-        // Ensure Jupiter is active by default
-        this.sceneManager.switchPlanet('jupiter');
+        // Ensure Mars is active by default
+        this.sceneManager.switchPlanet('mars');
         
         this.trajectoryManager = new TrajectoryManager();
         this.phaseController = new PhaseController();
@@ -120,9 +120,9 @@ export class SimulationManager {
         this.earth = new Earth();
         this.jupiter = new Jupiter();
         
-        // Start with Jupiter visible
-        this.currentPlanet = this.jupiter;
-        this.sceneManager.addToAllScenes(this.jupiter.getObject3D());
+        // Start with Mars visible
+        this.currentPlanet = this.mars;
+        this.sceneManager.addToAllScenes(this.mars.getObject3D());
         
         // Create coordinate axes for reference 
         // Using scale of 300 units to be clearly visible with planet scales
@@ -186,7 +186,7 @@ export class SimulationManager {
         
         ['mars', 'earth', 'jupiter'].forEach(planet => {
             const btn = document.createElement('button');
-            btn.className = `planet-btn ${planet === 'jupiter' ? 'active' : ''}`;
+            btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''}`;
             btn.textContent = planet.charAt(0).toUpperCase() + planet.slice(1);
             btn.style.cssText = `
                 padding: 12px 24px;
@@ -600,10 +600,41 @@ export class SimulationManager {
     }
     
     restart() {
+        // Full simulation reset
         this.state.currentTime = 0;
         this.state.isPlaying = false;
+        this.state.currentPhase = 0;
+        this.state.bankAngle = 0;
+        
+        // Reset trajectory display
+        if (this.trajectoryManager) {
+            this.trajectoryManager.resetTrajectory();
+        }
+        
+        // Reset spacecraft state
+        if (this.entryVehicle) {
+            this.entryVehicle.setVectorsVisible(false);
+            // Reset spacecraft position to start
+            const startData = this.trajectoryManager.getDataAtTime(0);
+            if (startData && startData.position) {
+                this.entryVehicle.setPosition(startData.position);
+            }
+        }
+        
+        // Reset UI elements
+        if (this.controls && this.controls.elements.bankAngleSlider) {
+            this.controls.elements.bankAngleSlider.value = 0;
+            this.controls.elements.bankAngleValue.textContent = '0°';
+            this.controls.lastSliderValue = 0;
+        }
+        
+        // Reset camera
+        if (this.cameraController) {
+            this.cameraController.reset();
+        }
+        
+        // Seek to beginning
         this.seekTo(0);
-        this.cameraController.reset();
     }
     
     handleResize() {

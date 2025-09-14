@@ -373,6 +373,10 @@ export class TrajectoryManager {
     setTrajectoryData(data) {
         if (Array.isArray(data)) {
             this.trajectoryData = data;
+            // Store original data for reset functionality
+            if (!this.originalTrajectoryData) {
+                this.originalTrajectoryData = data.map(pt => ({...pt, position: pt.position.clone()}));
+            }
             this.createOptimizedTrajectory();
             this.updateInstancedPoints();
         }
@@ -549,6 +553,20 @@ export class TrajectoryManager {
         }
 
         this.setTrajectoryData(newData);
+    }
+    
+    resetTrajectory() {
+        // Reset to original trajectory data if available
+        if (this.originalTrajectoryData) {
+            this.setTrajectoryData(this.originalTrajectoryData.slice());
+        } else {
+            // Generate sample trajectory if no original data
+            this.generateSampleTrajectory();
+        }
+        
+        // Reset trajectory display
+        this.updateTrajectoryDisplay(0);
+        this.updateTrajectoryVisibility(0);
     }
     
     dispose() {

@@ -1,7 +1,7 @@
 import * as THREE from '/node_modules/three/build/three.module.js';
 import { EffectComposer } from '/node_modules/three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from '/node_modules/three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from '/node_modules/three/examples/jsm/postprocessing/UnrealBloomPass.js';
+// import { UnrealBloomPass } from '/node_modules/three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { SMAAPass } from '/node_modules/three/examples/jsm/postprocessing/SMAAPass.js';
 import { OutputPass } from '/node_modules/three/examples/jsm/postprocessing/OutputPass.js';
 
@@ -23,7 +23,7 @@ export class SceneManager {
             lines: 0
         };
         
-        // Modern Three.js features
+
         this.USE_WEBGPU = false; // Set to true when WebGPU is stable
         this.USE_PMREM = true; // Use PMREM for better environment maps
         
@@ -64,8 +64,8 @@ export class SceneManager {
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         
         // Enable modern features
-        this.renderer.useLegacyLights = false; // Use physically correct lighting
-        this.renderer.shadowMap.autoUpdate = false; // Manual shadow updates for performance
+        this.renderer.useLegacyLights = false; 
+        this.renderer.shadowMap.autoUpdate = false; 
         
         this.container.appendChild(this.renderer.domElement);
     }
@@ -95,14 +95,14 @@ export class SceneManager {
         this.renderPass = new RenderPass(null, this.camera);
         this.composer.addPass(this.renderPass);
         
-        // Bloom for atmospheric effects (reduced strength to prevent black patches)
-        const bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(this.container.clientWidth, this.container.clientHeight),
-            0.2,  // Reduced strength
-            0.3,  // Reduced radius
-            0.9   // Higher threshold (less bloom)
-        );
-        this.composer.addPass(bloomPass);
+        // // Bloom for atmospheric effects (reduced strength to prevent black patches)
+        // const bloomPass = new UnrealBloomPass(
+        //     new THREE.Vector2(this.container.clientWidth, this.container.clientHeight),
+        //     0.2,  // Reduced strength
+        //     0.3,  // Reduced radius
+        //     0.9   // Higher threshold (less bloom)
+        // );
+        // this.composer.addPass(bloomPass);
         
         // SMAA for better antialiasing
         const smaaPass = new SMAAPass(
@@ -212,7 +212,6 @@ export class SceneManager {
     }
     
     updatePlanetRotation(deltaTime) {
-        // Planet rotation removed - planets remain stationary in J2000 reference frame
         // This method kept for compatibility but does nothing
     }
     

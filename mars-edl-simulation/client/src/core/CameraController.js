@@ -14,12 +14,12 @@ export class CameraController {
         
         // Camera state (adjusted for better viewing angles)
         this.state = {
-            distance: 50,      // Better initial distance for planet scale
-            height: 20,        // Better height offset
+            distance: 15,      // Much closer initial distance for better spacecraft focus
+            height: 5,         // Lower height for better spacecraft focus
             angle: 0,
-            defaultDistance: 50,
-            minDistance: 10,   // Minimum zoom distance
-            maxDistance: 500   // Maximum zoom distance
+            defaultDistance: 15,
+            minDistance: 1,    // Much closer minimum zoom distance
+            maxDistance: 200   // Reduced maximum distance
         };
         
         // Mouse controls for orbit mode
@@ -33,7 +33,7 @@ export class CameraController {
         this.orbit = {
             theta: Math.PI / 4,  // Azimuth
             phi: Math.PI / 4,    // Elevation (better initial angle)
-            radius: 100,         // Better orbit radius for planet scale
+            radius: 25,          // Much closer orbit radius for spacecraft focus
             minPhi: 0.1,         // Prevent camera from going below ground
             maxPhi: Math.PI - 0.1  // Prevent camera flip
         };
@@ -229,13 +229,18 @@ export class CameraController {
                     if (velocity.length() > 0.001) {
                         velocity.normalize();
                         
-                        // Position camera behind the spacecraft
+                        // Position camera behind and slightly above the spacecraft for better view
                         desiredPosition.copy(targetPos);
                         desiredPosition.sub(velocity.clone().multiplyScalar(this.state.distance));
                         desiredPosition.y += this.state.height;
                         
+                        // Add slight offset to avoid looking directly from behind
+                        const sideOffset = new THREE.Vector3();
+                        sideOffset.crossVectors(velocity, new THREE.Vector3(0, 1, 0)).normalize();
+                        desiredPosition.add(sideOffset.multiplyScalar(this.state.distance * 0.2));
+                        
                         // Ensure camera doesn't go below ground level
-                        desiredPosition.y = Math.max(5, desiredPosition.y);
+                        desiredPosition.y = Math.max(2, desiredPosition.y);
                     } else {
                         // Static follow when no velocity
                         desiredPosition.set(
@@ -245,7 +250,7 @@ export class CameraController {
                         );
                         
                         // Ensure camera doesn't go below ground level
-                        desiredPosition.y = Math.max(5, desiredPosition.y);
+                        desiredPosition.y = Math.max(2, desiredPosition.y);
                     }
                 } else {
                     // Default follow position
