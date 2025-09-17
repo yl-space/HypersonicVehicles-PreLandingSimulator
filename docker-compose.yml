@@ -11,7 +11,7 @@ services:
     volumes:
       - trajectory_data:/app/server/data/trajectories
       - mission_data:/app/server/data/missions
-      - ../logs:/app/logs
+      - ./logs:/app/logs
     restart: unless-stopped
     networks:
       - edl_network
@@ -24,7 +24,7 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - /etc/incommon:/ssl:ro
-      - ../logs:/logs
+      - ./logs:/logs
     depends_on:
       - app
     restart: unless-stopped
