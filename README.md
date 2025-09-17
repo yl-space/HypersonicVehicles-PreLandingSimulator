@@ -49,9 +49,8 @@ npm start
 3. `sudo chmod 666 /var/run/docker.sock`
 
 **Start Server Manually:**
-1. `cd mars-edl-simulation`
-2. `docker compose build --pull`
-3. `docker compose up -d`
+1. `docker compose build --pull`
+2. `docker compose up -d`
 
 Note: Since both the server and nginx are set to always restart, this will continue to work in the case of either the server crashing or the host restarting.
 
