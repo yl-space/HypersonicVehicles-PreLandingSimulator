@@ -76,8 +76,8 @@ export class SceneManager {
         this.camera = new THREE.PerspectiveCamera(
             50,
             aspect,
-            1,      // Increased near plane to prevent z-fighting
-            100000  // Increased far plane for large scale scenes
+            0.001,  // Very close near plane for small spacecraft (0.01 units)
+            10000   // Far plane for large scale scenes
         );
         
         this.camera.position.set(150, 100, 150);

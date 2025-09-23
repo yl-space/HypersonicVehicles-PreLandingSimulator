@@ -30,21 +30,21 @@ export class TrajectoryManager {
         // Use BufferGeometry for better performance
         this.pathGeometry = new THREE.BufferGeometry();
         
-        // Materials with modern features - more visible colors
+        // Materials with modern features - thinner lines for better view
         this.pastMaterial = new THREE.LineBasicMaterial({
             color: 0x00ff00,  // Bright green for traveled path
-            linewidth: 3,
-            opacity: 1.0,
-            transparent: false
+            linewidth: 1,     // Reduced thickness
+            opacity: 0.8,
+            transparent: true
         });
-        
+
         this.futureMaterial = new THREE.LineDashedMaterial({
             color: 0xff0000,  // Red for future path
-            linewidth: 3,
-            opacity: 0.8,
+            linewidth: 1,     // Reduced thickness
+            opacity: 0.6,
             transparent: true,
-            dashSize: 5,
-            gapSize: 3,
+            dashSize: 2,      // Smaller dashes
+            gapSize: 1,       // Smaller gaps
             scale: 1
         });
         
@@ -69,8 +69,8 @@ export class TrajectoryManager {
     }
     
     createInstancedPathPoints() {
-        // Geometry for each point
-        const pointGeometry = new THREE.SphereGeometry(0.02, 4, 4);
+        // Geometry for each point - minimal detail for performance
+        const pointGeometry = new THREE.SphereGeometry(0.02, 4, 2);
         const pointMaterial = new THREE.MeshBasicMaterial({
             color: 0x00ffff
         });
@@ -190,14 +190,14 @@ export class TrajectoryManager {
         // Compute bounding sphere for frustum culling
         this.pathGeometry.computeBoundingSphere();
         
-        // Create full trajectory line - more visible
+        // Create full trajectory line - thinner for better visibility
         this.trajectoryLine = new THREE.Line(
             this.pathGeometry,
             new THREE.LineBasicMaterial({
                 color: 0xffffff,  // White for full path
-                opacity: 0.3,
+                opacity: 0.2,
                 transparent: true,
-                linewidth: 2
+                linewidth: 1      // Reduced thickness
             })
         );
         
@@ -554,7 +554,185 @@ export class TrajectoryManager {
 
         this.setTrajectoryData(newData);
     }
-    
+
+    /**
+     * Apply physics-based trajectory modification using lift force from bank angle
+     * @param {number} currentTime - Current simulation time
+     * @param {THREE.Vector3} liftForceDirection - Direction of lift force in 3D space
+     * @param {number} bankAngle - Current bank angle in degrees
+     */
+    offsetTrajectoryWithPhysics(currentTime, liftForceDirection, bankAngle) {
+        if (!this.trajectoryData.length || !liftForceDirection) return;
+
+        // Find the current index in the trajectory
+        let currentIndex = 0;
+        for (let i = 0; i < this.trajectoryData.length - 1; i++) {
+            if (this.trajectoryData[i].time <= currentTime && this.trajectoryData[i + 1].time > currentTime) {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        // Get interpolated data at currentTime
+        const currentData = this.getDataAtTime(currentTime);
+        if (!currentData) return;
+
+        // Copy trajectory data and apply physics-based offset
+        const newData = this.trajectoryData.map((pt, i) => {
+            if (i <= currentIndex) {
+                return {
+                    ...pt,
+                    position: pt.position.clone()
+                };
+            }
+
+            // Time factor for cumulative effect
+            const timeDelta = pt.time - currentTime;
+            const timeWeight = Math.min(1.0, timeDelta / 60.0); // Effect builds over 60 seconds
+
+            // Atmospheric effect - stronger in denser atmosphere
+            const altitudeFactor = Math.exp(-Math.max(0, pt.altitude) / 11.1); // Mars scale height
+
+            // Velocity-dependent effect - stronger at higher speeds
+            const velocityFactor = Math.min(1.0, pt.velocityMagnitude / 5000); // Normalize to entry speed
+
+            // Bank angle effect magnitude
+            const bankAngleFactor = Math.sin(THREE.MathUtils.degToRad(Math.abs(bankAngle))) * 2.0;
+
+            // Combined effect magnitude
+            const effectMagnitude = timeWeight * altitudeFactor * velocityFactor * bankAngleFactor * 0.01;
+
+            // Apply cumulative lateral displacement
+            const displacement = liftForceDirection.clone().multiplyScalar(effectMagnitude);
+
+            return {
+                ...pt,
+                position: pt.position.clone().add(displacement)
+            };
+        });
+
+        // Recompute derived properties for modified trajectory
+        for (let i = 0; i < newData.length; i++) {
+            const pt = newData[i];
+
+            // Recalculate altitude and distance
+            const unscaledPos = pt.position.clone().multiplyScalar(1 / this.SCALE_FACTOR);
+            const rawDistance = unscaledPos.length();
+            pt.altitude = (rawDistance - this.marsRadius) * 0.001; // km
+            pt.distanceToLanding = rawDistance * 0.001; // km
+
+            // Recalculate velocity based on new positions
+            if (i > 0) {
+                const prevPt = newData[i - 1];
+                const dt = pt.time - prevPt.time;
+                if (dt > 0) {
+                    pt.velocity = pt.position.clone().sub(prevPt.position).divideScalar(dt);
+                    pt.velocityMagnitude = pt.velocity.length() / this.SCALE_FACTOR;
+                } else {
+                    pt.velocity = prevPt.velocity.clone();
+                    pt.velocityMagnitude = prevPt.velocityMagnitude;
+                }
+            } else {
+                // First point: preserve original velocity
+                pt.velocity = pt.velocity ? pt.velocity.clone() : new THREE.Vector3(0, -1, 0);
+                pt.velocityMagnitude = pt.velocity.length() / this.SCALE_FACTOR;
+            }
+        }
+
+        this.setTrajectoryData(newData);
+    }
+
+    /**
+     * Real-time physics-based trajectory modification with immediate visual feedback
+     * @param {number} currentTime - Current simulation time
+     * @param {THREE.Vector3} liftForceDirection - Direction of lift force in 3D space
+     * @param {number} bankAngle - Current bank angle in degrees
+     */
+    offsetTrajectoryWithPhysicsRealTime(currentTime, liftForceDirection, bankAngle) {
+        if (!this.trajectoryData.length || !liftForceDirection) {
+            return;
+        }
+
+        // Find the current index in the trajectory
+        let currentIndex = 0;
+        for (let i = 0; i < this.trajectoryData.length - 1; i++) {
+            if (this.trajectoryData[i].time <= currentTime && this.trajectoryData[i + 1].time > currentTime) {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        // Get interpolated data at currentTime
+        const currentData = this.getDataAtTime(currentTime);
+        if (!currentData) return;
+
+        // Enhanced real-time modification with immediate effect
+        const newData = this.trajectoryData.map((pt, i) => {
+            if (i <= currentIndex) {
+                return {
+                    ...pt,
+                    position: pt.position.clone()
+                };
+            }
+
+            // Immediate strong effect for real-time feedback
+            const timeDelta = pt.time - currentTime;
+            const timeWeight = Math.min(1.0, timeDelta / 30.0); // Faster effect build-up
+
+            // Enhanced atmospheric effect
+            const altitudeFactor = Math.exp(-Math.max(0, pt.altitude) / 11.1);
+
+            // Enhanced velocity effect
+            const velocityFactor = Math.min(1.0, pt.velocityMagnitude / 4000);
+
+            // Stronger bank angle effect for immediate visibility
+            const bankAngleFactor = Math.sin(THREE.MathUtils.degToRad(Math.abs(bankAngle))) * 5.0;
+
+            // Enhanced effect magnitude for real-time response
+            const effectMagnitude = timeWeight * altitudeFactor * velocityFactor * bankAngleFactor * 0.03;
+
+            // Apply enhanced lateral displacement
+            const displacement = liftForceDirection.clone().multiplyScalar(effectMagnitude);
+
+            return {
+                ...pt,
+                position: pt.position.clone().add(displacement)
+            };
+        });
+
+        // Recompute derived properties
+        for (let i = 0; i < newData.length; i++) {
+            const pt = newData[i];
+
+            // Recalculate altitude and distance
+            const unscaledPos = pt.position.clone().multiplyScalar(1 / this.SCALE_FACTOR);
+            const rawDistance = unscaledPos.length();
+            pt.altitude = (rawDistance - this.marsRadius) * 0.001;
+            pt.distanceToLanding = rawDistance * 0.001;
+
+            // Recalculate velocity
+            if (i > 0) {
+                const prevPt = newData[i - 1];
+                const dt = pt.time - prevPt.time;
+                if (dt > 0) {
+                    pt.velocity = pt.position.clone().sub(prevPt.position).divideScalar(dt);
+                    pt.velocityMagnitude = pt.velocity.length() / this.SCALE_FACTOR;
+                } else {
+                    pt.velocity = prevPt.velocity.clone();
+                    pt.velocityMagnitude = prevPt.velocityMagnitude;
+                }
+            } else {
+                pt.velocity = pt.velocity ? pt.velocity.clone() : new THREE.Vector3(0, -1, 0);
+                pt.velocityMagnitude = pt.velocity.length() / this.SCALE_FACTOR;
+            }
+        }
+
+        this.setTrajectoryData(newData);
+
+        // Force immediate visual update
+        this.updateTrajectoryDisplay(currentTime);
+    }
+
     resetTrajectory() {
         // Reset to original trajectory data if available
         if (this.originalTrajectoryData) {

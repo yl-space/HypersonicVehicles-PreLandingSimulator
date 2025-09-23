@@ -65,11 +65,7 @@ export class SimulationManager {
         this.clock = new THREE.Clock();
         this.animationId = null;
 
-        this.raycaster = new THREE.Raycaster();
-        this.mouse = new THREE.Vector2();
-        this.clickEnabled = true; // Enable trajectory click functionality
-        this.lastClickTime = 0;
-        this.clickCooldown = 500;
+        // Removed trajectory clicking functionality
         
         this.init();
     }
@@ -124,10 +120,9 @@ export class SimulationManager {
         this.currentPlanet = this.mars;
         this.sceneManager.addToAllScenes(this.mars.getObject3D());
         
-        // Create coordinate axes for reference 
-        // Using scale of 300 units to be clearly visible with planet scales
-        this.coordinateAxes = new CoordinateAxes(300);
-        this.sceneManager.addToAllScenes(this.coordinateAxes.getObject3D());
+        // Coordinate axes removed to prevent overlap with spacecraft
+        // this.coordinateAxes = new CoordinateAxes(300);
+        // this.sceneManager.addToAllScenes(this.coordinateAxes.getObject3D());
         
         // Create entry vehicle
         this.entryVehicle = new EntryVehicle();
@@ -265,11 +260,11 @@ export class SimulationManager {
                 btn.textContent.toLowerCase() === planetName.toLowerCase());
         });
         
-        // Adjust camera for different planet sizes with smaller spacecraft
+        // Adjust camera for different planet sizes with smaller spacecraft (now properly scaled)
         const cameraDistances = {
-            mars: 5,      // View distance for Mars with small spacecraft
-            earth: 8,     // View distance for Earth  
-            jupiter: 20   // View distance for Jupiter (larger planet)
+            mars: 0.1,    // Very close spacecraft-centric view for Mars
+            earth: 0.2,   // Close view for Earth
+            jupiter: 0.5  // Close view for Jupiter
         };
         
         if (cameraDistances[planetName]) {
@@ -375,8 +370,8 @@ export class SimulationManager {
         // Window resize
         window.addEventListener('resize', () => this.handleResize());
         
-        // Mouse click for trajectory interaction
-        this.sceneManager.renderer.domElement.addEventListener('click', (e) => this.onMouseClick(e));
+        // Mouse click for trajectory interaction - REMOVED
+        // this.sceneManager.renderer.domElement.addEventListener('click', (e) => this.onMouseClick(e));
         
         // Keyboard controls
         window.addEventListener('keydown', (e) => this.handleKeyPress(e));
@@ -495,10 +490,10 @@ export class SimulationManager {
             this.stars.update(deltaTime);
         }
         
-        // Update coordinate axes
-        if (this.coordinateAxes) {
-            this.coordinateAxes.update(this.cameraController.camera);
-        }
+        // Coordinate axes update removed
+        // if (this.coordinateAxes) {
+        //     this.coordinateAxes.update(this.cameraController.camera);
+        // }
         
         // Planet rotation removed - planets remain stationary in J2000 reference frame
         
@@ -538,32 +533,7 @@ export class SimulationManager {
         }
     }
     
-    onMouseClick(event) {
-        if (!this.clickEnabled) return; // Allow clicking even when paused
-        
-        const now = Date.now();
-        if (now - this.lastClickTime < this.clickCooldown) return;
-        
-        this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-        
-        this.raycaster.setFromCamera(this.mouse, this.cameraController.camera);
-        
-        const trajectoryLine = this.trajectoryManager.getTrajectoryLine();
-        if (trajectoryLine) {
-            const intersects = this.raycaster.intersectObject(trajectoryLine);
-            
-            if (intersects.length > 0) {
-                const clickedPoint = intersects[0].point;
-                const clickedTime = this.trajectoryManager.getTimeFromPosition(clickedPoint);
-                
-                if (clickedTime !== null) {
-                    this.seekTo(clickedTime);
-                    this.lastClickTime = now;
-                }
-            }
-        }
-    }
+    // onMouseClick method removed - no longer needed for trajectory clicking
     
     play() {
         this.state.isPlaying = true;
@@ -644,8 +614,10 @@ export class SimulationManager {
 
     handleBankAngle(lastAngle, angle) {
         this.state.bankAngle = angle;
-        this.offsetTrajectory(angle - lastAngle, 0);
-        
+
+        // Apply realistic bank angle physics - immediate trajectory modification
+        this.applyBankAnglePhysicsRealTime(angle);
+
         // Show vectors automatically when bank angle changes
         if (this.entryVehicle) {
             this.entryVehicle.setVectorsVisible(true, true); // true for auto-fade
@@ -658,6 +630,115 @@ export class SimulationManager {
                 this.entryVehicle.setVectorsVisible(setting.value);
             }
         }
+    }
+
+    applyBankAnglePhysics(angleDelta) {
+        if (!this.trajectoryManager || !this.state.vehicleData) return;
+
+        // Get current vehicle state
+        const currentData = this.state.vehicleData;
+        if (!currentData.velocity || !currentData.position) return;
+
+        // Calculate lift force direction with current bank angle
+        const velocity = currentData.velocity.clone();
+        const position = currentData.position.clone();
+
+        // Calculate angular momentum vector (h = r × v)
+        const angularMomentum = new THREE.Vector3();
+        angularMomentum.crossVectors(position, velocity).normalize();
+
+        // Calculate base lift direction (perpendicular to velocity in orbital plane)
+        const velocityNorm = velocity.clone().normalize();
+        let liftDirection = new THREE.Vector3();
+        liftDirection.crossVectors(angularMomentum, velocityNorm).normalize();
+
+        // Apply bank angle rotation around velocity axis
+        if (Math.abs(this.state.bankAngle) > 0.001) {
+            const quaternion = new THREE.Quaternion();
+            quaternion.setFromAxisAngle(velocityNorm, THREE.MathUtils.degToRad(this.state.bankAngle));
+            liftDirection.applyQuaternion(quaternion);
+        }
+
+        // Calculate trajectory modification based on lift force
+        // Real EDL physics: Lift force affects lateral trajectory
+        const altitude = currentData.altitude || 100;
+        const velocityMag = velocity.length();
+
+        // Atmospheric density effect (exponential decay with altitude)
+        const scaleHeight = 11.1; // km, Mars atmospheric scale height
+        const densityRatio = Math.exp(-Math.max(0, altitude) / scaleHeight);
+
+        // Lift coefficient for MSL-type capsule (typical L/D ~ 0.13)
+        const liftToDragRatio = 0.13;
+        const dynamicPressure = densityRatio * velocityMag * velocityMag;
+
+        // Lift force magnitude (simplified)
+        const liftMagnitude = liftToDragRatio * dynamicPressure * 0.0001; // Scaled for simulation
+
+        // Apply lateral displacement based on lift force
+        const lateralDisplacement = liftDirection.clone().multiplyScalar(liftMagnitude * 0.01);
+
+        // Modify trajectory from current time forward
+        this.trajectoryManager.offsetTrajectoryWithPhysics(
+            this.state.currentTime,
+            lateralDisplacement,
+            this.state.bankAngle
+        );
+    }
+
+    applyBankAnglePhysicsRealTime(bankAngle) {
+        if (!this.trajectoryManager || !this.state.vehicleData) {
+            return;
+        }
+
+        // Get current vehicle state
+        const currentData = this.state.vehicleData;
+        if (!currentData.velocity || !currentData.position) return;
+
+        // Calculate lift force direction with new bank angle
+        const velocity = currentData.velocity.clone();
+        const position = currentData.position.clone();
+
+        // Calculate angular momentum vector (h = r × v)
+        const angularMomentum = new THREE.Vector3();
+        angularMomentum.crossVectors(position, velocity).normalize();
+
+        // Calculate base lift direction (perpendicular to velocity in orbital plane)
+        const velocityNorm = velocity.clone().normalize();
+        let liftDirection = new THREE.Vector3();
+        liftDirection.crossVectors(angularMomentum, velocityNorm).normalize();
+
+        // Apply new bank angle rotation around velocity axis
+        if (Math.abs(bankAngle) > 0.001) {
+            const quaternion = new THREE.Quaternion();
+            quaternion.setFromAxisAngle(velocityNorm, THREE.MathUtils.degToRad(bankAngle));
+            liftDirection.applyQuaternion(quaternion);
+        }
+
+        // Calculate trajectory modification magnitude
+        const altitude = currentData.altitude || 100;
+        const velocityMag = velocity.length();
+
+        // Atmospheric density effect
+        const scaleHeight = 11.1; // km, Mars atmospheric scale height
+        const densityRatio = Math.exp(-Math.max(0, altitude) / scaleHeight);
+
+        // Lift coefficient for MSL-type capsule
+        const liftToDragRatio = 0.13;
+        const dynamicPressure = densityRatio * velocityMag * velocityMag;
+
+        // Enhanced effect for immediate visual feedback
+        const liftMagnitude = liftToDragRatio * dynamicPressure * 0.0002; // Increased for visibility
+
+        // Apply trajectory modification from current time
+        const lateralDisplacement = liftDirection.clone().multiplyScalar(liftMagnitude * 0.02);
+
+        // Use enhanced physics method for real-time modification
+        this.trajectoryManager.offsetTrajectoryWithPhysicsRealTime(
+            this.state.currentTime,
+            lateralDisplacement,
+            bankAngle
+        );
     }
 
     offsetTrajectory(directionX, directionY) {

@@ -12,14 +12,14 @@ export class CameraController {
         this.target = null;
         this.smoothness = 0.15; // Increased for more responsive camera movement
         
-        // Camera state (adjusted for better viewing angles)
+        // Camera state (spacecraft-centric with planet collision prevention)
         this.state = {
-            distance: 15,      // Much closer initial distance for better spacecraft focus
-            height: 5,         // Lower height for better spacecraft focus
+            distance: 0.2,     // Very close initial distance for spacecraft focus
+            height: 0.05,      // Lower height for better spacecraft focus
             angle: 0,
-            defaultDistance: 15,
-            minDistance: 1,    // Much closer minimum zoom distance
-            maxDistance: 200   // Reduced maximum distance
+            defaultDistance: 0.2,
+            minDistance: 0.01, // Very close minimum zoom distance for spacecraft detail
+            maxDistance: 80    // Max distance to see full trajectory path (Mars radius 33.9 + trajectory altitude ~40)
         };
         
         // Mouse controls for orbit mode
@@ -29,13 +29,14 @@ export class CameraController {
             lastY: 0
         };
         
-        // Orbit parameters
+        // Orbit parameters with planet collision prevention
         this.orbit = {
-            theta: Math.PI / 4,  // Azimuth
-            phi: Math.PI / 4,    // Elevation (better initial angle)
-            radius: 25,          // Much closer orbit radius for spacecraft focus
-            minPhi: 0.1,         // Prevent camera from going below ground
-            maxPhi: Math.PI - 0.1  // Prevent camera flip
+            theta: Math.PI / 4,    // Azimuth
+            phi: Math.PI / 4,      // Elevation (better initial angle)
+            radius: 0.5,           // Close orbit radius for spacecraft focus
+            minPhi: 0.1,           // Prevent camera from going below ground
+            maxPhi: Math.PI - 0.1, // Prevent camera flip
+            planetRadius: 33.9     // Mars radius for collision detection
         };
         
         // Touch support
@@ -57,10 +58,10 @@ export class CameraController {
     }
     
     init() {
-        // Set initial camera position for better planet viewing
-        this.camera.position.set(150, 100, 150);
+        // Set initial camera position focused on spacecraft (will be updated when target is set)
+        this.camera.position.set(0, 0, 1);
         this.camera.lookAt(0, 0, 0);
-        
+
         this.setupEventListeners();
     }
     
@@ -104,18 +105,21 @@ export class CameraController {
         // Handle mouse leave to prevent stuck state
         canvas.addEventListener('mouseleave', handleMouseUp);
         
-        // Wheel for zoom - intuitive direction
+        // Wheel for zoom - intuitive direction with planet collision prevention
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
             const zoomSpeed = 0.1; // Better zoom speed
             // Inverted: scroll up = zoom in (smaller distance)
             const delta = e.deltaY < 0 ? 1 - zoomSpeed : 1 + zoomSpeed;
-            
+
             if (this.mode === 'orbit') {
-                this.orbit.radius = Math.max(this.state.minDistance, 
-                    Math.min(this.state.maxDistance, this.orbit.radius * delta));
+                const newRadius = this.orbit.radius * delta;
+                // Prevent camera from going inside planet
+                const minSafeRadius = this.orbit.planetRadius + 1.0;
+                this.orbit.radius = Math.max(minSafeRadius,
+                    Math.min(this.state.maxDistance, newRadius));
             } else if (this.mode === 'follow') {
-                this.state.distance = Math.max(this.state.minDistance, 
+                this.state.distance = Math.max(this.state.minDistance,
                     Math.min(this.state.maxDistance, this.state.distance * delta));
             }
         }, { passive: false });
@@ -199,6 +203,17 @@ export class CameraController {
     
     setTarget(target) {
         this.target = target;
+
+        // Immediately focus camera on the new target (spacecraft)
+        if (target && target.position) {
+            const targetPos = target.position.clone();
+            this.camera.position.set(
+                targetPos.x,
+                targetPos.y + 0.1,
+                targetPos.z + 0.3
+            );
+            this.camera.lookAt(targetPos);
+        }
     }
     
     update(deltaTime, vehicleData) {
@@ -238,9 +253,14 @@ export class CameraController {
                         const sideOffset = new THREE.Vector3();
                         sideOffset.crossVectors(velocity, new THREE.Vector3(0, 1, 0)).normalize();
                         desiredPosition.add(sideOffset.multiplyScalar(this.state.distance * 0.2));
-                        
-                        // Ensure camera doesn't go below ground level
-                        desiredPosition.y = Math.max(2, desiredPosition.y);
+
+                        // Ensure camera doesn't go below Mars surface
+                        const distanceFromCenter = desiredPosition.length();
+                        const marsRadius = this.orbit.planetRadius;
+                        if (distanceFromCenter < marsRadius + 0.5) {
+                            const direction = desiredPosition.clone().normalize();
+                            desiredPosition.copy(direction.multiplyScalar(marsRadius + 0.5));
+                        }
                     } else {
                         // Static follow when no velocity
                         desiredPosition.set(
@@ -248,9 +268,14 @@ export class CameraController {
                             targetPos.y + this.state.height,
                             targetPos.z - this.state.distance * 0.7
                         );
-                        
-                        // Ensure camera doesn't go below ground level
-                        desiredPosition.y = Math.max(2, desiredPosition.y);
+
+                        // Ensure camera doesn't go below Mars surface
+                        const distanceFromCenter2 = desiredPosition.length();
+                        const marsRadius2 = this.orbit.planetRadius;
+                        if (distanceFromCenter2 < marsRadius2 + 0.5) {
+                            const direction2 = desiredPosition.clone().normalize();
+                            desiredPosition.copy(direction2.multiplyScalar(marsRadius2 + 0.5));
+                        }
                     }
                 } else {
                     // Default follow position
@@ -265,13 +290,22 @@ export class CameraController {
                 break;
                 
             case 'orbit':
-                // Orbit mode - user-controlled camera around target
-                desiredPosition.x = targetPos.x + 
+                // Orbit mode - user-controlled camera around target with planet collision prevention
+                desiredPosition.x = targetPos.x +
                     this.orbit.radius * Math.sin(this.orbit.phi) * Math.sin(this.orbit.theta);
-                desiredPosition.y = targetPos.y + 
+                desiredPosition.y = targetPos.y +
                     this.orbit.radius * Math.cos(this.orbit.phi);
-                desiredPosition.z = targetPos.z + 
+                desiredPosition.z = targetPos.z +
                     this.orbit.radius * Math.sin(this.orbit.phi) * Math.cos(this.orbit.theta);
+
+                // Check if camera would go inside planet and adjust if needed
+                const distanceFromPlanetCenter = desiredPosition.length();
+                const minSafeDistance = this.orbit.planetRadius + 1.0;
+                if (distanceFromPlanetCenter < minSafeDistance) {
+                    // Push camera away from planet center
+                    const direction = desiredPosition.clone().normalize();
+                    desiredPosition.copy(direction.multiplyScalar(minSafeDistance));
+                }
                 break;
         }
         
@@ -298,12 +332,15 @@ export class CameraController {
         const zoomSpeed = 0.15; // Better zoom speed
         // Fixed zoom direction: 'in' means closer (smaller distance)
         const factor = direction === 'in' ? 1 - zoomSpeed : 1 + zoomSpeed;
-        
+
         if (this.mode === 'orbit') {
-            this.orbit.radius = Math.max(this.state.minDistance, 
-                Math.min(this.state.maxDistance, this.orbit.radius * factor));
+            const newRadius = this.orbit.radius * factor;
+            // Prevent camera from going inside planet
+            const minSafeRadius = this.orbit.planetRadius + 1.0;
+            this.orbit.radius = Math.max(minSafeRadius,
+                Math.min(this.state.maxDistance, newRadius));
         } else {
-            this.state.distance = Math.max(this.state.minDistance, 
+            this.state.distance = Math.max(this.state.minDistance,
                 Math.min(this.state.maxDistance, this.state.distance * factor));
         }
     }
@@ -311,8 +348,11 @@ export class CameraController {
     setDefaultDistance(distance) {
         this.state.defaultDistance = distance;
         this.state.distance = distance;
-        this.orbit.radius = Math.max(this.state.minDistance, 
-            Math.min(this.state.maxDistance, distance * 1.5));
+        // Set orbit radius with planet collision prevention
+        const newRadius = distance * 1.5;
+        const minSafeRadius = this.orbit.planetRadius + 1.0;
+        this.orbit.radius = Math.max(minSafeRadius,
+            Math.min(this.state.maxDistance, newRadius));
     }
     
     handleResize() {
@@ -320,14 +360,27 @@ export class CameraController {
     }
     
     reset() {
-        // Reset camera to default position for better viewing
-        this.camera.position.set(150, 100, 150);
-        this.camera.lookAt(0, 0, 0);
+        // Reset camera to spacecraft-focused position
+        if (this.target) {
+            const targetPos = this.target.position.clone();
+            this.camera.position.set(
+                targetPos.x,
+                targetPos.y + 0.1,
+                targetPos.z + 0.3
+            );
+            this.camera.lookAt(targetPos);
+        } else {
+            this.camera.position.set(0, 0.1, 0.3);
+            this.camera.lookAt(0, 0, 0);
+        }
+
         this.orbit.theta = Math.PI / 4;
         this.orbit.phi = Math.PI / 4;
-        this.orbit.radius = 100;
-        this.state.distance = 50;
-        
+        // Safe orbit radius considering planet collision
+        const minSafeRadius = this.orbit.planetRadius + 1.0;
+        this.orbit.radius = Math.max(minSafeRadius, 35);
+        this.state.distance = this.state.defaultDistance;
+
         // Reset inertia
         this.inertia.deltaX = 0;
         this.inertia.deltaY = 0;

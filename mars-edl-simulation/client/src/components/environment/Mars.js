@@ -22,8 +22,8 @@ export class Mars {
     }
     
     createSurface() {
-        // Create Mars sphere with high detail
-        const geometry = new THREE.SphereGeometry(this.radius, 128, 64);
+        // Create Mars sphere with optimized detail for performance
+        const geometry = new THREE.SphereGeometry(this.radius, 64, 32);
         
         // Load textures from assets
         const textureLoader = new THREE.TextureLoader();
@@ -37,7 +37,8 @@ export class Mars {
             normalScale: new THREE.Vector2(1, 1),
             specularMap: marsSpecular,
             specular: new THREE.Color(0x222222),
-            shininess: 10
+            shininess: 10,
+            side: THREE.DoubleSide  // Render both sides to prevent inside visibility issues
         });
         
         this.surface = new THREE.Mesh(geometry, material);
