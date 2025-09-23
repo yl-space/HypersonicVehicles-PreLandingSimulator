@@ -10,6 +10,7 @@ def entryeoms(t: float, x: np.ndarray, planet: dict, vehicle: dict, control: dic
     #theta = x[1] # not used in the EOMs
     phi = x[2]
     V = x[3]
+
     gamma = x[4]
     psi = x[5]
 
@@ -18,6 +19,9 @@ def entryeoms(t: float, x: np.ndarray, planet: dict, vehicle: dict, control: dic
     beta = vehicle["beta"]
     LD = vehicle["LD"]
     bank = control["bank_angle"]
+
+        # print datatypes for debug
+    #print(type(r), type(V), type(LD), type(mu))
 
     # Atmosphere density via linear interpolation of aero database 
     # table columns: H[m], T[K], P[N/m2], rho[kg/m3], a[m/s]
