@@ -1,10 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
-import pandas as pd
 import time as _time
 
-from entryeoms import entryeoms
+from .entryeoms import entryeoms
 
 #secondary functions: I need to move them to seprate files and import for calrity probably
 
@@ -23,40 +22,19 @@ def make_event(ind: int, term: float):
     event.direction = -1.0
     return event
 
-#MAIN FUNCTION STARTS HERE
-def main():
+def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: dict, verbose = False, return_states=False) -> dict:
+    """Run a high-fidelity simulation of atmospheric entry.
+
+    Args:
+        planet: Dictionary containing planetary parameters.
+        init: Dictionary containing initial conditions.
+        vehicle: Dictionary containing vehicle parameters.
+        control: Dictionary containing control parameters.
+    Returns:
+        Dictionary with simulation results including time, position, and velocity arrays.
+    """
     t0 = _time.time()
-    print("Hello Mars! Starting the script...")
-
-    # Planet parameters (Mars)
-    planet = {
-        "mu": 4.2828e13, #[m^3/s^-2] ref- Curtis, H., “Appendix A - Physical Data,” Orbital Mechanics for Engineering Students, Elsevier, 2013
-        "rp": 3396e3, #[m] ref- Curtis, H., “Appendix A - Physical Data,” Orbital Mechanics for Engineering Students, Elsevier, 2013
-        "atmosphere_model": pd.read_csv("mars-gram-avg.csv", delimiter="\t") #AMAT: Girija 2021
-    }
-
-    # Initial conditions parameters
-    init = {
-        "h0": 124999, # [m] Critical altitude (i.e. altitude to start entry) [m] ref - 125e3 - Li ,Jiang 2014  MSL; Note- Girija 2022 is 120e3. I made I lower for the dataset
-        "vel0": 6.0836e3, # [m/s] MSL SPICE data
-        "theta0": np.deg2rad(-78.8618), #Initial longitude of probe [rad] ref: SPICE J2000 MSL initial position
-        "phi0": np.deg2rad(27.1050), #Initial latitude of probe [rad] ref: SPICE J2000 MSL initial position
-        "gamma0": np.deg2rad(-15.5), #flight path angle [rad] (should be negative)  ref - Li ,Jiang 2014  MSL
-        "psi0": np.deg2rad(0), #Initial heading angle [rad]
-
-    }
-
-    # Vehicle parameters
-    vehicle = {
-        "beta": 115, # ballistic coefficient [kg/m^2] ref - Li ,Jiang 2014  MSL
-        "LD": 0.24, # lift-to-drag ratio ref - ref - Li ,Jiang 2014  MSL
-    }
-
-    # Control parameters
-    control = {
-        "bank_angle": np.deg2rad(30.0), # [rad] Bank Angle 
-    }
-
+    
     ODE_terminal_index = 0
 
     if ODE_terminal_index == 0:
@@ -109,15 +87,17 @@ def main():
         dense_output=True, # this is needed to evaluate the solution at the time points I need 
         method='DOP853'
     )
-    print("exit conditions triggered at t = ", sol.t_events[0][0])
+    if verbose:
+        print("exit conditions triggered at t = ", sol.t_events[0][0])
    
     # resample at the defined time stamps
     t_end = sol.t[-1]
     time_array = np.arange(0.0, t_end + 1e-12, simulation_termination["dt"]) # epsilon is added to include the endpoint. specifics of np.arange
     states = sol.sol(time_array).T  # shape (N, 6)
     
-    print(f"Script completed in {(_time.time() - t0):.3f} s")
-    print("final velocity is ", states[:, 3][-1] / 1000.0, "km/s" "= Mach ", states[:, 3][-1] / 236.38)
+    if verbose:
+        print(f"Script completed in {(_time.time() - t0):.3f} s")
+        print("final velocity is ", states[:, 3][-1] / 1000.0, "km/s" "= Mach ", states[:, 3][-1] / 236.38)
 
     # Convert spherical to inertial Cartesian position
     # ref - L1b. Nav. class notes and iPad notebook board
@@ -143,30 +123,49 @@ def main():
     vel_inertial = vel_inertial[1:-1,:]
     time_array = time_array[1:-1]
 
-    # export position data and time to a csv file
+    if return_states:
+        return {
+            'time_s': time_array,
+            'states': states,
+            'pos_inertial': pos_inertial,
+            'vel_inertial': vel_inertial,
+        }
 
-    # Create DataFrame with proper syntax
-    df_position_export = pd.DataFrame({
+    # Return the results
+    return {
         'time_s': time_array,
         'x_m': pos_inertial[:, 0],
         'y_m': pos_inertial[:, 1], 
-        'z_m': pos_inertial[:, 2]
-    })
-    df_position_export.to_csv("simulation_results_position.csv", index=False)
+        'z_m': pos_inertial[:, 2],
+        'vx_m_s': vel_inertial[:, 0],
+        'vy_m_s': vel_inertial[:, 1],
+        'vz_m_s': vel_inertial[:, 2],
+    }
 
-    
+#MAIN FUNCTION STARTS HERE
+def main():
+    from sim_server.constants.defaults import DEFAULT_PLANET, DEFAULT_INIT, DEFAULT_VEHICLE, DEFAULT_CONTROL
+    from sim_server.constants.vehicles import get_vehicle_params
+    from sim_server.constants.planets import get_planet_params
 
+    # Define simulation parameters
+    planet = get_planet_params(DEFAULT_PLANET["planet_name"])
+    init = DEFAULT_INIT
+    vehicle = get_vehicle_params(DEFAULT_VEHICLE["vehicle_name"])
+    control = DEFAULT_CONTROL
+
+    # Run the high-fidelity simulation
+    results = high_fidelity_simulation(planet, init, vehicle, control, verbose=True, return_states=True)
 
     # Plot r vs V
     plt.figure()
-    plt.plot(states[:, 3] / 1000.0, states[:, 0] / 1000.0, linewidth=1.5, label="Simulated")
+    plt.plot(results['states'][:, 3] / 1000.0, results['states'][:, 0] / 1000.0, linewidth=1.5, label="Simulated")
     plt.xlabel("Velocity V [km/s]")
     plt.ylabel("Radius r [km]")
     plt.title("r vs v")
     plt.grid(True)
     plt.legend(loc="best")
     plt.show()
-
 
 
 if __name__ == "__main__":
