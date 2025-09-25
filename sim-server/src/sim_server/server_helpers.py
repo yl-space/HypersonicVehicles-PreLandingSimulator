@@ -8,6 +8,12 @@ from fastapi.responses import Response
 
 import pyarrow as pa
 
+import time
+import functools
+import logging
+
+logger = logging.getLogger("uvicorn")
+
 def parse_simulation_params(
     planet: PlanetParams = PlanetParams(),
     init: InitParams = InitParams(),
@@ -66,3 +72,14 @@ def serialize_simulation_results(results: dict, use_arrow: bool = False) -> dict
         return serialize_simulation_results_to_arrow(results)
     else:
         return serialize_simulation_results_to_lists(results)
+    
+
+def log_timing(func):
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = await func(*args, **kwargs)
+        duration = time.perf_counter() - start
+        logger.info(f"{func.__name__} executed in {duration:.4f} seconds")
+        return result
+    return wrapper
