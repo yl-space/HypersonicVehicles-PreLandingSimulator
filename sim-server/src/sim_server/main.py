@@ -4,6 +4,8 @@ import uvicorn
 from dotenv import load_dotenv
 import os
 
+from server_helpers import parse_simulation_params, serialize_simulation_results
+
 from constants.defaults import DEFAULT_PLANET, DEFAULT_INIT, DEFAULT_VEHICLE, DEFAULT_CONTROL
 from constants.defaults import override_defaults
 from constants.vehicles import get_vehicle_params
@@ -24,15 +26,12 @@ async def simulate_high_fidelity(
     vehicle: VehicleParams = VehicleParams(),
     control: ControlParams = ControlParams()
 ):
-    # Override defaults with provided parameters
-    planet_params = override_defaults(DEFAULT_PLANET, planet.model_dump())
-    init_params = override_defaults(DEFAULT_INIT, init.model_dump())
-    vehicle_params = override_defaults(DEFAULT_VEHICLE, vehicle.model_dump())
-    control_params = override_defaults(DEFAULT_CONTROL, control.model_dump())
-
-    # Retrieve specific parameters for planet and vehicle (e.g., from 'mars' to actual values)
-    planet_specific_params = get_planet_params(planet_params["planet_name"])
-    vehicle_specific_params = get_vehicle_params(vehicle_params["vehicle_name"])
+    """Run a high-fidelity simulation with the provided parameters."""
+    
+    # Parse and override parameters
+    planet_specific_params, init_params, vehicle_specific_params, control_params = parse_simulation_params(
+        planet, init, vehicle, control
+    )
 
     # Run the high-fidelity simulation
     results = high_fidelity_simulation(
@@ -44,14 +43,8 @@ async def simulate_high_fidelity(
         return_states=False
     )
 
-    # Convert results from numpy arrays to lists for JSON serialization
-    for key in results:
-        if isinstance(results[key], (list, tuple)):
-            continue
-        try:
-            results[key] = results[key].tolist()[:10]
-        except AttributeError:
-            pass  # Not a numpy array, no need to convert
+    # Serialize results for JSON response
+    results = serialize_simulation_results(results)
 
     return {"results": results}
 
