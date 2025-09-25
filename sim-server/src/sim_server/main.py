@@ -5,11 +5,6 @@ from dotenv import load_dotenv
 import os
 
 from server_helpers import parse_simulation_params, serialize_simulation_results
-
-from constants.defaults import DEFAULT_PLANET, DEFAULT_INIT, DEFAULT_VEHICLE, DEFAULT_CONTROL
-from constants.defaults import override_defaults
-from constants.vehicles import get_vehicle_params
-from constants.planets import get_planet_params
 from constants.schemas import PlanetParams, InitParams, VehicleParams, ControlParams
 from OP.main import high_fidelity_simulation
 
@@ -27,7 +22,7 @@ async def simulate_high_fidelity(
     control: ControlParams = ControlParams()
 ):
     """Run a high-fidelity simulation with the provided parameters."""
-    
+
     # Parse and override parameters
     planet_specific_params, init_params, vehicle_specific_params, control_params = parse_simulation_params(
         planet, init, vehicle, control
