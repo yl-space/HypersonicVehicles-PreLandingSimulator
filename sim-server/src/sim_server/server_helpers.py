@@ -4,7 +4,9 @@ from constants.vehicles import get_vehicle_params
 from constants.planets import get_planet_params
 from constants.schemas import PlanetParams, InitParams, VehicleParams, ControlParams
 
-from typing import Optional
+from fastapi.responses import Response
+
+import pyarrow as pa
 
 def parse_simulation_params(
     planet: PlanetParams = PlanetParams(),
@@ -27,22 +29,40 @@ def parse_simulation_params(
     return planet_specific_params, init_params, vehicle_specific_params, control_params
 
 
-def serialize_simulation_results(results: dict, max_items: Optional[int] = None) -> dict:
-    """Convert numpy arrays in results to lists for JSON serialization, limiting to max_items."""
+def serialize_simulation_results_to_lists(results: dict) -> dict:
+    """Convert numpy arrays in results to lists for JSON serialization."""
     serialized_results = {}
     for key, value in results.items():
-        if isinstance(value, (list, tuple)):
-            if max_items is not None:
-                serialized_results[key] = value[:max_items]
-            else:
-                serialized_results[key] = value
-        else:
+        if not isinstance(value, (list, tuple)):
             try:
                 arr = value.tolist()
-                if max_items is not None:
-                    serialized_results[key] = arr[:max_items]
-                else:
-                    serialized_results[key] = arr
+                serialized_results[key] = arr
             except AttributeError:
                 serialized_results[key] = value  # Not a numpy array, no need to convert
     return serialized_results
+
+
+def serialize_simulation_results_to_arrow(results: dict) -> bytes:
+    """Convert results dict to Apache Arrow IPC stream bytes."""
+    # Convert all values to Arrow arrays (if not already)
+    arrow_ready = {}
+    for key, value in results.items():
+        try:
+            arrow_ready[key] = pa.array(value)
+        except Exception:
+            # If not convertible, skip or handle as needed
+            pass
+    table = pa.table(arrow_ready)
+    sink = pa.BufferOutputStream()
+    with pa.ipc.new_stream(sink, table.schema) as writer:
+        writer.write_table(table)
+    byte_output = sink.getvalue().to_pybytes()
+    return Response(content=byte_output, media_type="application/vnd.apache.arrow.stream")
+
+
+def serialize_simulation_results(results: dict, use_arrow: bool = False) -> dict:
+    """Serialize simulation results for JSON response, either to lists or Apache Arrow format."""
+    if use_arrow:
+        return serialize_simulation_results_to_arrow(results)
+    else:
+        return serialize_simulation_results_to_lists(results)

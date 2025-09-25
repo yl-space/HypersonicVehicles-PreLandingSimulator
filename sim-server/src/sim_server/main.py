@@ -19,7 +19,8 @@ async def simulate_high_fidelity(
     planet: PlanetParams = PlanetParams(),
     init: InitParams = InitParams(),
     vehicle: VehicleParams = VehicleParams(),
-    control: ControlParams = ControlParams()
+    control: ControlParams = ControlParams(),
+    serialize_arrow: bool = False
 ):
     """Run a high-fidelity simulation with the provided parameters."""
 
@@ -39,9 +40,9 @@ async def simulate_high_fidelity(
     )
 
     # Serialize results for JSON response
-    results = serialize_simulation_results(results)
+    results = serialize_simulation_results(results, use_arrow=serialize_arrow)
 
-    return {"results": results}
+    return results
 
 if __name__ == "__main__":
     host = os.getenv("SIM_SERVER_HOST", DEFAULT_HOST)
