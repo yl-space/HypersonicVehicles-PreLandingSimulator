@@ -31,4 +31,4 @@ COPY --from=builder --chown=app:app /app /app
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["python", "/app/src/sim-server/main.py"]
+CMD ["python", "/app/src/sim_server/main.py"]

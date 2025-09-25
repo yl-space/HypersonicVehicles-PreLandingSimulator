@@ -17,21 +17,24 @@ DEFAULT_PORT = 8000
 load_dotenv()
 app = FastAPI()
 
-@app.get("/simulate/high-fidelity/")
+@app.post("/simulate/high-fidelity/")
 async def simulate_high_fidelity(
     planet: PlanetParams = PlanetParams(),
     init: InitParams = InitParams(),
     vehicle: VehicleParams = VehicleParams(),
     control: ControlParams = ControlParams()
 ):
+    # Override defaults with provided parameters
     planet_params = override_defaults(DEFAULT_PLANET, planet.model_dump())
     init_params = override_defaults(DEFAULT_INIT, init.model_dump())
     vehicle_params = override_defaults(DEFAULT_VEHICLE, vehicle.model_dump())
     control_params = override_defaults(DEFAULT_CONTROL, control.model_dump())
 
+    # Retrieve specific parameters for planet and vehicle (e.g., from 'mars' to actual values)
     planet_specific_params = get_planet_params(planet_params["planet_name"])
     vehicle_specific_params = get_vehicle_params(vehicle_params["vehicle_name"])
 
+    # Run the high-fidelity simulation
     results = high_fidelity_simulation(
         planet=planet_specific_params,
         init=init_params,
@@ -41,7 +44,16 @@ async def simulate_high_fidelity(
         return_states=False
     )
 
-    return results
+    # Convert results from numpy arrays to lists for JSON serialization
+    for key in results:
+        if isinstance(results[key], (list, tuple)):
+            continue
+        try:
+            results[key] = results[key].tolist()[:10]
+        except AttributeError:
+            pass  # Not a numpy array, no need to convert
+
+    return {"results": results}
 
 if __name__ == "__main__":
     host = os.getenv("SIM_SERVER_HOST", DEFAULT_HOST)
