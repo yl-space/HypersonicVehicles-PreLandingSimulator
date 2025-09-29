@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 import time as _time
 
-from .entryeoms import entryeoms
+from src.sim_server.OP.entryeoms import entryeoms
 
 #secondary functions: I need to move them to seprate files and import for calrity probably
 
@@ -144,9 +144,9 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
 
 #MAIN FUNCTION STARTS HERE
 def main():
-    from sim_server.constants.defaults import DEFAULT_PLANET, DEFAULT_INIT, DEFAULT_VEHICLE, DEFAULT_CONTROL
-    from sim_server.constants.vehicles import get_vehicle_params
-    from sim_server.constants.planets import get_planet_params
+    from src.sim_server.constants.defaults import DEFAULT_PLANET, DEFAULT_INIT, DEFAULT_VEHICLE, DEFAULT_CONTROL
+    from src.sim_server.constants.vehicles import get_vehicle_params
+    from src.sim_server.constants.planets import get_planet_params
 
     # Define simulation parameters
     planet = get_planet_params(DEFAULT_PLANET["planet_name"])

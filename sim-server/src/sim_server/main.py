@@ -5,9 +5,9 @@ from dotenv import load_dotenv
 import os
 from pathlib import Path
 
-from server_helpers import log_timing, parse_simulation_params, serialize_simulation_results
-from constants.schemas import PlanetParams, InitParams, VehicleParams, ControlParams
-from OP.main import high_fidelity_simulation
+from src.sim_server.server_helpers import log_timing, parse_simulation_params, serialize_simulation_results
+from src.sim_server.constants.schemas import PlanetParams, InitParams, VehicleParams, ControlParams
+from src.sim_server.OP.main import high_fidelity_simulation
 
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8000
@@ -54,6 +54,6 @@ if __name__ == "__main__":
     
     # Determine if running in production mode
     if os.getenv("IS_PRODUCTION", "False").lower() in ("true", "1", "yes"):
-        uvicorn.run("main:app", host=host, port=port, log_config=LOG_CONFIG)
+        uvicorn.run("src.sim_server.main:app", host=host, port=port, log_config=LOG_CONFIG)
     else:
-        uvicorn.run("main:app", host=host, port=port, reload=True)
+        uvicorn.run("src.sim_server.main:app", host=host, port=port, reload=True)
