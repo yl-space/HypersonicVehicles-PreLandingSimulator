@@ -39,9 +39,16 @@ async def simulate_high_fidelity(
         init=init_params,
         vehicle=vehicle_specific_params,
         control=control_params,
-        verbose=False,
+        verbose=False, # OP: why are these set to False?
         return_states=False
     )
+
+    # print final values for debug
+    final_time = results['time_s'][-1]
+    final_velocity = (results['vx_m_s'][-1]**2 + results['vy_m_s'][-1]**2 + results['vz_m_s'][-1]**2)**0.5
+    print(f"\n=== FINAL SIMULATION RESULTS ===")
+    print(f"Final time: {final_time:.2f} seconds")
+    print(f"Final velocity: {final_velocity/1000:.2f} km/s" "= Mach " + str(final_velocity/236.38))
 
     # Serialize results for JSON response
     results = serialize_simulation_results(results, use_arrow=serialize_arrow)
