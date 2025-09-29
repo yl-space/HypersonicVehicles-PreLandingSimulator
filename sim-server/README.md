@@ -10,7 +10,11 @@ From this folder, run `uv sync` to build your virtual environment.
 
 To activate the environment in VSCode, follow these instructions: https://github.com/astral-sh/uv/issues/9637
 
-To run the code locally enter the *sim-server* directory, and run: `uv run python src/sim_server/main.py`
+To run the code locally enter the *sim-server* directory, and run: `uv run python -m src.sim_server.main`
+
+Or to run a specific file, run: `uv run python -m src.sim_server.OP.main`
+
+Always import from src.sim_server..., even if the module is in the same folder.
 
 To run tests, run: `uv run pytest`
 
