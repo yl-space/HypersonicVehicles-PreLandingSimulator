@@ -10,7 +10,7 @@ from src.sim_server.constants.schemas import PlanetParams, InitParams, VehiclePa
 from src.sim_server.OP.main import high_fidelity_simulation
 
 DEFAULT_HOST = "0.0.0.0"
-DEFAULT_PORT = 8000
+DEFAULT_PORT = 3010
 
 LOG_CONFIG = Path(__file__).parent / "log.ini"
 

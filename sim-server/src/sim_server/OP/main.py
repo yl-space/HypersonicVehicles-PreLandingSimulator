@@ -158,14 +158,14 @@ def main():
     results = high_fidelity_simulation(planet, init, vehicle, control, verbose=True, return_states=True)
 
     # Plot r vs V
-    # plt.figure()
-    # plt.plot(results['states'][:, 3] / 1000.0, results['states'][:, 0] / 1000.0, linewidth=1.5, label="Simulated")
-    # plt.xlabel("Velocity V [km/s]")
-    # plt.ylabel("Radius r [km]")
-    # plt.title("r vs v")
-    # plt.grid(True)
-    # plt.legend(loc="best")
-    # plt.show()
+    plt.figure()
+    plt.plot(results['states'][:, 3] / 1000.0, results['states'][:, 0] / 1000.0, linewidth=1.5, label="Simulated")
+    plt.xlabel("Velocity V [km/s]")
+    plt.ylabel("Radius r [km]")
+    plt.title("r vs v")
+    plt.grid(True)
+    plt.legend(loc="best")
+    plt.show()
 
 
 if __name__ == "__main__":
