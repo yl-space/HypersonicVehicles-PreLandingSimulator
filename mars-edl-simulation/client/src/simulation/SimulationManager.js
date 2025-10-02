@@ -17,6 +17,9 @@ import { PhaseInfo } from '../ui/PhaseInfo.js';
 import { Controls } from '../ui/Controls.js';
 import { DataManager } from '../data/DataManager.js';
 import { CoordinateAxes } from '../components/helpers/CoordinateAxes.js';
+import { SimulationDataProvider } from '../core/SimulationDataProvider.js';
+import { PhysicsEngine } from '../physics/PhysicsEngine.js';
+import { config } from '../config/SimulationConfig.js';
 
 export class SimulationManager {
     constructor(options = {}) {
@@ -34,6 +37,8 @@ export class SimulationManager {
         this.trajectoryManager = null;
         this.phaseController = null;
         this.dataManager = null;
+        this.dataProvider = null;
+        this.physicsEngine = null;
         
         // Scene objects
         this.entryVehicle = null;
@@ -84,6 +89,16 @@ export class SimulationManager {
         this.trajectoryManager = new TrajectoryManager();
         this.phaseController = new PhaseController();
         this.dataManager = new DataManager();
+
+        // Initialize new flexible data architecture
+        this.physicsEngine = new PhysicsEngine(config.get('physics'));
+        this.dataProvider = new SimulationDataProvider({
+            source: config.get('dataSource.mode'),
+            backendUrl: config.get('dataSource.backendUrl'),
+            fallbackToFrontend: config.get('dataSource.fallbackToFrontend'),
+            cacheResults: config.get('dataSource.cacheResults')
+        });
+        this.dataProvider.initialize(this.physicsEngine);
         
         // Create scene objects
         this.createSceneObjects();
@@ -686,58 +701,81 @@ export class SimulationManager {
         );
     }
 
-    applyBankAnglePhysicsRealTime(bankAngle) {
+    async applyBankAnglePhysicsRealTime(bankAngle) {
+        if (!this.dataProvider || !this.state.vehicleData) {
+            console.log('DataProvider or vehicleData missing');
+            return;
+        }
+
+        console.log(`Applying bank angle ${bankAngle}° at time ${this.state.currentTime}`);
+
+        try {
+            // Use the new data provider for trajectory modifications
+            const modificationParameters = {
+                currentTime: this.state.currentTime,
+                bankAngle,
+                realTimeModifications: true,
+                source: config.get('dataSource.mode')
+            };
+
+            // Update physics parameters in real-time
+            await this.dataProvider.updateParameters({
+                bankAngle,
+                currentTime: this.state.currentTime
+            });
+
+            // Get modified trajectory data
+            const modifiedTrajectory = await this.dataProvider.getTrajectoryData(modificationParameters);
+
+            if (modifiedTrajectory && modifiedTrajectory.points) {
+                // Update trajectory manager with new data
+                this.trajectoryManager.setTrajectoryData(modifiedTrajectory.points);
+
+                console.log(`Applied bank angle modification using ${modifiedTrajectory.metadata?.source || 'unknown'} source`);
+            } else {
+                console.warn('Failed to get modified trajectory data, falling back to legacy method');
+                this.applyBankAnglePhysicsLegacy(bankAngle);
+            }
+        } catch (error) {
+            console.error('Error applying bank angle physics:', error);
+
+            // Fallback to legacy method if new system fails
+            console.log('Falling back to legacy bank angle physics');
+            this.applyBankAnglePhysicsLegacy(bankAngle);
+        }
+    }
+
+    // Keep legacy method as fallback
+    applyBankAnglePhysicsLegacy(bankAngle) {
         if (!this.trajectoryManager || !this.state.vehicleData) {
             return;
         }
 
-        // Get current vehicle state
         const currentData = this.state.vehicleData;
-        if (!currentData.velocity || !currentData.position) return;
+        if (!currentData.velocity || !currentData.position) {
+            return;
+        }
+
+        // Reset to original trajectory before applying new bank angle
+        this.trajectoryManager.resetTrajectory();
 
         // Calculate lift force direction with new bank angle
         const velocity = currentData.velocity.clone();
         const position = currentData.position.clone();
 
-        // Calculate angular momentum vector (h = r × v)
-        const angularMomentum = new THREE.Vector3();
-        angularMomentum.crossVectors(position, velocity).normalize();
+        // Calculate lift direction using physics engine
+        const liftDirection = this.physicsEngine.calculateLiftDirection(position, velocity, bankAngle);
 
-        // Calculate base lift direction (perpendicular to velocity in orbital plane)
-        const velocityNorm = velocity.clone().normalize();
-        let liftDirection = new THREE.Vector3();
-        liftDirection.crossVectors(angularMomentum, velocityNorm).normalize();
+        // Convert bank angle to lateral trajectory offset
+        const bankAngleRadians = THREE.MathUtils.degToRad(bankAngle);
+        const lateralOffset = Math.sin(bankAngleRadians) * 0.1;
 
-        // Apply new bank angle rotation around velocity axis
-        if (Math.abs(bankAngle) > 0.001) {
-            const quaternion = new THREE.Quaternion();
-            quaternion.setFromAxisAngle(velocityNorm, THREE.MathUtils.degToRad(bankAngle));
-            liftDirection.applyQuaternion(quaternion);
-        }
-
-        // Calculate trajectory modification magnitude
-        const altitude = currentData.altitude || 100;
-        const velocityMag = velocity.length();
-
-        // Atmospheric density effect
-        const scaleHeight = 11.1; // km, Mars atmospheric scale height
-        const densityRatio = Math.exp(-Math.max(0, altitude) / scaleHeight);
-
-        // Lift coefficient for MSL-type capsule
-        const liftToDragRatio = 0.13;
-        const dynamicPressure = densityRatio * velocityMag * velocityMag;
-
-        // Enhanced effect for immediate visual feedback
-        const liftMagnitude = liftToDragRatio * dynamicPressure * 0.0002; // Increased for visibility
-
-        // Apply trajectory modification from current time
-        const lateralDisplacement = liftDirection.clone().multiplyScalar(liftMagnitude * 0.02);
-
-        // Use enhanced physics method for real-time modification
-        this.trajectoryManager.offsetTrajectoryWithPhysicsRealTime(
+        // Apply lateral trajectory offset
+        this.trajectoryManager.offsetTrajectoryLinearlyFromCurrentTime(
             this.state.currentTime,
-            lateralDisplacement,
-            bankAngle
+            lateralOffset, // X direction (lateral)
+            0,             // Y direction (no vertical change)
+            0.2            // Final percent (stronger effect)
         );
     }
 
@@ -771,5 +809,101 @@ export class SimulationManager {
 
     getState() {
         return this.state;
+    }
+
+    /**
+     * Switch between different calculation modes (frontend/backend/hybrid)
+     * @param {string} mode - New calculation mode
+     * @param {Object} options - Additional options for the mode switch
+     */
+    async switchCalculationMode(mode, options = {}) {
+        if (!this.dataProvider) {
+            console.error('DataProvider not initialized');
+            return false;
+        }
+
+        try {
+            console.log(`Switching calculation mode to: ${mode}`);
+
+            // Update configuration
+            config.set('dataSource.mode', mode);
+
+            // Switch data provider source
+            this.dataProvider.switchSource(mode);
+
+            // Apply mode-specific configuration
+            if (options.backendUrl) {
+                config.set('dataSource.backendUrl', options.backendUrl);
+                this.dataProvider.config.backendUrl = options.backendUrl;
+            }
+
+            // Reload trajectory data with new mode if needed
+            if (options.reloadData !== false) {
+                console.log('Reloading trajectory data with new calculation mode...');
+
+                const currentTrajectoryData = this.trajectoryManager.trajectoryData;
+                if (currentTrajectoryData && currentTrajectoryData.length > 0) {
+                    // Get fresh trajectory data using new mode
+                    const freshTrajectory = await this.dataProvider.getTrajectoryData({
+                        recomputeFromOriginal: true,
+                        bankAngle: this.state.bankAngle,
+                        currentTime: this.state.currentTime
+                    });
+
+                    if (freshTrajectory && freshTrajectory.points) {
+                        this.trajectoryManager.setTrajectoryData(freshTrajectory.points);
+                        console.log(`Trajectory reloaded using ${mode} mode`);
+                    }
+                }
+            }
+
+            // Notify UI of mode change
+            if (typeof options.onModeChanged === 'function') {
+                options.onModeChanged(mode);
+            }
+
+            return true;
+        } catch (error) {
+            console.error(`Failed to switch to ${mode} mode:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Get current calculation mode and status
+     * @returns {Object} Current mode information
+     */
+    getCalculationModeInfo() {
+        return {
+            currentMode: config.get('dataSource.mode'),
+            backendUrl: config.get('dataSource.backendUrl'),
+            fallbackEnabled: config.get('dataSource.fallbackToFrontend'),
+            cacheEnabled: config.get('dataSource.cacheResults'),
+            physicsEngine: this.physicsEngine ? 'available' : 'not available',
+            dataProvider: this.dataProvider ? this.dataProvider.getConfig() : 'not available'
+        };
+    }
+
+    /**
+     * Test backend connectivity
+     * @returns {Promise<boolean>} Whether backend is accessible
+     */
+    async testBackendConnection() {
+        if (!this.dataProvider) {
+            return false;
+        }
+
+        try {
+            // Try to fetch a simple test endpoint
+            const response = await fetch(`${config.get('dataSource.backendUrl')}/health`, {
+                method: 'GET',
+                timeout: 5000
+            });
+
+            return response.ok;
+        } catch (error) {
+            console.log('Backend connection test failed:', error.message);
+            return false;
+        }
     }
 }

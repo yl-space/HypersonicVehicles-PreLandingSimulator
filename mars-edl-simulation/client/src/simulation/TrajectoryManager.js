@@ -32,9 +32,9 @@ export class TrajectoryManager {
         
         // Materials with modern features - thinner lines for better view
         this.pastMaterial = new THREE.LineBasicMaterial({
-            color: 0x00ff00,  // Bright green for traveled path
+            color: 0x444444,  // Dark gray for traveled path (less obtrusive)
             linewidth: 1,     // Reduced thickness
-            opacity: 0.8,
+            opacity: 0.3,     // Very transparent
             transparent: true
         });
 
@@ -463,7 +463,11 @@ export class TrajectoryManager {
      * @param {number} finalPercent
      */
     offsetTrajectoryLinearlyFromCurrentTime(currentTime, directionX, directionY, finalPercent = 0.1) {
-        if (!this.trajectoryData.length) return;
+        console.log(`Offsetting trajectory: time=${currentTime}, dirX=${directionX}, dirY=${directionY}, finalPercent=${finalPercent}`);
+        if (!this.trajectoryData.length) {
+            console.log('No trajectory data available');
+            return;
+        }
 
         // Find the current index in the trajectory
         let currentIndex = 0;

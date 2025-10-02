@@ -164,9 +164,7 @@ export class EntryVehicle {
                 time: { value: 0 }
             },
             vertexShader: `
-                #ifdef GL_ES
-                precision mediump float;
-                #endif
+                precision highp float;
 
                 varying vec3 vNormal;
                 varying vec3 vWorldPosition;
@@ -179,9 +177,7 @@ export class EntryVehicle {
                 }
             `,
             fragmentShader: `
-                #ifdef GL_ES
-                precision mediump float;
-                #endif
+                precision highp float;
 
                 uniform float intensity;
                 uniform vec3 glowColor;
@@ -193,14 +189,14 @@ export class EntryVehicle {
 
                 void main() {
                     vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
-                    float fresnel = pow(1.0 - dot(vNormal, viewDirection), 2.0);
+                    float fresnel = pow(clamp(1.0 - dot(normalize(vNormal), viewDirection), 0.0, 1.0), 2.0);
 
                     // Animated plasma effect
                     float noise = sin(time * 10.0 + vWorldPosition.y * 20.0) * 0.1;
                     float glow = fresnel * intensity * (1.0 + noise);
 
                     vec3 color = glowColor * glow;
-                    gl_FragColor = vec4(color, glow * 0.8);
+                    gl_FragColor = vec4(color, clamp(glow * 0.8, 0.0, 1.0));
                 }
             `,
             side: THREE.BackSide,
@@ -405,10 +401,10 @@ export class EntryVehicle {
             return sprite;
         };
 
-        // Create labels for each vector
-        this.vectorLabels.velocity = createTextSprite('Velocity', '#ffff00');
-        this.vectorLabels.lift = createTextSprite('Lift', '#00ffff');
-        this.vectorLabels.position = createTextSprite('Position', '#ff00ff');
+        // Create labels for each vector with physics descriptions
+        this.vectorLabels.velocity = createTextSprite('Velocity (Motion Direction)', '#ffff00');
+        this.vectorLabels.lift = createTextSprite('Lift (Controlled by Bank Angle)', '#00ffff');
+        this.vectorLabels.position = createTextSprite('Position (Radial from Mars)', '#ff00ff');
 
         // Add labels to group
         this.group.add(this.vectorLabels.velocity);
@@ -423,6 +419,13 @@ export class EntryVehicle {
         if (this.velocityArrow && velocity instanceof THREE.Vector3 && velocity.length() > 0.001) {
             const direction = velocity.clone().normalize();
             const velocityLength = 0.05; // Fixed length for visibility
+
+            // Debug: Log velocity direction relative to position
+            if (position instanceof THREE.Vector3) {
+                const posNorm = position.clone().normalize();
+                const velDotPos = direction.dot(posNorm);
+                console.log(`Velocity angle relative to radial: ${THREE.MathUtils.radToDeg(Math.acos(Math.abs(velDotPos)))}°`);
+            }
 
             this.velocityArrow.setDirection(direction);
             this.velocityArrow.setLength(velocityLength, velocityLength * 0.3, velocityLength * 0.2);
@@ -451,42 +454,43 @@ export class EntryVehicle {
             }
         }
 
-        // Calculate lift vector using proper aerospace coordinate system
+        // Calculate lift vector using Mars EDL physics standards
         if (this.bankAngleArrow && velocity.length() > 0.001 && position.length() > 0.001) {
             const velocityNorm = velocity.clone().normalize();
             const positionNorm = position.clone().normalize();
 
-            // Step 1: Calculate the local vertical (planet-relative up direction)
-            const localVertical = positionNorm.clone();
+            // For Mars EDL: Lift is perpendicular to velocity in the orbital plane
+            // Step 1: Calculate angular momentum h = r × v (orbital plane normal)
+            const angularMomentum = new THREE.Vector3();
+            angularMomentum.crossVectors(position, velocity).normalize();
 
-            // Step 2: Calculate the local horizontal in the velocity direction (projection onto local tangent plane)
-            const velocityHorizontal = velocityNorm.clone();
-            // Remove any vertical component from velocity to get pure horizontal
-            const verticalComponent = velocityHorizontal.dot(localVertical);
-            velocityHorizontal.sub(localVertical.clone().multiplyScalar(verticalComponent)).normalize();
-
-            // Step 3: Calculate the default lift direction (perpendicular to velocity, pointing toward local zenith)
-            // In aerospace terms: this is the "up" direction in the aircraft's frame before bank rotation
+            // Step 2: Calculate lift direction in orbital plane perpendicular to velocity
+            // Standard aerospace: L = h × v (right-hand rule)
             let liftDirection = new THREE.Vector3();
-            liftDirection.crossVectors(velocityHorizontal, velocityNorm);
+            liftDirection.crossVectors(angularMomentum, velocityNorm).normalize();
 
-            // Ensure lift points generally toward local zenith (positive dot product with local vertical)
-            if (liftDirection.dot(localVertical) < 0) {
-                liftDirection.negate();
-            }
+            // Step 3: Ensure lift direction matches NASA MSL convention
+            // For atmospheric entry with lifting body, lift can point in various directions
+            // The key is that it's perpendicular to velocity and controlled by bank angle
+            // No need to force direction - let bank angle control it naturally
 
-            // Fallback if velocity is purely radial
+            // Handle edge case: if velocity is perpendicular to position (circular orbit)
             if (liftDirection.length() < 0.001) {
-                // Create perpendicular vector in the local tangent plane
-                liftDirection = new THREE.Vector3(1, 0, 0);
-                if (Math.abs(velocityNorm.dot(liftDirection)) > 0.9) {
-                    liftDirection.set(0, 1, 0);
+                // Default lift perpendicular to both velocity and radial direction
+                liftDirection.crossVectors(velocityNorm, positionNorm).normalize();
+                if (liftDirection.length() < 0.001) {
+                    // Ultimate fallback: create arbitrary perpendicular vector
+                    liftDirection = new THREE.Vector3(0, 1, 0);
+                    if (Math.abs(velocityNorm.dot(liftDirection)) > 0.9) {
+                        liftDirection.set(1, 0, 0);
+                    }
+                    const dot = velocityNorm.dot(liftDirection);
+                    liftDirection.sub(velocityNorm.clone().multiplyScalar(dot)).normalize();
                 }
-                liftDirection.sub(velocityNorm.clone().multiplyScalar(velocityNorm.dot(liftDirection))).normalize();
             }
 
-            // Step 4: Apply bank angle rotation around velocity axis (aerospace roll maneuver)
-            // Bank angle φ rotates lift vector: positive bank = roll right (starboard wing down)
+            // Step 4: Apply bank angle rotation around velocity axis (roll control)
+            // Bank angle rotates lift vector: φ = 0° → lift up, φ = 90° → lift right
             if (Math.abs(bankAngle) > 0.001) {
                 const quaternion = new THREE.Quaternion();
                 quaternion.setFromAxisAngle(velocityNorm, THREE.MathUtils.degToRad(bankAngle));
