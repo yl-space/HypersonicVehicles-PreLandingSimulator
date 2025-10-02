@@ -66,20 +66,20 @@ export class PhaseInfo {
             <div class="additional-telemetry">
                 <div class="telemetry-grid">
                     <div class="telemetry-cell">
-                        <span class="cell-label">G-Force</span>
-                        <span class="cell-value" id="gforce-value">0.0g</span>
+                        <span class="cell-label">Angle of Attack</span>
+                        <span class="cell-value" id="aoa-value">-16.0°</span>
                     </div>
                     <div class="telemetry-cell">
-                        <span class="cell-label">Heat Shield</span>
-                        <span class="cell-value" id="heat-value">0°C</span>
+                        <span class="cell-label">Bank Angle</span>
+                        <span class="cell-value" id="bank-value">0.0°</span>
                     </div>
                     <div class="telemetry-cell">
                         <span class="cell-label">Mach</span>
                         <span class="cell-value" id="mach-value">0.0</span>
                     </div>
                     <div class="telemetry-cell">
-                        <span class="cell-label">Drag</span>
-                        <span class="cell-value" id="drag-value">0.0 kN</span>
+                        <span class="cell-label">G-Force</span>
+                        <span class="cell-value" id="gforce-value">0.0g</span>
                     </div>
                 </div>
             </div>
@@ -107,9 +107,9 @@ export class PhaseInfo {
             progressBar: document.getElementById('phase-progress-bar'),
             progressLabel: document.getElementById('phase-progress-label'),
             gforce: document.getElementById('gforce-value'),
-            heat: document.getElementById('heat-value'),
+            aoa: document.getElementById('aoa-value'),
+            bank: document.getElementById('bank-value'),
             mach: document.getElementById('mach-value'),
-            drag: document.getElementById('drag-value'),
             scrollIndicator: document.getElementById('scroll-indicator')
         };
     }
@@ -211,7 +211,7 @@ export class PhaseInfo {
     updateAdditionalTelemetry(vehicleData, phase) {
         // Extract velocity magnitude properly
         let velocity = 0;
-        
+
         if (typeof vehicleData.velocityMagnitude === 'number' && !isNaN(vehicleData.velocityMagnitude)) {
             velocity = vehicleData.velocityMagnitude;
         } else if (typeof vehicleData.velocity === 'number' && !isNaN(vehicleData.velocity)) {
@@ -221,28 +221,48 @@ export class PhaseInfo {
                 velocity = vehicleData.velocity.length() * 100000;
             }
         }
-        
-        // G-Force calculation (simplified)
+
+        // Angle of Attack - get from vehicle attitude state if available
+        const aoa = vehicleData.angleOfAttack !== undefined ? vehicleData.angleOfAttack : -16;
+        this.elements.aoa.textContent = `${aoa.toFixed(1)}°`;
+
+        // Bank Angle - get from vehicle attitude state if available
+        const bankAngle = vehicleData.bankAngle !== undefined ? vehicleData.bankAngle : 0;
+        this.elements.bank.textContent = `${bankAngle.toFixed(1)}°`;
+
+        // Mach number - use actual calculation if available, otherwise simplified
+        let mach = 0;
+        if (vehicleData.mach !== undefined && !isNaN(vehicleData.mach)) {
+            mach = vehicleData.mach;
+        } else {
+            // Speed of sound on Mars varies with altitude, approximate 240 m/s at surface
+            const altitude = vehicleData.altitude || 0;
+            const soundSpeed = 240 - (altitude * 0.5); // Rough approximation
+            mach = velocity / Math.max(soundSpeed, 150);
+        }
+        this.elements.mach.textContent = isNaN(mach) ? '0.0' : mach.toFixed(1);
+
+        // G-Force calculation (simplified based on deceleration)
         const gForce = Math.min(velocity / 5000, 8);
         this.elements.gforce.textContent = isNaN(gForce) ? '0.0g' : `${gForce.toFixed(1)}g`;
-        
-        // Heat shield temperature (based on velocity)
-        const temp = Math.min(velocity * 0.15, 2000);
-        this.elements.heat.textContent = isNaN(temp) ? '0°C' : `${Math.round(temp)}°C`;
-        
-        // Mach number (simplified)
-        const mach = velocity / 343; // Speed of sound approximation
-        this.elements.mach.textContent = isNaN(mach) ? '0.0' : mach.toFixed(1);
-        
-        // Drag force (simplified)
-        const altitude = vehicleData.altitude || 0;
-        const drag = (velocity / 100) * (1 - altitude / 132);
-        this.elements.drag.textContent = isNaN(drag) ? '0.0 kN' : `${drag.toFixed(1)} kN`;
-        
+
         // Color code values based on severity
         this.colorCodeValue(this.elements.gforce, gForce, 4, 6);
-        this.colorCodeValue(this.elements.heat, temp, 1000, 1500);
         this.colorCodeValue(this.elements.mach, mach, 10, 20);
+
+        // Highlight AoA when it changes (SUFR maneuver)
+        if (Math.abs(aoa) < 1) {
+            this.elements.aoa.style.color = '#00ff00'; // Green for zero AoA
+        } else {
+            this.elements.aoa.style.color = '#ffffff'; // White for trim AoA
+        }
+
+        // Highlight bank angle when non-zero
+        if (Math.abs(bankAngle) > 5) {
+            this.elements.bank.style.color = '#ffaa00'; // Orange for active banking
+        } else {
+            this.elements.bank.style.color = '#ffffff'; // White for wings level
+        }
     }
     
     colorCodeValue(element, value, warningThreshold, dangerThreshold) {

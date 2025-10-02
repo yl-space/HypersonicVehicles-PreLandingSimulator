@@ -134,11 +134,11 @@ export class SimulationManager {
         // Start with Mars visible
         this.currentPlanet = this.mars;
         this.sceneManager.addToAllScenes(this.mars.getObject3D());
-        
-        // Coordinate axes removed to prevent overlap with spacecraft
-        // this.coordinateAxes = new CoordinateAxes(300);
-        // this.sceneManager.addToAllScenes(this.coordinateAxes.getObject3D());
-        
+
+        // Coordinate axes
+        this.coordinateAxes = new CoordinateAxes(300);
+        this.sceneManager.addToAllScenes(this.coordinateAxes.getObject3D());
+
         // Create entry vehicle
         this.entryVehicle = new EntryVehicle();
         this.sceneManager.addToAllScenes(this.entryVehicle.getObject3D());
@@ -463,17 +463,22 @@ export class SimulationManager {
         
         // Get vehicle data at current time
         this.state.vehicleData = this.trajectoryManager.getDataAtTime(this.state.currentTime);
-        
+
         if (this.state.vehicleData) {
             // Update spacecraft position
             if (this.entryVehicle && this.state.vehicleData.position) {
                 this.entryVehicle.setPosition(this.state.vehicleData.position);
-                
-                // Update rotation based on velocity
+
+                // Update spacecraft attitude using scientifically accurate method
+                // This maintains trim angle of attack and bank angle per MSL EDL standards
                 const velocityVector = this.trajectoryManager.getVelocityVector(this.state.currentTime);
                 if (velocityVector && velocityVector.length() > 0.001) {
-                    const lookAtPoint = this.state.vehicleData.position.clone().add(velocityVector);
-                    this.entryVehicle.getObject3D().lookAt(lookAtPoint);
+                    // Use scientific attitude calculation (trim AoA + bank angle)
+                    this.entryVehicle.setScientificAttitude(
+                        velocityVector,
+                        this.state.vehicleData.position,
+                        this.state.bankAngle
+                    );
                 }
             }
             
@@ -504,12 +509,12 @@ export class SimulationManager {
         if (this.stars) {
             this.stars.update(deltaTime);
         }
-        
-        // Coordinate axes update removed
-        // if (this.coordinateAxes) {
-        //     this.coordinateAxes.update(this.cameraController.camera);
-        // }
-        
+
+        // Coordinate axes update
+        if (this.coordinateAxes) {
+            this.coordinateAxes.update(this.cameraController.camera);
+        }
+
         // Planet rotation removed - planets remain stationary in J2000 reference frame
         
         // Update trajectory visibility
@@ -525,9 +530,17 @@ export class SimulationManager {
         
         // Update UI
         this.timeline.update(this.state.currentTime, this.state.isPlaying);
+
+        // Enhance vehicle data with attitude information for telemetry display
+        const enhancedVehicleData = {
+            ...this.state.vehicleData,
+            angleOfAttack: this.entryVehicle ? this.entryVehicle.attitude.angleOfAttack : -16,
+            bankAngle: this.state.bankAngle
+        };
+
         this.phaseInfo.update(
             this.phaseController.phases[this.state.currentPhase],
-            this.state.vehicleData,
+            enhancedVehicleData,
             this.state.currentTime,
             this.state.totalTime
         );

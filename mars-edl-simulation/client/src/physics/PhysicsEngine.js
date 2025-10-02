@@ -151,9 +151,18 @@ export class PhysicsEngine {
         const velocityMagnitude = velocity.length();
         const dynamicPressure = 0.5 * atmosphericDensity * velocityMagnitude * velocityMagnitude;
 
-        // Aerodynamic forces
-        const dragForce = dynamicPressure * this.config.referenceArea; // Simplified, Cd assumed = 1
-        const liftForce = dragForce * this.config.liftToDragRatio * Math.sin(THREE.MathUtils.degToRad(Math.abs(bankAngle)));
+        // Calculate Mach number
+        const soundSpeed = this.calculateSoundSpeed(altitude);
+        const mach = velocityMagnitude / soundSpeed;
+
+        // Get Mach-dependent aerodynamic coefficients
+        const dragCoefficient = this.calculateDragCoefficient(mach);
+        const liftCoefficient = this.calculateLiftCoefficient(mach);
+
+        // Aerodynamic forces with proper coefficients
+        const dragForce = dynamicPressure * this.config.referenceArea * dragCoefficient;
+        const liftForce = dynamicPressure * this.config.referenceArea * liftCoefficient *
+                         Math.sin(THREE.MathUtils.degToRad(Math.abs(bankAngle)));
 
         // Gravity
         const gravityAcceleration = this.constants.gravityMars * Math.pow(this.config.marsRadius / distanceFromCenter, 2);
@@ -165,10 +174,55 @@ export class PhysicsEngine {
             dynamicPressure,
             dragForce,
             liftForce,
+            dragCoefficient,
+            liftCoefficient,
             gravityAcceleration,
-            mach: velocityMagnitude / this.calculateSoundSpeed(altitude),
+            mach,
             densityRatio
         };
+    }
+
+    /**
+     * Calculate drag coefficient based on Mach number
+     * Uses realistic Mars entry vehicle aerodynamics
+     * @param {number} mach - Mach number
+     * @returns {number} Drag coefficient
+     */
+    calculateDragCoefficient(mach) {
+        // MSL-type blunt body aerodynamics
+        if (mach < 0.5) {
+            // Subsonic - low drag
+            return 0.5;
+        } else if (mach < 0.9) {
+            // Subsonic approaching transonic
+            return 0.5 + (mach - 0.5) * 1.0;
+        } else if (mach < 1.2) {
+            // Transonic region - drag peak
+            const t = (mach - 0.9) / 0.3;
+            return 0.9 + t * 0.5; // Peak at ~1.4
+        } else if (mach < 5.0) {
+            // Supersonic - drag decreases
+            return 1.4 - (mach - 1.2) / 3.8 * 0.5;
+        } else {
+            // Hypersonic - relatively constant (MSL regime)
+            // MSL entry at Mach 24: Cd ≈ 1.7
+            return 1.7;
+        }
+    }
+
+    /**
+     * Calculate lift coefficient based on Mach number and angle of attack
+     * For MSL-type lifting body at trim AoA
+     * @param {number} mach - Mach number
+     * @returns {number} Lift coefficient
+     */
+    calculateLiftCoefficient(mach) {
+        // At trim AoA (-16°), L/D = 0.24 for MSL
+        const dragCoeff = this.calculateDragCoefficient(mach);
+        const liftToDragRatio = this.config.liftToDragRatio; // 0.13 for simplified model
+
+        // Cl = (L/D) * Cd
+        return liftToDragRatio * dragCoeff;
     }
 
     /**

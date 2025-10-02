@@ -14,7 +14,15 @@ export class EntryVehicle {
             parachuteDeployed: false,
             thrustersActive: false
         };
-        
+
+        // Spacecraft attitude state (scientifically accurate)
+        this.attitude = {
+            quaternion: new THREE.Quaternion(),
+            angleOfAttack: -16,  // MSL trim AoA: -16 degrees
+            bankAngle: 0,        // Current bank angle
+            sideslipAngle: 0     // Maintained at 0 during entry
+        };
+
         // Add coordinate axes and velocity vector
         this.localAxes = null;
         this.velocityArrow = null;
@@ -29,7 +37,7 @@ export class EntryVehicle {
             lift: null,
             position: null
         };
-        
+
         this.init();
     }
     
@@ -298,12 +306,12 @@ export class EntryVehicle {
     //     this.thrusterMesh.instanceMatrix.needsUpdate = true;
     //     this.group.add(this.thrusterMesh);
     // }
-    
+
     createLocalCoordinateAxes() {
         // Create axes helper for spacecraft local reference frame
         const axesGroup = new THREE.Group();
-        const axisLength = 0.03; // Scaled to new spacecraft size
-        
+        const axisLength = 0.03;
+
         // X-axis (Red) - Forward
         const xGeometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(0, 0, 0),
@@ -312,7 +320,7 @@ export class EntryVehicle {
         const xMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
         const xAxis = new THREE.Line(xGeometry, xMaterial);
         axesGroup.add(xAxis);
-        
+
         // Y-axis (Green) - Up
         const yGeometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(0, 0, 0),
@@ -321,7 +329,7 @@ export class EntryVehicle {
         const yMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 });
         const yAxis = new THREE.Line(yGeometry, yMaterial);
         axesGroup.add(yAxis);
-        
+
         // Z-axis (Blue) - Right
         const zGeometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(0, 0, 0),
@@ -330,62 +338,55 @@ export class EntryVehicle {
         const zMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 2 });
         const zAxis = new THREE.Line(zGeometry, zMaterial);
         axesGroup.add(zAxis);
-        
+
         this.localAxes = axesGroup;
         this.group.add(this.localAxes);
     }
-    
+
     createOrientationVectors() {
         // Create arrow helper for velocity vector
         const origin = new THREE.Vector3(0, 0, 0);
         const direction = new THREE.Vector3(0, -1, 0);
-        const length = 0.5;
-        
+
         // Velocity vector (yellow)
-        const velocityLength = 0.05;
-        this.velocityArrow = new THREE.ArrowHelper(direction, origin, velocityLength, 0xffff00, velocityLength * 0.3, velocityLength * 0.2);
+        const velocityLength = 0.02;
+        this.velocityArrow = new THREE.ArrowHelper(direction, origin, velocityLength, 0xffff00, velocityLength * 0.2, velocityLength * 0.15);
         this.velocityArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-        this.velocityArrow.line.material = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 3 });
+        this.velocityArrow.line.material = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 });
         this.velocityArrow.visible = false;
+        this.velocityArrow.renderOrder = 999;
         this.group.add(this.velocityArrow);
-        
-        // Bank angle vector (cyan) - orthogonal to velocity
-        const bankLength = 0.06;
-        this.bankAngleArrow = new THREE.ArrowHelper(direction, origin, bankLength, 0x00ffff, bankLength * 0.3, bankLength * 0.2);
+
+        // Bank angle vector (cyan)
+        const bankLength = 0.025;
+        this.bankAngleArrow = new THREE.ArrowHelper(direction, origin, bankLength, 0x00ffff, bankLength * 0.2, bankLength * 0.15);
         this.bankAngleArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0x00ffff });
-        this.bankAngleArrow.line.material = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 3 });
+        this.bankAngleArrow.line.material = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 });
         this.bankAngleArrow.visible = false;
+        this.bankAngleArrow.renderOrder = 999;
         this.group.add(this.bankAngleArrow);
-        
-        // Position vector from planet center (magenta)
-        const posLength = 0.08;
-        this.positionArrow = new THREE.ArrowHelper(direction, origin, posLength, 0xff00ff, posLength * 0.3, posLength * 0.2);
+
+        // Position vector (magenta)
+        const posLength = 0.03;
+        this.positionArrow = new THREE.ArrowHelper(direction, origin, posLength, 0xff00ff, posLength * 0.2, posLength * 0.15);
         this.positionArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0xff00ff });
-        this.positionArrow.line.material = new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 3 });
+        this.positionArrow.line.material = new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 2 });
         this.positionArrow.visible = false;
+        this.positionArrow.renderOrder = 999;
         this.group.add(this.positionArrow);
     }
 
     createVectorLabels() {
-        // Create text sprites for vector labels
         const createTextSprite = (text, color) => {
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
-
-            // Set canvas size
             canvas.width = 128;
             canvas.height = 32;
-
-            // Set font and style
             context.font = '16px Arial, sans-serif';
             context.fillStyle = color;
             context.textAlign = 'center';
             context.textBaseline = 'middle';
-
-            // Draw text
             context.fillText(text, canvas.width / 2, canvas.height / 2);
-
-            // Create texture and sprite
             const texture = new THREE.CanvasTexture(canvas);
             const spriteMaterial = new THREE.SpriteMaterial({
                 map: texture,
@@ -393,93 +394,61 @@ export class EntryVehicle {
                 alphaTest: 0.001
             });
             const sprite = new THREE.Sprite(spriteMaterial);
-
-            // Scale sprite appropriately
             sprite.scale.set(0.03, 0.008, 1);
             sprite.visible = false;
-
             return sprite;
         };
 
-        // Create labels for each vector with physics descriptions
         this.vectorLabels.velocity = createTextSprite('Velocity (Motion Direction)', '#ffff00');
         this.vectorLabels.lift = createTextSprite('Lift (Controlled by Bank Angle)', '#00ffff');
         this.vectorLabels.position = createTextSprite('Position (Radial from Mars)', '#ff00ff');
-
-        // Add labels to group
         this.group.add(this.vectorLabels.velocity);
         this.group.add(this.vectorLabels.lift);
         this.group.add(this.vectorLabels.position);
     }
-    
+
     updateOrientationVectors(velocity, position, bankAngle = 0) {
         if (!velocity || !position) return;
+        if (!this.vectorsVisible) return;
 
-        // Update velocity arrow - scaled appropriately
+        // Update velocity arrow
         if (this.velocityArrow && velocity instanceof THREE.Vector3 && velocity.length() > 0.001) {
             const direction = velocity.clone().normalize();
-            const velocityLength = 0.05; // Fixed length for visibility
-
-            // Debug: Log velocity direction relative to position
-            if (position instanceof THREE.Vector3) {
-                const posNorm = position.clone().normalize();
-                const velDotPos = direction.dot(posNorm);
-                console.log(`Velocity angle relative to radial: ${THREE.MathUtils.radToDeg(Math.acos(Math.abs(velDotPos)))}°`);
-            }
-
+            const velocityLength = 0.02;
             this.velocityArrow.setDirection(direction);
-            this.velocityArrow.setLength(velocityLength, velocityLength * 0.3, velocityLength * 0.2);
-
-            // Position velocity label at the tip of the arrow, offset to avoid blocking spacecraft
+            this.velocityArrow.setLength(velocityLength, velocityLength * 0.2, velocityLength * 0.15);
             if (this.vectorLabels.velocity) {
-                const labelPosition = direction.clone().multiplyScalar(velocityLength + 0.02);
+                const labelPosition = direction.clone().multiplyScalar(velocityLength + 0.01);
                 this.vectorLabels.velocity.position.copy(labelPosition);
                 this.vectorLabels.velocity.visible = this.vectorsVisible;
             }
         }
 
-        // Update position arrow (radial outward from Mars center)
+        // Update position arrow
         if (this.positionArrow && position instanceof THREE.Vector3 && position.length() > 0.001) {
             const posDirection = position.clone().normalize();
-            const posLength = 0.08; // Fixed length for visibility
-
+            const posLength = 0.03;
             this.positionArrow.setDirection(posDirection);
-            this.positionArrow.setLength(posLength, posLength * 0.3, posLength * 0.2);
-
-            // Position position label at the tip of the arrow, offset to avoid blocking spacecraft
+            this.positionArrow.setLength(posLength, posLength * 0.2, posLength * 0.15);
             if (this.vectorLabels.position) {
-                const labelPosition = posDirection.clone().multiplyScalar(posLength + 0.02);
+                const labelPosition = posDirection.clone().multiplyScalar(posLength + 0.01);
                 this.vectorLabels.position.position.copy(labelPosition);
                 this.vectorLabels.position.visible = this.vectorsVisible;
             }
         }
 
-        // Calculate lift vector using Mars EDL physics standards
+        // Calculate lift vector
         if (this.bankAngleArrow && velocity.length() > 0.001 && position.length() > 0.001) {
             const velocityNorm = velocity.clone().normalize();
             const positionNorm = position.clone().normalize();
-
-            // For Mars EDL: Lift is perpendicular to velocity in the orbital plane
-            // Step 1: Calculate angular momentum h = r × v (orbital plane normal)
             const angularMomentum = new THREE.Vector3();
             angularMomentum.crossVectors(position, velocity).normalize();
-
-            // Step 2: Calculate lift direction in orbital plane perpendicular to velocity
-            // Standard aerospace: L = h × v (right-hand rule)
             let liftDirection = new THREE.Vector3();
             liftDirection.crossVectors(angularMomentum, velocityNorm).normalize();
 
-            // Step 3: Ensure lift direction matches NASA MSL convention
-            // For atmospheric entry with lifting body, lift can point in various directions
-            // The key is that it's perpendicular to velocity and controlled by bank angle
-            // No need to force direction - let bank angle control it naturally
-
-            // Handle edge case: if velocity is perpendicular to position (circular orbit)
             if (liftDirection.length() < 0.001) {
-                // Default lift perpendicular to both velocity and radial direction
                 liftDirection.crossVectors(velocityNorm, positionNorm).normalize();
                 if (liftDirection.length() < 0.001) {
-                    // Ultimate fallback: create arbitrary perpendicular vector
                     liftDirection = new THREE.Vector3(0, 1, 0);
                     if (Math.abs(velocityNorm.dot(liftDirection)) > 0.9) {
                         liftDirection.set(1, 0, 0);
@@ -489,65 +458,55 @@ export class EntryVehicle {
                 }
             }
 
-            // Step 4: Apply bank angle rotation around velocity axis (roll control)
-            // Bank angle rotates lift vector: φ = 0° → lift up, φ = 90° → lift right
             if (Math.abs(bankAngle) > 0.001) {
                 const quaternion = new THREE.Quaternion();
                 quaternion.setFromAxisAngle(velocityNorm, THREE.MathUtils.degToRad(bankAngle));
                 liftDirection.applyQuaternion(quaternion);
             }
 
-            const bankLength = 0.06; // Fixed length for visibility
+            const bankLength = 0.025;
             this.bankAngleArrow.setDirection(liftDirection);
-            this.bankAngleArrow.setLength(bankLength, bankLength * 0.3, bankLength * 0.2);
-
-            // Position lift label at the tip of the arrow, offset to avoid blocking spacecraft
+            this.bankAngleArrow.setLength(bankLength, bankLength * 0.2, bankLength * 0.15);
             if (this.vectorLabels.lift) {
-                const labelPosition = liftDirection.clone().multiplyScalar(bankLength + 0.02);
+                const labelPosition = liftDirection.clone().multiplyScalar(bankLength + 0.01);
                 this.vectorLabels.lift.position.copy(labelPosition);
                 this.vectorLabels.lift.visible = this.vectorsVisible;
             }
         }
     }
-    
+
     setVectorsVisible(visible, autoFade = false) {
         this.vectorsVisible = visible;
-
         if (this.velocityArrow) this.velocityArrow.visible = visible;
         if (this.bankAngleArrow) this.bankAngleArrow.visible = visible;
         if (this.positionArrow) this.positionArrow.visible = visible;
-
-        // Show/hide vector labels
         if (this.vectorLabels.velocity) this.vectorLabels.velocity.visible = visible;
         if (this.vectorLabels.lift) this.vectorLabels.lift.visible = visible;
         if (this.vectorLabels.position) this.vectorLabels.position.visible = visible;
-        
-        // Clear any existing fade timer
+
         if (this.vectorFadeTimer) {
             clearTimeout(this.vectorFadeTimer);
             this.vectorFadeTimer = null;
         }
-        
-        // Set up auto-fade if requested
+
         if (visible && autoFade) {
             this.vectorFadeTimer = setTimeout(() => {
                 this.setVectorsVisible(false);
-            }, 3000); // Hide after 3 seconds
+            }, 3000);
         }
     }
-    
+
     toggleVectors() {
         this.setVectorsVisible(!this.vectorsVisible);
     }
-    
+
     update(time, vehicleData, bankAngle = 0) {
         if (!vehicleData) return;
-        
+
         // Update orientation vectors if visible
         if (this.vectorsVisible && vehicleData.velocity && vehicleData.position) {
             this.updateOrientationVectors(vehicleData.velocity, vehicleData.position, bankAngle);
         }
-        
         // Update heat effects based on altitude and velocity
         const altitude = vehicleData.altitude || 100;
         const velocity = vehicleData.velocityMagnitude || 0;
@@ -615,17 +574,133 @@ export class EntryVehicle {
             this.group.position.copy(position);
         }
     }
+
+    /**
+     * Set spacecraft attitude based on scientifically accurate Mars EDL principles
+     * Maintains trim angle of attack relative to velocity vector
+     * @param {THREE.Vector3} velocity - Velocity vector
+     * @param {THREE.Vector3} position - Position vector (for radial reference)
+     * @param {number} bankAngle - Bank angle in degrees (optional, defaults to current)
+     */
+    setScientificAttitude(velocity, position, bankAngle = null) {
+        if (!velocity || !position || velocity.length() < 0.001) return;
+
+        // Update bank angle if provided
+        if (bankAngle !== null) {
+            this.attitude.bankAngle = bankAngle;
+        }
+
+        // Normalize vectors
+        const velNorm = velocity.clone().normalize();
+        const posNorm = position.clone().normalize();
+
+        // Calculate local coordinate frame
+        // Right vector: perpendicular to velocity in orbital plane
+        const right = new THREE.Vector3().crossVectors(velNorm, posNorm).normalize();
+
+        // If right vector is too small (edge case), use alternative
+        if (right.length() < 0.001) {
+            right.set(1, 0, 0);
+            if (Math.abs(velNorm.dot(right)) > 0.9) {
+                right.set(0, 1, 0);
+            }
+            const dot = velNorm.dot(right);
+            right.sub(velNorm.clone().multiplyScalar(dot)).normalize();
+        }
+
+        // Up vector: perpendicular to both velocity and right
+        const up = new THREE.Vector3().crossVectors(right, velNorm).normalize();
+
+        // Forward direction starts aligned with velocity
+        const forward = velNorm.clone();
+
+        // Apply trim angle of attack rotation around right axis
+        // Negative AoA means nose pitched up relative to velocity
+        const trimAoARad = THREE.MathUtils.degToRad(this.attitude.angleOfAttack);
+        const trimQuaternion = new THREE.Quaternion();
+        trimQuaternion.setFromAxisAngle(right, trimAoARad);
+
+        // Rotate forward and up vectors by trim AoA
+        forward.applyQuaternion(trimQuaternion);
+        up.applyQuaternion(trimQuaternion);
+
+        // Apply bank angle rotation around velocity axis (roll)
+        const bankRad = THREE.MathUtils.degToRad(this.attitude.bankAngle);
+        const bankQuaternion = new THREE.Quaternion();
+        bankQuaternion.setFromAxisAngle(velNorm, bankRad);
+
+        // Rotate right and up by bank angle
+        right.applyQuaternion(bankQuaternion);
+        up.applyQuaternion(bankQuaternion);
+
+        // Create rotation matrix from basis vectors
+        const rotationMatrix = new THREE.Matrix4();
+        rotationMatrix.makeBasis(right, up, forward.multiplyScalar(-1)); // -forward for Three.js convention
+
+        // Extract quaternion from rotation matrix
+        this.attitude.quaternion.setFromRotationMatrix(rotationMatrix);
+
+        // Apply quaternion to spacecraft
+        this.group.quaternion.copy(this.attitude.quaternion);
+    }
+
+    /**
+     * Set angle of attack (for phase-specific changes like SUFR)
+     * @param {number} aoa - Angle of attack in degrees
+     */
+    setAngleOfAttack(aoa) {
+        this.attitude.angleOfAttack = aoa;
+        console.log(`Spacecraft AoA set to ${aoa}°`);
+    }
+
+    /**
+     * Set bank angle
+     * @param {number} bankAngle - Bank angle in degrees
+     */
+    setBankAngle(bankAngle) {
+        this.attitude.bankAngle = bankAngle;
+    }
     
     triggerPhaseTransition(phaseName) {
+        console.log(`Phase transition: ${phaseName}`);
+
         switch(phaseName) {
-            case 'Parachute Deploy':
-                this.deployParachute();
+            case 'Entry Interface Point':
+                // Set trim angle of attack for hypersonic entry
+                this.setAngleOfAttack(-16);
+                console.log('Entry phase: Trim AoA = -16° (MSL standard)');
                 break;
+
+            case 'Guidance Start':
+                // Maintain trim AoA, activate thrusters for bank angle control
+                this.activateThrusters(true);
+                console.log('Guidance phase: Maintaining trim AoA, bank angle modulation active');
+                break;
+
+            case 'Heading Alignment':
+                // Still maintaining trim AoA during alignment
+                console.log('Heading alignment: Final trajectory corrections with trim AoA');
+                break;
+
+            case 'Begin SUFR':
+                // CRITICAL: "Straighten Up and Fly Right" maneuver
+                // Set angle of attack to ZERO for parachute deployment preparation
+                this.setAngleOfAttack(0);
+                this.setBankAngle(0);
+                console.log('SUFR maneuver: AoA = 0°, Bank = 0° (preparing for parachute)');
+                break;
+
+            case 'Parachute Deploy':
+                // Zero AoA, zero bank angle, stable descent
+                this.setAngleOfAttack(0);
+                this.setBankAngle(0);
+                this.deployParachute();
+                console.log('Parachute deployed: Stable descent configuration');
+                break;
+
             case 'Heat Shield Separation':
                 this.ejectHeatShield();
-                break;
-            case 'Guidance Start':
-                this.activateThrusters(true);
+                console.log('Heat shield separated');
                 break;
         }
     }
