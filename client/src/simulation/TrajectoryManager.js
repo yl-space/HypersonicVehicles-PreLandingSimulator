@@ -460,7 +460,7 @@ export class TrajectoryManager {
      * @param {number} finalPercent
      */
     offsetTrajectoryLinearlyFromCurrentTime(currentTime, directionX, directionY, finalPercent = 0.1) {
-        console.log(`Offsetting trajectory: time=${currentTime}, dirX=${directionX}, dirY=${directionY}, finalPercent=${finalPercent}`);
+        // Logging removed for production use
         if (!this.trajectoryData.length) {
             console.log('No trajectory data available');
             return;

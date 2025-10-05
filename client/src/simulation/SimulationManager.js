@@ -703,11 +703,32 @@ export class SimulationManager {
         );
     }
 
+    // Throttle async calls and cache results to avoid performance issues in real-time loop
+    _lastBankAngleUpdate = 0;
+    _bankAngleCache = null;
+    _bankAngleCacheAngle = null;
+
     async applyBankAnglePhysicsRealTime(bankAngle) {
+        const now = performance.now();
+        const THROTTLE_INTERVAL = 300; // ms
+
         if (!this.dataProvider || !this.state.vehicleData) {
             console.log('DataProvider or vehicleData missing');
             return;
         }
+
+        // Use cached result if within throttle interval and angle hasn't changed
+        if (
+            this._bankAngleCache &&
+            this._bankAngleCacheAngle === bankAngle &&
+            now - this._lastBankAngleUpdate < THROTTLE_INTERVAL
+        ) {
+            this.trajectoryManager.setTrajectoryData(this._bankAngleCache);
+            return;
+        }
+
+        this._lastBankAngleUpdate = now;
+        this._bankAngleCacheAngle = bankAngle;
 
         console.log(`Applying bank angle ${bankAngle}° at time ${this.state.currentTime}`);
 
@@ -732,6 +753,9 @@ export class SimulationManager {
             if (modifiedTrajectory && modifiedTrajectory.points) {
                 // Update trajectory manager with new data
                 this.trajectoryManager.setTrajectoryData(modifiedTrajectory.points);
+
+                // Cache result for throttle interval
+                this._bankAngleCache = modifiedTrajectory.points;
 
                 console.log(`Applied bank angle modification using ${modifiedTrajectory.metadata?.source || 'unknown'} source`);
             } else {

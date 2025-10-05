@@ -1,5 +1,5 @@
 {
-  "name": "HSV-simulation",
+  "name": "hsv-simulation",
   "version": "1.0.0",
   "description": "Interactive HSV Entry, Descent, and Landing Simulation using Three.js",
   "main": "server/index.js",

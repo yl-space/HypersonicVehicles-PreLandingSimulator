@@ -263,49 +263,7 @@ export class EntryVehicle {
         this.group.add(this.effects.plasmaTail);
     }
     
-    // createThrusterSystem() {
-    //     // Modern instanced thrusters - scaled for smaller spacecraft
-    //     const scaleFactor = 0.1; // Match spacecraft scale
-    //     const thrusterGeometry = new THREE.ConeGeometry(
-    //         scaleFactor * 0.2,  // Radius: 0.02 units
-    //         scaleFactor * 1.0,  // Height: 0.1 units
-    //         8
-    //     );
-    //     const thrusterMaterial = new THREE.MeshBasicMaterial({
-    //         color: 0xffaa00,
-    //         transparent: true,
-    //         opacity: 0,
-    //         blending: THREE.AdditiveBlending
-    //     });
-        
-    //     // Create 8 thrusters using InstancedMesh
-    //     this.thrusterMesh = new THREE.InstancedMesh(
-    //         thrusterGeometry,
-    //         thrusterMaterial,
-    //         8
-    //     );
-        
-    //     const matrix = new THREE.Matrix4();
-    //     const position = new THREE.Vector3();
-    //     const rotation = new THREE.Euler();
-    //     const scale = new THREE.Vector3(1, 1, 1);
-        
-    //     for (let i = 0; i < 8; i++) {
-    //         const angle = (i / 8) * Math.PI * 2;
-    //         position.set(
-    //             Math.cos(angle) * scaleFactor * 1.2,  // Position around spacecraft
-    //             -scaleFactor * 0.8,                    // Below spacecraft
-    //             Math.sin(angle) * scaleFactor * 1.2
-    //         );
-    //         rotation.set(Math.PI, 0, angle);
-            
-    //         matrix.compose(position, new THREE.Quaternion().setFromEuler(rotation), scale);
-    //         this.thrusterMesh.setMatrixAt(i, matrix);
-    //     }
-        
-    //     this.thrusterMesh.instanceMatrix.needsUpdate = true;
-    //     this.group.add(this.thrusterMesh);
-    // }
+    // Large commented-out code block removed for clarity. Use version control to restore if needed.
 
     createLocalCoordinateAxes() {
         // Create axes helper for spacecraft body-fixed reference frame
