@@ -308,11 +308,34 @@ export class EntryVehicle {
     // }
 
     createLocalCoordinateAxes() {
-        // Create axes helper for spacecraft local reference frame
+        // Create axes helper for spacecraft body-fixed reference frame
+        // This shows the spacecraft's local coordinate system orientation
         const axesGroup = new THREE.Group();
         const axisLength = 0.03;
 
-        // X-axis (Red) - Forward
+        // Helper function to create text label
+        const createAxisLabel = (text, color) => {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 64;
+            canvas.height = 32;
+            context.font = 'bold 20px Arial';
+            context.fillStyle = color;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, canvas.width / 2, canvas.height / 2);
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+                depthTest: false
+            });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.scale.set(0.015, 0.0075, 1);
+            return sprite;
+        };
+
+        // X-axis (Red) - Right (Spacecraft body frame)
         const xGeometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(0, 0, 0),
             new THREE.Vector3(axisLength, 0, 0)
@@ -321,7 +344,11 @@ export class EntryVehicle {
         const xAxis = new THREE.Line(xGeometry, xMaterial);
         axesGroup.add(xAxis);
 
-        // Y-axis (Green) - Up
+        const xLabel = createAxisLabel('X', '#ff0000');
+        xLabel.position.set(axisLength + 0.008, 0, 0);
+        axesGroup.add(xLabel);
+
+        // Y-axis (Green) - Up (Perpendicular to velocity, points "up" in body frame)
         const yGeometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(0, 0, 0),
             new THREE.Vector3(0, axisLength, 0)
@@ -330,7 +357,11 @@ export class EntryVehicle {
         const yAxis = new THREE.Line(yGeometry, yMaterial);
         axesGroup.add(yAxis);
 
-        // Z-axis (Blue) - Right
+        const yLabel = createAxisLabel('Y', '#00ff00');
+        yLabel.position.set(0, axisLength + 0.008, 0);
+        axesGroup.add(yLabel);
+
+        // Z-axis (Blue) - Forward (Points opposite to velocity direction)
         const zGeometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(0, 0, 0),
             new THREE.Vector3(0, 0, axisLength)
@@ -338,6 +369,10 @@ export class EntryVehicle {
         const zMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 2 });
         const zAxis = new THREE.Line(zGeometry, zMaterial);
         axesGroup.add(zAxis);
+
+        const zLabel = createAxisLabel('Z', '#0000ff');
+        zLabel.position.set(0, 0, axisLength + 0.008);
+        axesGroup.add(zLabel);
 
         this.localAxes = axesGroup;
         this.group.add(this.localAxes);

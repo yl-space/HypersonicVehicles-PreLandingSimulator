@@ -32,9 +32,9 @@ export class TrajectoryManager {
         
         // Materials with modern features - thinner lines for better view
         this.pastMaterial = new THREE.LineBasicMaterial({
-            color: 0x00ff00,  // GREEN for traveled path (as requested)
-            linewidth: 2,     // Slightly thicker for visibility
-            opacity: 0.7,     // More visible
+            color: 0x444444,  // Dark gray for traveled path
+            linewidth: 1,
+            opacity: 0.4,
             transparent: true
         });
 
@@ -99,20 +99,17 @@ export class TrajectoryManager {
     }
     
     createPositionMarker() {
-        // YELLOW marker for current position (as requested)
-        const markerGeometry = new THREE.SphereGeometry(0.015, 16, 16);
+        // Position marker (invisible by default)
+        const markerGeometry = new THREE.SphereGeometry(0.005, 8, 8);
         const markerMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffff00,  // YELLOW
+            color: 0xff0000,
             transparent: true,
-            opacity: 0.9,     // Visible
-            emissive: 0xffff00,  // Self-illuminating
-            emissiveIntensity: 0.5
+            opacity: 0.0
         });
 
         this.currentPositionMarker = new THREE.Mesh(markerGeometry, markerMaterial);
         this.currentPositionMarker.castShadow = false;
-        this.currentPositionMarker.visible = true;  // Make it visible
-        this.currentPositionMarker.renderOrder = 1000; // Render on top
+        this.currentPositionMarker.visible = false;
 
         this.group.add(this.currentPositionMarker);
     }

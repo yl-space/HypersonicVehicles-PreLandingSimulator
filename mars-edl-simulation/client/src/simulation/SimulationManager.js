@@ -16,7 +16,6 @@ import { Timeline } from '../ui/Timeline.js';
 import { PhaseInfo } from '../ui/PhaseInfo.js';
 import { Controls } from '../ui/Controls.js';
 import { DataManager } from '../data/DataManager.js';
-import { CoordinateAxes } from '../components/helpers/CoordinateAxes.js';
 import { SimulationDataProvider } from '../core/SimulationDataProvider.js';
 import { PhysicsEngine } from '../physics/PhysicsEngine.js';
 import { config } from '../config/SimulationConfig.js';
@@ -47,7 +46,6 @@ export class SimulationManager {
         this.jupiter = null;
         this.currentPlanet = null;
         this.stars = null;
-        this.coordinateAxes = null;
 
         // UI components
         this.timeline = null;
@@ -134,10 +132,6 @@ export class SimulationManager {
         // Start with Mars visible
         this.currentPlanet = this.mars;
         this.sceneManager.addToAllScenes(this.mars.getObject3D());
-
-        // Coordinate axes
-        this.coordinateAxes = new CoordinateAxes(300);
-        this.sceneManager.addToAllScenes(this.coordinateAxes.getObject3D());
 
         // Create entry vehicle
         this.entryVehicle = new EntryVehicle();
@@ -508,11 +502,6 @@ export class SimulationManager {
         // Update stars
         if (this.stars) {
             this.stars.update(deltaTime);
-        }
-
-        // Coordinate axes update
-        if (this.coordinateAxes) {
-            this.coordinateAxes.update(this.cameraController.camera);
         }
 
         // Planet rotation removed - planets remain stationary in J2000 reference frame
