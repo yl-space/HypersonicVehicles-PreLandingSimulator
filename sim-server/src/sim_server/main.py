@@ -17,7 +17,11 @@ LOG_CONFIG = Path(__file__).parent / "log.ini"
 load_dotenv()
 app = FastAPI()
 
-@app.post("/simulate/high-fidelity/")
+import logging
+
+logger = logging.getLogger("uvicorn")
+
+@app.post("/high-fidelity/")
 @log_timing
 async def simulate_high_fidelity(
     planet: PlanetParams = PlanetParams(),
@@ -46,9 +50,9 @@ async def simulate_high_fidelity(
     # print final values for debug
     final_time = results['time_s'][-1]
     final_velocity = (results['vx_m_s'][-1]**2 + results['vy_m_s'][-1]**2 + results['vz_m_s'][-1]**2)**0.5
-    print(f"\n=== FINAL SIMULATION RESULTS ===")
-    print(f"Final time: {final_time:.2f} seconds")
-    print(f"Final velocity: {final_velocity/1000:.2f} km/s" "= Mach " + str(final_velocity/236.38))
+    logger.info(f"\n=== FINAL SIMULATION RESULTS ===")
+    logger.info(f"Final time: {final_time:.2f} seconds")
+    logger.info(f"Final velocity: {final_velocity/1000:.2f} km/s" "= Mach " + str(final_velocity/236.38))
 
     # Serialize results for JSON response
     results = serialize_simulation_results(results, use_arrow=serialize_arrow)

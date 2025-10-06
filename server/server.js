@@ -11,6 +11,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import multer from 'multer';
 import winston from 'winston';
+import proxy from 'express-http-proxy';
 
 // Import API routes
 import trajectoriesAPI from './api/trajectories.js';
@@ -131,6 +132,31 @@ app.use('/node_modules', express.static(path.join(__dirname, '..', 'node_modules
     }
 }));
 
+// Proxy to Python sim-server
+// In Docker: use service name, in local dev: use 127.0.0.1
+const isDocker = process.env.NODE_ENV === 'production' || process.env.DOCKER_ENV;
+const SIM_SERVER_HOST = process.env.SIM_SERVER_HOST || (isDocker ? 'sim-server' : '127.0.0.1');
+const SIM_SERVER_PORT = process.env.SIM_SERVER_PORT || '8000';
+const SIM_SERVER_URL = `http://${SIM_SERVER_HOST}:${SIM_SERVER_PORT}`;
+
+app.use('/sim', proxy(SIM_SERVER_URL, {
+    proxyReqPathResolver: (req) => {
+        // Remove /sim prefix and forward the rest of the path
+        const newPath = req.url;
+        logger.info(`Proxying /sim${newPath} to ${SIM_SERVER_URL}${newPath}`);
+        return newPath;
+    },
+    proxyErrorHandler: (err, res, next) => {
+        logger.error('Proxy error:', err);
+        res.status(502).json({
+            error: {
+                message: 'Simulation server unavailable',
+                status: 502
+            }
+        });
+    }
+}));
+
 // API Routes
 app.use('/api/trajectories', trajectoriesAPI);
 app.use('/api/missions', missionsAPI);
@@ -210,10 +236,12 @@ app.listen(PORT, () => {
     logger.info(`HSLV Simulation server running on port ${PORT}`);
     logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
     logger.info(`Client files served from: ${clientPath}`);
+    logger.info(`Sim-server proxy configured: /sim -> ${SIM_SERVER_URL}`);
     
     // In development, open browser
     if (process.env.NODE_ENV !== 'production') {
         logger.info(`Open http://localhost:${PORT} in your browser`);
+        logger.info(`Simulation API available at: http://localhost:${PORT}/sim/simulate/high-fidelity/`);
     }
 });
 

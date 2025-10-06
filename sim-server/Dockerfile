@@ -32,7 +32,9 @@ COPY --from=builder --chown=app:app /app /app
 ENV PATH="/app/.venv/bin:$PATH"
 
 ENV IS_PRODUCTION=True
+ENV SIM_SERVER_HOST=0.0.0.0
+ENV SIM_SERVER_PORT=8000
 
 WORKDIR /app
 
-CMD ["python", "src/sim_server/main.py"]
+CMD ["python", "-m", "src.sim_server.main"]
