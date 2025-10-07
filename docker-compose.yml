@@ -16,6 +16,18 @@ services:
     networks:
       - edl_network
 
+  sim-server:
+    build:
+      context: ./sim-server
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/logs
+    restart: unless-stopped
+    networks:
+      - edl_network
+
   # Nginx reverse proxy
   nginx:
     image: nginx:alpine

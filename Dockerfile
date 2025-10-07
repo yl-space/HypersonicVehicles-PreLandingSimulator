@@ -49,6 +49,8 @@ USER nodejs
 # Expose port
 EXPOSE 3001
 
+ENV DOCKER_ENV=True
+
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
