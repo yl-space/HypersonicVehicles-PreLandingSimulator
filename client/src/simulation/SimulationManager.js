@@ -282,6 +282,7 @@ export class SimulationManager {
             
             // Load trajectory data using existing DataManager method
             const csvData = await this.dataManager.loadTrajectoryCSV(filename);
+            // const csvData = await this.dataManager.loadTrajectoryHTTP();
             
             // Transform CSV data to trajectory format with proper Vector3 objects
             const trajectoryData = [];
