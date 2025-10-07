@@ -5,6 +5,7 @@
  */
 
 import * as THREE from '/node_modules/three/build/three.module.js';
+import { BackendAPIClient } from '../services/BackendAPIClient.js';
 
 export class PhysicsEngine {
     constructor(config = {}) {
@@ -36,14 +37,99 @@ export class PhysicsEngine {
             marsMass: 6.4171e23,   // kg
             atmosphericScale: this.config.scaleHeight * 1000 // convert to meters
         };
+
+        // Backend integration
+        this.preferBackend = true;
+        this.backendAvailable = true;
+        this.backendAPI = new BackendAPIClient({
+            baseURL: config.backendUrl || window.location.origin,
+            timeout: 10000,
+            retryAttempts: 2,
+            cacheEnabled: true,
+            enableFallback: true
+        });
     }
 
     /**
      * Calculate trajectory points based on initial conditions and bank angle profile
+     * Now tries backend first, falls back to local calculation
      * @param {Object} parameters - Initial conditions and trajectory parameters
      * @returns {Array} Array of trajectory points with position, velocity, and physics data
      */
-    calculateTrajectory(parameters = {}) {
+    async calculateTrajectory(parameters = {}) {
+        // Try backend first if available and preferred
+        if (this.preferBackend && this.backendAvailable) {
+            try {
+                console.log('[PhysicsEngine] Attempting backend trajectory calculation');
+                const backendResult = await this.calculateTrajectoryFromBackend(parameters);
+                if (backendResult) {
+                    console.log('[PhysicsEngine] Using backend trajectory');
+                    return backendResult;
+                }
+            } catch (error) {
+                console.warn('[PhysicsEngine] Backend calculation failed, falling back to local:', error.message);
+                this.backendAvailable = false;
+            }
+        }
+
+        // Fallback to local calculation
+        console.log('[PhysicsEngine] Using local trajectory calculation');
+        return this.calculateTrajectoryLocal(parameters);
+    }
+
+    /**
+     * Calculate trajectory from backend server
+     * @param {Object} parameters - Trajectory parameters
+     * @returns {Array|null} Backend trajectory or null if failed
+     */
+    async calculateTrajectoryFromBackend(parameters) {
+        try {
+            const response = await fetch(`${this.backendAPI.baseURL}/api/trajectory/calculate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...parameters,
+                    coordinate_system: 'J2000_mars_centered',
+                    physics_model: 'mars_edl',
+                    time_step: parameters.timeStep || this.config.timeStep,
+                    mars_radius: this.config.marsRadius,
+                    scale_factor: this.config.SCALE_FACTOR
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Backend returned ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Transform backend data to expected format
+            if (data.trajectory && Array.isArray(data.trajectory)) {
+                return data.trajectory.map(point => ({
+                    time: point.time,
+                    position: new THREE.Vector3(point.position.x, point.position.y, point.position.z),
+                    velocity: new THREE.Vector3(point.velocity.x, point.velocity.y, point.velocity.z),
+                    altitude: point.altitude,
+                    velocityMagnitude: point.velocityMagnitude,
+                    distanceToLanding: point.distanceToLanding,
+                    bankAngle: point.bankAngle,
+                    ...point.physics
+                }));
+            }
+
+            return null;
+        } catch (error) {
+            console.warn('[PhysicsEngine] Backend trajectory calculation error:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Local trajectory calculation (original implementation)
+     * @param {Object} parameters - Initial conditions and trajectory parameters
+     * @returns {Array} Array of trajectory points
+     */
+    calculateTrajectoryLocal(parameters = {}) {
         const {
             initialPosition = new THREE.Vector3(0, 50, 0),
             initialVelocity = new THREE.Vector3(0, -1, 0),
@@ -92,11 +178,65 @@ export class PhysicsEngine {
 
     /**
      * Modify existing trajectory with new bank angle from current time
+     * Now tries backend first, falls back to local modification
      * @param {Array} baseTrajectory - Original trajectory points
      * @param {Object} parameters - Modification parameters
      * @returns {Array} Modified trajectory
      */
-    modifyTrajectory(baseTrajectory, parameters = {}) {
+    async modifyTrajectory(baseTrajectory, parameters = {}) {
+        // Try backend modification first
+        if (this.preferBackend && this.backendAvailable) {
+            try {
+                console.log('[PhysicsEngine] Attempting backend trajectory modification');
+                const backendResult = await this.modifyTrajectoryFromBackend(baseTrajectory, parameters);
+                if (backendResult) {
+                    console.log('[PhysicsEngine] Using backend modified trajectory');
+                    return backendResult;
+                }
+            } catch (error) {
+                console.warn('[PhysicsEngine] Backend modification failed, falling back to local:', error.message);
+                this.backendAvailable = false;
+            }
+        }
+
+        // Fallback to local modification
+        console.log('[PhysicsEngine] Using local trajectory modification');
+        return this.modifyTrajectoryLocal(baseTrajectory, parameters);
+    }
+
+    /**
+     * Modify trajectory using backend server
+     * @param {Array} baseTrajectory - Original trajectory
+     * @param {Object} parameters - Modification parameters
+     * @returns {Array|null} Modified trajectory or null if failed
+     */
+    async modifyTrajectoryFromBackend(baseTrajectory, parameters) {
+        const result = await this.backendAPI.modifyTrajectoryWithBankAngle(
+            parameters.currentTime || 0,
+            parameters.bankAngle || 0,
+            parameters.liftForceDirection,
+            { trajectory: baseTrajectory, ...parameters }
+        );
+
+        if (result.success && result.data && result.data.trajectory) {
+            // Transform backend data to expected format
+            return result.data.trajectory.map(point => ({
+                ...point,
+                position: new THREE.Vector3(point.position.x, point.position.y, point.position.z),
+                velocity: new THREE.Vector3(point.velocity.x, point.velocity.y, point.velocity.z)
+            }));
+        }
+
+        return null;
+    }
+
+    /**
+     * Local trajectory modification (original implementation)
+     * @param {Array} baseTrajectory - Original trajectory points
+     * @param {Object} parameters - Modification parameters
+     * @returns {Array} Modified trajectory
+     */
+    modifyTrajectoryLocal(baseTrajectory, parameters = {}) {
         const {
             currentTime = 0,
             bankAngle = 0,
@@ -508,5 +648,80 @@ export class PhysicsEngine {
             },
             trajectory
         }, null, 2);
+    }
+
+    /**
+     * Check backend availability and health
+     * @returns {Promise<Object>} Health check result
+     */
+    async checkBackendHealth() {
+        const health = await this.backendAPI.healthCheck();
+        this.backendAvailable = health.success;
+        return health;
+    }
+
+    /**
+     * Get backend status information
+     * @returns {Object} Status information
+     */
+    getBackendStatus() {
+        return {
+            available: this.backendAvailable,
+            preferBackend: this.preferBackend,
+            apiStatus: this.backendAPI.getStatus()
+        };
+    }
+
+    /**
+     * Set backend preference (enable/disable backend)
+     * @param {boolean} prefer - Whether to prefer backend
+     */
+    setBackendPreference(prefer) {
+        this.preferBackend = prefer;
+        console.log(`[PhysicsEngine] Backend preference set to: ${prefer}`);
+    }
+
+    /**
+     * Force update backend availability status
+     * @returns {Promise<boolean>} Whether backend is available
+     */
+    async updateBackendAvailability() {
+        const isAvailable = await this.backendAPI.isBackendAvailable();
+        this.backendAvailable = isAvailable;
+        console.log(`[PhysicsEngine] Backend availability updated: ${isAvailable}`);
+        return isAvailable;
+    }
+
+    /**
+     * Calculate atmospheric properties (supports backend)
+     * @param {string} planet - Planet name
+     * @param {number} altitude - Altitude in km
+     * @param {number} velocity - Velocity magnitude in m/s
+     * @returns {Promise<Object>} Atmospheric properties
+     */
+    async getAtmosphericProperties(planet, altitude, velocity) {
+        // Try backend first
+        if (this.preferBackend && this.backendAvailable) {
+            const result = await this.backendAPI.getAtmosphericProperties(planet, altitude, velocity);
+            if (result.success) {
+                return result.data;
+            }
+        }
+
+        // Fallback to local calculation
+        const soundSpeed = this.calculateSoundSpeed(altitude);
+        const densityRatio = Math.exp(-Math.max(0, altitude * 1000) / this.constants.atmosphericScale);
+        const atmosphericDensity = this.config.surfaceDensity * densityRatio;
+        const dynamicPressure = 0.5 * atmosphericDensity * velocity * velocity;
+        const mach = velocity / soundSpeed;
+
+        return {
+            density: atmosphericDensity,
+            pressure: dynamicPressure,
+            soundSpeed,
+            mach,
+            temperature: 218 - 2.0 * altitude,
+            source: 'local'
+        };
     }
 }
