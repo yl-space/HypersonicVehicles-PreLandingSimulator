@@ -17,6 +17,9 @@ export class TrajectoryManager {
         // Performance optimizations
         this.useInstancing = true;
         this.useLOD = true;
+
+        // TODO: Make it so you can never make a change before the most recent time
+        this.offsetHistory = []; // Array of {time, x, y, z}
         
         this.init();
     }
@@ -479,6 +482,11 @@ export class TrajectoryManager {
         // Get interpolated data at currentTime
         const currentData = this.getDataAtTime(currentTime);
         if (!currentData) return;
+
+        // Store this in the offset history if it's newer than the last entry
+        if (currentData.time > (this.offsetHistory.length ? this.offsetHistory[this.offsetHistory.length - 1].time : -Infinity)) {
+            this.offsetHistory.push({ time: currentData.time, x: currentData.position.x, y: currentData.position.y, z: currentData.position.z });
+        }
 
         // "Up" is from Mars center to position (radial)
         const up = currentData.position.clone().normalize();
