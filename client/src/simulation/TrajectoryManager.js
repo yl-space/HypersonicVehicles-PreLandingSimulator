@@ -1,4 +1,5 @@
 import * as THREE from '/node_modules/three/build/three.module.js';
+import { BackendAPIClient } from '../services/BackendAPIClient.js';
 
 export class TrajectoryManager {
     constructor() {
@@ -7,17 +8,27 @@ export class TrajectoryManager {
         this.marsRadius = 3390000; // meters (NASA data)
         // Scale factor: 1 unit = 100 km for consistency with planet scales
         this.SCALE_FACTOR = 0.00001; // Convert meters to visualization units
-        
+
         // Visual components
         this.group = new THREE.Group();
         this.trajectoryLine = null;
         this.pathPoints = null;
         this.currentPositionMarker = null;
-        
+
         // Performance optimizations
         this.useInstancing = true;
         this.useLOD = true;
-        
+
+        // Backend integration
+        this.preferBackend = true;
+        this.backendAPI = new BackendAPIClient({
+            baseURL: window.location.origin,
+            timeout: 8000,
+            retryAttempts: 2,
+            cacheEnabled: true
+        });
+        this.backendAvailable = true;
+
         this.init();
     }
     
@@ -645,11 +656,63 @@ export class TrajectoryManager {
 
     /**
      * Real-time physics-based trajectory modification with immediate visual feedback
+     * Now tries backend first, falls back to local calculation
      * @param {number} currentTime - Current simulation time
      * @param {THREE.Vector3} liftForceDirection - Direction of lift force in 3D space
      * @param {number} bankAngle - Current bank angle in degrees
      */
-    offsetTrajectoryWithPhysicsRealTime(currentTime, liftForceDirection, bankAngle) {
+    async offsetTrajectoryWithPhysicsRealTime(currentTime, liftForceDirection, bankAngle) {
+        if (!this.trajectoryData.length || !liftForceDirection) {
+            return;
+        }
+
+        // Try backend modification first if available
+        if (this.preferBackend && this.backendAvailable) {
+            const backendResult = await this.backendAPI.modifyTrajectoryWithBankAngle(
+                currentTime,
+                bankAngle,
+                {
+                    x: liftForceDirection.x,
+                    y: liftForceDirection.y,
+                    z: liftForceDirection.z
+                },
+                this.trajectoryData
+            );
+
+            if (backendResult.success && backendResult.data) {
+                console.log('[TrajectoryManager] Using backend trajectory modification');
+
+                // Convert backend trajectory data to local format
+                const modifiedTrajectory = backendResult.data.trajectory.map(point => ({
+                    time: point.time,
+                    position: new THREE.Vector3(point.position.x, point.position.y, point.position.z),
+                    altitude: point.altitude,
+                    velocity: new THREE.Vector3(point.velocity.x, point.velocity.y, point.velocity.z),
+                    velocityMagnitude: point.velocityMagnitude,
+                    distanceToLanding: point.distanceToLanding
+                }));
+
+                this.setTrajectoryData(modifiedTrajectory);
+                this.updateTrajectoryDisplay(currentTime);
+                return;
+            } else if (backendResult.useFallback) {
+                console.warn('[TrajectoryManager] Backend trajectory modification unavailable, using local calculation');
+                this.backendAvailable = false;
+            }
+        }
+
+        // Fallback: Use local calculation
+        this.offsetTrajectoryWithPhysicsRealTimeLocal(currentTime, liftForceDirection, bankAngle);
+    }
+
+    /**
+     * Local real-time physics-based trajectory modification
+     * Original implementation
+     * @param {number} currentTime - Current simulation time
+     * @param {THREE.Vector3} liftForceDirection - Direction of lift force in 3D space
+     * @param {number} bankAngle - Current bank angle in degrees
+     */
+    offsetTrajectoryWithPhysicsRealTimeLocal(currentTime, liftForceDirection, bankAngle) {
         if (!this.trajectoryData.length || !liftForceDirection) {
             return;
         }
@@ -748,6 +811,35 @@ export class TrajectoryManager {
         this.updateTrajectoryVisibility(0);
     }
     
+    /**
+     * Set backend preference
+     */
+    setBackendPreference(prefer) {
+        this.preferBackend = prefer;
+        console.log(`[TrajectoryManager] Backend preference set to: ${prefer}`);
+    }
+
+    /**
+     * Get backend status
+     */
+    getBackendStatus() {
+        return {
+            available: this.backendAvailable,
+            preferBackend: this.preferBackend,
+            apiStatus: this.backendAPI?.getStatus()
+        };
+    }
+
+    /**
+     * Check backend availability
+     */
+    async checkBackendAvailability() {
+        if (!this.backendAPI) return false;
+        const isAvailable = await this.backendAPI.isBackendAvailable();
+        this.backendAvailable = isAvailable;
+        return isAvailable;
+    }
+
     dispose() {
         this.group.traverse((child) => {
             if (child.geometry) child.geometry.dispose();
@@ -759,5 +851,6 @@ export class TrajectoryManager {
                 }
             }
         });
+        this.backendAPI = null;
     }
 }
