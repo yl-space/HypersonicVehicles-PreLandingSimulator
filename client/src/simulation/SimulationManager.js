@@ -16,8 +16,7 @@ import { Timeline } from '../ui/Timeline.js';
 import { PhaseInfo } from '../ui/PhaseInfo.js';
 import { Controls } from '../ui/Controls.js';
 import { DataManager } from '../data/DataManager.js';
-import { SimulationDataProvider } from '../core/SimulationDataProvider.js';
-import { PhysicsEngine } from '../physics/PhysicsEngine.js';
+import { TrajectoryService } from '../services/TrajectoryService.js';
 import { config } from '../config/SimulationConfig.js';
 
 export class SimulationManager {
@@ -36,8 +35,7 @@ export class SimulationManager {
         this.trajectoryManager = null;
         this.phaseController = null;
         this.dataManager = null;
-        this.dataProvider = null;
-        this.physicsEngine = null;
+        this.trajectoryService = null;
         
         // Scene objects
         this.entryVehicle = null;
@@ -88,15 +86,11 @@ export class SimulationManager {
         this.phaseController = new PhaseController();
         this.dataManager = new DataManager();
 
-        // Initialize new flexible data architecture
-        this.physicsEngine = new PhysicsEngine(config.get('physics'));
-        this.dataProvider = new SimulationDataProvider({
-            source: config.get('dataSource.mode'),
-            backendUrl: config.get('dataSource.backendUrl'),
-            fallbackToFrontend: config.get('dataSource.fallbackToFrontend'),
-            cacheResults: config.get('dataSource.cacheResults')
+        // Initialize backend-only trajectory service
+        this.trajectoryService = new TrajectoryService({
+            backendUrl: config.get('dataSource.backendUrl') || 'http://localhost:3010',
+            timeout: 30000
         });
-        this.dataProvider.initialize(this.physicsEngine);
         
         // Create scene objects
         this.createSceneObjects();
@@ -283,96 +277,53 @@ export class SimulationManager {
     
     async loadData() {
         try {
-            // Extract filename from path
-            const filename = this.options.dataPath.split('/').pop();
-            
-            // Load trajectory data using existing DataManager method
-            const csvData = await this.dataManager.loadTrajectoryCSV(filename);
-            // const csvData = await this.dataManager.loadTrajectoryHTTP();
-            
-            // Transform CSV data to trajectory format with proper Vector3 objects
-            const trajectoryData = [];
-            let prevPosition = null;
-            
-            for (let i = 0; i < csvData.rows.length; i++) {
-                const row = csvData.rows[i];
-                
-                // Parse values as floats
-                const time = parseFloat(row.Time || row.time || 0);
-                const x = parseFloat(row.x || 0);
-                const y = parseFloat(row.y || 0);
-                const z = parseFloat(row.z || 0);
-                
-                if (!isNaN(time) && !isNaN(x) && !isNaN(y) && !isNaN(z)) {
-                    // Calculate raw distance from Mars center
-                    const rawDistance = Math.sqrt(x * x + y * y + z * z);
-                    
-                    // Mars radius in meters
-                    const marsRadiusMeters = 3390000;
-                    
-                    // Calculate altitude (distance from surface)
-                    const altitude = rawDistance - marsRadiusMeters;
-                    
-                    // Scale factor for visualization (matching EntryVehicle scale)
-                    const SCALE_FACTOR = 0.00001;
-                    
-                    // Create position vector
-                    const position = new THREE.Vector3(
-                        x * SCALE_FACTOR,
-                        y * SCALE_FACTOR,
-                        z * SCALE_FACTOR
-                    );
-                    
-                    // Calculate velocity vector
-                    let velocityVector = new THREE.Vector3(0, -1, 0);
-                    let velocityMagnitude = 5900 * (1 - time / 260.65);
-                    
-                    if (prevPosition && i > 0) {
-                        const prevTime = trajectoryData[trajectoryData.length - 1].time;
-                        const dt = time - prevTime;
-                        if (dt > 0) {
-                            velocityVector = position.clone().sub(prevPosition).divideScalar(dt);
-                            velocityMagnitude = velocityVector.length() / SCALE_FACTOR;
-                            velocityVector.normalize();
-                        }
-                    }
-                    
-                    trajectoryData.push({
-                        time: time,
-                        position: position,
-                        altitude: altitude * 0.001, // Convert to km for display
-                        velocity: velocityVector, // Ensure it's a Vector3
-                        velocityMagnitude: velocityMagnitude,
-                        distanceToLanding: rawDistance * 0.001 // km
-                    });
-                    
-                    prevPosition = position.clone();
-                }
+            console.log('[SimulationManager] Loading trajectory from backend...');
+
+            // Check backend health first
+            const backendStatus = await this.trajectoryService.getBackendStatus();
+            console.log('[SimulationManager] Backend status:', backendStatus);
+
+            if (!backendStatus.available) {
+                throw new Error(`Backend server not available at ${backendStatus.backendUrl}. Please start the sim-server on port 3010.`);
             }
-            
+
+            // Load initial trajectory with default parameters (bank angle = 0)
+            const trajectoryData = await this.trajectoryService.calculateTrajectory({
+                control: { bank_angle: 0.0 }  // Initial bank angle = 0 radians
+            });
+
+            console.log('[SimulationManager] Loaded trajectory from backend:', {
+                points: trajectoryData.length,
+                duration: trajectoryData[trajectoryData.length - 1].time.toFixed(2) + 's'
+            });
+
             // Set trajectory data in TrajectoryManager
             this.trajectoryManager.setTrajectoryData(trajectoryData);
-            
+
+            // Update total time from trajectory
+            if (trajectoryData.length > 0) {
+                this.state.totalTime = trajectoryData[trajectoryData.length - 1].time;
+            }
+
             // Load mission configuration
             const missionConfig = await this.dataManager.loadMissionConfig();
-            
+
             // PhaseController expects setPhases with array
             if (missionConfig.phases) {
                 this.phaseController.setPhases(missionConfig.phases);
             }
-            
+
             // Notify data loaded
             if (this.options.onDataLoaded) {
                 this.options.onDataLoaded();
             }
-            
-            console.log('Trajectory data loaded successfully:', trajectoryData.length, 'points');
-            
+
+            console.log('[SimulationManager] Trajectory data loaded successfully:', trajectoryData.length, 'points');
+
         } catch (error) {
-            console.error('Error loading data:', error);
-            // Use sample data if loading fails
-            this.trajectoryManager.generateSampleTrajectory();
-            console.log('Using sample trajectory data');
+            console.error('[SimulationManager] Error loading data:', error);
+            alert(`Failed to load trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3010.`);
+            throw error;  // Re-throw to prevent app from running without data
         }
     }
     
@@ -650,71 +601,26 @@ export class SimulationManager {
         }
     }
 
-    applyBankAnglePhysics(angleDelta) {
-        if (!this.trajectoryManager || !this.state.vehicleData) return;
+    // All physics calculations now done by backend - no local physics methods needed
 
-        // Get current vehicle state
-        const currentData = this.state.vehicleData;
-        if (!currentData.velocity || !currentData.position) return;
-
-        // Calculate lift force direction with current bank angle
-        const velocity = currentData.velocity.clone();
-        const position = currentData.position.clone();
-
-        // Calculate angular momentum vector (h = r × v)
-        const angularMomentum = new THREE.Vector3();
-        angularMomentum.crossVectors(position, velocity).normalize();
-
-        // Calculate base lift direction (perpendicular to velocity in orbital plane)
-        const velocityNorm = velocity.clone().normalize();
-        let liftDirection = new THREE.Vector3();
-        liftDirection.crossVectors(angularMomentum, velocityNorm).normalize();
-
-        // Apply bank angle rotation around velocity axis
-        if (Math.abs(this.state.bankAngle) > 0.001) {
-            const quaternion = new THREE.Quaternion();
-            quaternion.setFromAxisAngle(velocityNorm, THREE.MathUtils.degToRad(this.state.bankAngle));
-            liftDirection.applyQuaternion(quaternion);
-        }
-
-        // Calculate trajectory modification based on lift force
-        // Real EDL physics: Lift force affects lateral trajectory
-        const altitude = currentData.altitude || 100;
-        const velocityMag = velocity.length();
-
-        // Atmospheric density effect (exponential decay with altitude)
-        const scaleHeight = 11.1; // km, Mars atmospheric scale height
-        const densityRatio = Math.exp(-Math.max(0, altitude) / scaleHeight);
-
-        // Lift coefficient for MSL-type capsule (typical L/D ~ 0.13)
-        const liftToDragRatio = 0.13;
-        const dynamicPressure = densityRatio * velocityMag * velocityMag;
-
-        // Lift force magnitude (simplified)
-        const liftMagnitude = liftToDragRatio * dynamicPressure * 0.0001; // Scaled for simulation
-
-        // Apply lateral displacement based on lift force
-        const lateralDisplacement = liftDirection.clone().multiplyScalar(liftMagnitude * 0.01);
-
-        // Modify trajectory from current time forward
-        this.trajectoryManager.offsetTrajectoryWithPhysics(
-            this.state.currentTime,
-            lateralDisplacement,
-            this.state.bankAngle
-        );
-    }
-
-    // Throttle async calls and cache results to avoid performance issues in real-time loop
+    // Throttle async calls to avoid performance issues in real-time loop
     _lastBankAngleUpdate = 0;
     _bankAngleCache = null;
     _bankAngleCacheAngle = null;
+    _bankAngleUpdateInProgress = false;
 
     async applyBankAnglePhysicsRealTime(bankAngle) {
         const now = performance.now();
-        const THROTTLE_INTERVAL = 300; // ms
+        const THROTTLE_INTERVAL = 500; // ms - increased for backend calls
 
-        if (!this.dataProvider || !this.state.vehicleData) {
-            console.log('DataProvider or vehicleData missing');
+        if (!this.trajectoryService) {
+            console.warn('[SimulationManager] TrajectoryService not initialized');
+            return;
+        }
+
+        // Prevent concurrent backend calls
+        if (this._bankAngleUpdateInProgress) {
+            console.log('[SimulationManager] Bank angle update already in progress, skipping');
             return;
         }
 
@@ -724,93 +630,43 @@ export class SimulationManager {
             this._bankAngleCacheAngle === bankAngle &&
             now - this._lastBankAngleUpdate < THROTTLE_INTERVAL
         ) {
-            this.trajectoryManager.setTrajectoryData(this._bankAngleCache);
+            console.log(`[SimulationManager] Using cached trajectory for bank angle ${bankAngle}°`);
             return;
         }
 
         this._lastBankAngleUpdate = now;
         this._bankAngleCacheAngle = bankAngle;
+        this._bankAngleUpdateInProgress = true;
 
-        console.log(`Applying bank angle ${bankAngle}° at time ${this.state.currentTime}`);
+        console.log(`[SimulationManager] Recalculating trajectory with bank angle ${bankAngle}°`);
 
         try {
-            // Use the new data provider for trajectory modifications
-            const modificationParameters = {
-                currentTime: this.state.currentTime,
-                bankAngle,
-                realTimeModifications: true,
-                source: config.get('dataSource.mode')
-            };
+            // Call backend to recalculate entire trajectory with new bank angle
+            const newTrajectory = await this.trajectoryService.modifyTrajectoryWithBankAngle(bankAngle);
 
-            // Update physics parameters in real-time
-            await this.dataProvider.updateParameters({
-                bankAngle,
-                currentTime: this.state.currentTime
-            });
-
-            // Get modified trajectory data
-            const modifiedTrajectory = await this.dataProvider.getTrajectoryData(modificationParameters);
-
-            if (modifiedTrajectory && modifiedTrajectory.points) {
+            if (newTrajectory && newTrajectory.length > 0) {
                 // Update trajectory manager with new data
-                this.trajectoryManager.setTrajectoryData(modifiedTrajectory.points);
+                this.trajectoryManager.setTrajectoryData(newTrajectory);
 
-                // Cache result for throttle interval
-                this._bankAngleCache = modifiedTrajectory.points;
+                // Cache result
+                this._bankAngleCache = newTrajectory;
 
-                console.log(`Applied bank angle modification using ${modifiedTrajectory.metadata?.source || 'unknown'} source`);
+                // Update total time if changed
+                this.state.totalTime = newTrajectory[newTrajectory.length - 1].time;
+
+                console.log(`[SimulationManager] Applied bank angle ${bankAngle}° - trajectory recalculated with ${newTrajectory.length} points`);
             } else {
-                console.warn('Failed to get modified trajectory data, falling back to legacy method');
-                this.applyBankAnglePhysicsLegacy(bankAngle);
+                console.error('[SimulationManager] Backend returned empty trajectory');
             }
         } catch (error) {
-            console.error('Error applying bank angle physics:', error);
-
-            // Fallback to legacy method if new system fails
-            console.log('Falling back to legacy bank angle physics');
-            this.applyBankAnglePhysicsLegacy(bankAngle);
+            console.error('[SimulationManager] Error applying bank angle physics:', error);
+            alert(`Failed to recalculate trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3010.`);
+        } finally {
+            this._bankAngleUpdateInProgress = false;
         }
     }
 
-    // Keep legacy method as fallback
-    applyBankAnglePhysicsLegacy(bankAngle) {
-        if (!this.trajectoryManager || !this.state.vehicleData) {
-            return;
-        }
-
-        const currentData = this.state.vehicleData;
-        if (!currentData.velocity || !currentData.position) {
-            return;
-        }
-
-        // Reset to original trajectory before applying new bank angle
-        this.trajectoryManager.resetTrajectory();
-
-        // Calculate lift force direction with new bank angle
-        const velocity = currentData.velocity.clone();
-        const position = currentData.position.clone();
-
-        // Calculate lift direction using physics engine
-        const liftDirection = this.physicsEngine.calculateLiftDirection(position, velocity, bankAngle);
-
-        // Convert bank angle to lateral trajectory offset
-        const bankAngleRadians = THREE.MathUtils.degToRad(bankAngle);
-        const lateralOffset = Math.sin(bankAngleRadians) * 0.1;
-
-        // Apply lateral trajectory offset
-        this.trajectoryManager.offsetTrajectoryLinearlyFromCurrentTime(
-            this.state.currentTime,
-            lateralOffset, // X direction (lateral)
-            0,             // Y direction (no vertical change)
-            0.2            // Final percent (stronger effect)
-        );
-    }
-
-    offsetTrajectory(directionX, directionY) {
-        if (!this.trajectoryManager) return;
-
-        this.trajectoryManager.offsetTrajectoryLinearlyFromCurrentTime(this.state.currentTime, directionX, directionY);
-    }
+    // Removed legacy physics methods - all calculations now done by backend
     
     dispose() {
         if (this.animationId) {
@@ -838,63 +694,7 @@ export class SimulationManager {
         return this.state;
     }
 
-    /**
-     * Switch between different calculation modes (frontend/backend/hybrid)
-     * @param {string} mode - New calculation mode
-     * @param {Object} options - Additional options for the mode switch
-     */
-    async switchCalculationMode(mode, options = {}) {
-        if (!this.dataProvider) {
-            console.error('DataProvider not initialized');
-            return false;
-        }
-
-        try {
-            console.log(`Switching calculation mode to: ${mode}`);
-
-            // Update configuration
-            config.set('dataSource.mode', mode);
-
-            // Switch data provider source
-            this.dataProvider.switchSource(mode);
-
-            // Apply mode-specific configuration
-            if (options.backendUrl) {
-                config.set('dataSource.backendUrl', options.backendUrl);
-                this.dataProvider.config.backendUrl = options.backendUrl;
-            }
-
-            // Reload trajectory data with new mode if needed
-            if (options.reloadData !== false) {
-                console.log('Reloading trajectory data with new calculation mode...');
-
-                const currentTrajectoryData = this.trajectoryManager.trajectoryData;
-                if (currentTrajectoryData && currentTrajectoryData.length > 0) {
-                    // Get fresh trajectory data using new mode
-                    const freshTrajectory = await this.dataProvider.getTrajectoryData({
-                        recomputeFromOriginal: true,
-                        bankAngle: this.state.bankAngle,
-                        currentTime: this.state.currentTime
-                    });
-
-                    if (freshTrajectory && freshTrajectory.points) {
-                        this.trajectoryManager.setTrajectoryData(freshTrajectory.points);
-                        console.log(`Trajectory reloaded using ${mode} mode`);
-                    }
-                }
-            }
-
-            // Notify UI of mode change
-            if (typeof options.onModeChanged === 'function') {
-                options.onModeChanged(mode);
-            }
-
-            return true;
-        } catch (error) {
-            console.error(`Failed to switch to ${mode} mode:`, error);
-            return false;
-        }
-    }
+    // Removed switchCalculationMode - backend-only mode, no switching needed
 
     /**
      * Get current calculation mode and status

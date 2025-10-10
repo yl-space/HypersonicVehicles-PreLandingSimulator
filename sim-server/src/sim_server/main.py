@@ -1,5 +1,6 @@
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from dotenv import load_dotenv
 import os
@@ -17,9 +18,23 @@ LOG_CONFIG = Path(__file__).parent / "log.ini"
 load_dotenv()
 app = FastAPI()
 
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+)
+
 import logging
 
 logger = logging.getLogger("uvicorn")
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for client to verify backend is available."""
+    return {"status": "healthy", "service": "sim-server", "port": DEFAULT_PORT}
 
 @app.post("/high-fidelity/")
 @log_timing
