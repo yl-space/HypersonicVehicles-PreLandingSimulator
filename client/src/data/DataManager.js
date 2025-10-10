@@ -11,7 +11,8 @@ export class DataManager {
         this.apiEndpoints = {
             trajectories: '/api/trajectories',
             missions: '/api/missions',
-            telemetry: '/api/telemetry'
+            telemetry: '/api/telemetry',
+            highFidelitySim: '/sim/high-fidelity/'
         };
 
         // Initialize Backend API Client
@@ -109,6 +110,62 @@ export class DataManager {
             return data;
         } catch (error) {
             console.error('[DataManager] Error loading trajectory CSV:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Load trajectory data from HTTP endpoint
+     */
+    async loadTrajectoryHTTP(params = {}) {``
+        try {
+            // Build URL with query parameters
+            const url = new URL(this.apiEndpoints.highFidelitySim, this.baseURL);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(params)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Ensure the response has the expected format
+            if (data && data.time_s && data.x_m && data.y_m && data.z_m && 
+                data.vx_m_s && data.vy_m_s && data.vz_m_s) {
+                
+                // Convert the simulation data to the same format as CSV
+                const headers = ['Time', 'x', 'y', 'z'];
+                const rows = [];
+                
+                // Convert arrays to row objects
+                const length = data.time_s.length;
+                for (let i = 0; i < length; i++) {
+                    rows.push({
+                        Time: data.time_s[i],
+                        x: data.x_m[i],
+                        y: data.y_m[i],
+                        z: data.z_m[i]
+                    });
+                }
+                
+                return {
+                    headers,
+                    rows,
+                    count: rows.length
+                };
+            } else {
+                throw new Error('Invalid trajectory data format received from HTTP endpoint');
+            }
+            
+        } catch (error) {
+            console.error('Error loading trajectory via HTTP:', error);
             throw error;
         }
     }
