@@ -1,5 +1,4 @@
 import * as THREE from '/node_modules/three/build/three.module.js';
-import { BackendAPIClient } from '../services/BackendAPIClient.js';
 
 export class TrajectoryManager {
     constructor() {
@@ -19,15 +18,7 @@ export class TrajectoryManager {
         this.useInstancing = true;
         this.useLOD = true;
 
-        // Backend integration
-        this.preferBackend = true;
-        this.backendAPI = new BackendAPIClient({
-            baseURL: window.location.origin,
-            timeout: 8000,
-            retryAttempts: 2,
-            cacheEnabled: true
-        });
-        this.backendAvailable = true;
+        // Backend integration removed - now handled by TrajectoryService in SimulationManager
 
         this.init();
     }
@@ -667,47 +658,11 @@ export class TrajectoryManager {
      * @param {number} bankAngle - Current bank angle in degrees
      */
     async offsetTrajectoryWithPhysicsRealTime(currentTime, liftForceDirection, bankAngle) {
-        if (!this.trajectoryData.length || !liftForceDirection) {
-            return;
-        }
-
-        // Try backend modification first if available
-        if (this.preferBackend && this.backendAvailable) {
-            const backendResult = await this.backendAPI.modifyTrajectoryWithBankAngle(
-                currentTime,
-                bankAngle,
-                {
-                    x: liftForceDirection.x,
-                    y: liftForceDirection.y,
-                    z: liftForceDirection.z
-                },
-                this.trajectoryData
-            );
-
-            if (backendResult.success && backendResult.data) {
-                console.log('[TrajectoryManager] Using backend trajectory modification');
-
-                // Convert backend trajectory data to local format
-                const modifiedTrajectory = backendResult.data.trajectory.map(point => ({
-                    time: point.time,
-                    position: new THREE.Vector3(point.position.x, point.position.y, point.position.z),
-                    altitude: point.altitude,
-                    velocity: new THREE.Vector3(point.velocity.x, point.velocity.y, point.velocity.z),
-                    velocityMagnitude: point.velocityMagnitude,
-                    distanceToLanding: point.distanceToLanding
-                }));
-
-                this.setTrajectoryData(modifiedTrajectory);
-                this.updateTrajectoryDisplay(currentTime);
-                return;
-            } else if (backendResult.useFallback) {
-                console.warn('[TrajectoryManager] Backend trajectory modification unavailable, using local calculation');
-                this.backendAvailable = false;
-            }
-        }
-
-        // Fallback: Use local calculation
-        this.offsetTrajectoryWithPhysicsRealTimeLocal(currentTime, liftForceDirection, bankAngle);
+        // REMOVED: Backend integration - now handled by TrajectoryService in SimulationManager
+        // This method is no longer used - keeping for backwards compatibility
+        console.warn('[TrajectoryManager] offsetTrajectoryWithPhysicsRealTime is deprecated and has no effect');
+        console.warn('[TrajectoryManager] All trajectory modifications are now handled by TrajectoryService');
+        return;
     }
 
     /**
@@ -817,33 +772,9 @@ export class TrajectoryManager {
     }
     
     /**
-     * Set backend preference
+     * REMOVED: setBackendPreference, getBackendStatus, checkBackendAvailability
+     * Backend integration now handled by TrajectoryService in SimulationManager
      */
-    setBackendPreference(prefer) {
-        this.preferBackend = prefer;
-        console.log(`[TrajectoryManager] Backend preference set to: ${prefer}`);
-    }
-
-    /**
-     * Get backend status
-     */
-    getBackendStatus() {
-        return {
-            available: this.backendAvailable,
-            preferBackend: this.preferBackend,
-            apiStatus: this.backendAPI?.getStatus()
-        };
-    }
-
-    /**
-     * Check backend availability
-     */
-    async checkBackendAvailability() {
-        if (!this.backendAPI) return false;
-        const isAvailable = await this.backendAPI.isBackendAvailable();
-        this.backendAvailable = isAvailable;
-        return isAvailable;
-    }
 
     dispose() {
         this.group.traverse((child) => {
@@ -856,6 +787,6 @@ export class TrajectoryManager {
                 }
             }
         });
-        this.backendAPI = null;
+        // No backend API to dispose
     }
 }

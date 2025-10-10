@@ -93,17 +93,8 @@ export class SceneManager {
         // Render pass - will be updated with scene later
         this.renderPass = new RenderPass(null, this.camera);
         this.composer.addPass(this.renderPass);
+
         
-        // // Bloom for atmospheric effects (reduced strength to prevent black patches)
-        // const bloomPass = new UnrealBloomPass(
-        //     new THREE.Vector2(this.container.clientWidth, this.container.clientHeight),
-        //     0.2,  // Reduced strength
-        //     0.3,  // Reduced radius
-        //     0.9   // Higher threshold (less bloom)
-        // );
-        // this.composer.addPass(bloomPass);
-        
-        // SMAA for better antialiasing
         const smaaPass = new SMAAPass(
             this.container.clientWidth * this.renderer.getPixelRatio(),
             this.container.clientHeight * this.renderer.getPixelRatio()

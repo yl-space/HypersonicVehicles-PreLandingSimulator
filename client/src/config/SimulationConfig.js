@@ -22,9 +22,9 @@ export class SimulationConfig {
         this.config = {
             // Data source configuration
             dataSource: {
-                mode: SimulationModes.FRONTEND,
-                backendUrl: 'http://localhost:8000/api',
-                fallbackToFrontend: true,
+                mode: SimulationModes.BACKEND,
+                backendUrl: 'http://localhost:3010',
+                fallbackToFrontend: false,
                 cacheResults: true,
                 timeout: 30000 // 30 seconds
             },
