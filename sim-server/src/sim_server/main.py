@@ -43,7 +43,7 @@ async def simulate_high_fidelity(
         init=init_params,
         vehicle=vehicle_specific_params,
         control=control_params,
-        verbose=False, # OP: why are these set to False?
+        verbose=False, 
         return_states=False
     )
 

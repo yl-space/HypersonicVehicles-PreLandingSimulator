@@ -23,6 +23,8 @@ def make_event(ind: int, term: float):
     return event
 
 def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: dict, verbose = False, return_states=False) -> dict:
+#def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: dict, verbose = False, return_states=False, input_type = "Spherical") -> dict:
+
     """Run a high-fidelity simulation of atmospheric entry.
 
     Args:
@@ -33,6 +35,10 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
     Returns:
         Dictionary with simulation results including time, position, and velocity arrays.
     """
+
+    # conver the input into Spherical coordinates
+    #if input_type == "Cartesian":
+
     t0 = _time.time()
     
     ODE_terminal_index = 0
@@ -77,6 +83,7 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         """
         return entryeoms(t, x, planet, vehicle, control)
 
+    t_ODE_start = _time.time()
     sol = solve_ivp(
         rhs,
         t_span=(0.0, simulation_termination["time_limit"]),
@@ -85,10 +92,11 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         rtol=1e-9,
         atol=1e-9,
         dense_output=True, # this is needed to evaluate the solution at the time points I need 
-        method='DOP853'
+        method='RK45'
     )
     if verbose:
         print("exit conditions triggered at t = ", sol.t_events[0][0])
+        print(f"ODE integration time = {_time.time() - t_ODE_start:.3f} s")
    
     # resample at the defined time stamps
     t_end = sol.t[-1]
@@ -170,3 +178,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# this block is just a surrogate to be replaced. It emulates the simulation trajectory rendering for user in the web tool 
