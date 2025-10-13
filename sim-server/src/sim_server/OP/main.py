@@ -94,18 +94,39 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         dense_output=True, # this is needed to evaluate the solution at the time points I need 
         method='RK45'
     )
-    if verbose:
-        print("exit conditions triggered at t = ", sol.t_events[0][0])
-        print(f"ODE integration time = {_time.time() - t_ODE_start:.3f} s")
-   
+
     # resample at the defined time stamps
     t_end = sol.t[-1]
     time_array = np.arange(0.0, t_end + 1e-12, simulation_termination["dt"]) # epsilon is added to include the endpoint. specifics of np.arange
     states = sol.sol(time_array).T  # shape (N, 6)
     
     if verbose:
-        print(f"Script completed in {(_time.time() - t0):.3f} s")
-        print("final velocity is ", states[:, 3][-1] / 1000.0, "km/s" "= Mach ", states[:, 3][-1] / 236.38)
+        #print(f"Script completed in {(_time.time() - t0):.3f} s")
+        #print("final velocity is ", states[:, 3][-1] / 1000.0, "km/s" "= Mach ", states[:, 3][-1] / 236.38)
+        print(f"ODE integration time = {_time.time() - t_ODE_start:.3f} s")
+
+    # save the final state as benchmark: 
+    # remove comment to save the benchmark or change the name to save other stuff 
+    final_output = states[-1, :]
+    #np.savez("benchmark_DOP853_1e9.npz", final_output=final_output)
+
+    # load the benchmark data 
+    benchmark_data = np.load("benchmark_DOP853_1e9.npz")
+    benchmark_final_output = benchmark_data["final_output"]
+    #print("benchmark final output: ", benchmark_final_output)
+
+    if verbose:
+        # print the final state
+        #print("final state: ", final_output)
+        # print the difference of the benchmark and final output for each state separately
+        print("the output below shows the difference between the benchmark and the final output")
+        print("difference in radius: ", final_output[0] - benchmark_final_output[0])
+        print("difference in longitude: ", final_output[1] - benchmark_final_output[1])
+        print("difference in latitude: ", final_output[2] - benchmark_final_output[2])
+        print("difference in velocity: ", final_output[3] - benchmark_final_output[3])
+        print("difference in FPA: ", final_output[4] - benchmark_final_output[4])
+        print("difference in heading: ", final_output[5] - benchmark_final_output[5])
+
 
     # Convert spherical to inertial Cartesian position
     # ref - L1b. Nav. class notes and iPad notebook board
@@ -149,6 +170,9 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         'vy_m_s': vel_inertial[:, 1],
         'vz_m_s': vel_inertial[:, 2],
     }
+
+
+
 
 #MAIN FUNCTION STARTS HERE
 def main():
