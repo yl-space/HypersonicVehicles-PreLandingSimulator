@@ -89,8 +89,8 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         t_span=(0.0, simulation_termination["time_limit"]),
         y0=ODE_initial_cond,
         events=exitcon,
-        rtol=1e-9,
-        atol=1e-9,
+        rtol=1e-4,
+        atol=1e-4,
         dense_output=True, # this is needed to evaluate the solution at the time points I need 
         method='RK45'
     )
@@ -120,12 +120,12 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         #print("final state: ", final_output)
         # print the difference of the benchmark and final output for each state separately
         print("the output below shows the difference between the benchmark and the final output")
-        print("difference in radius: ", final_output[0] - benchmark_final_output[0])
-        print("difference in longitude: ", final_output[1] - benchmark_final_output[1])
-        print("difference in latitude: ", final_output[2] - benchmark_final_output[2])
-        print("difference in velocity: ", final_output[3] - benchmark_final_output[3])
-        print("difference in FPA: ", final_output[4] - benchmark_final_output[4])
-        print("difference in heading: ", final_output[5] - benchmark_final_output[5])
+        print(f"difference in radius: {final_output[0] - benchmark_final_output[0]:.5g}")
+        print(f"difference in longitude: {final_output[1] - benchmark_final_output[1]:.5g}")
+        print(f"difference in latitude: {final_output[2] - benchmark_final_output[2]:.5g}")
+        print(f"difference in velocity: {final_output[3] - benchmark_final_output[3]:.5g}")
+        print(f"difference in FPA: {final_output[4] - benchmark_final_output[4]:.5g}")
+        print(f"difference in heading: {final_output[5] - benchmark_final_output[5]:.5g}")
 
 
     # Convert spherical to inertial Cartesian position
