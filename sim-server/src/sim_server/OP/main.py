@@ -89,8 +89,8 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         t_span=(0.0, simulation_termination["time_limit"]),
         y0=ODE_initial_cond,
         events=exitcon,
-        rtol=1e-4,
-        atol=1e-4,
+        rtol=1e-5,
+        atol=1e-3,
         dense_output=True, # this is needed to evaluate the solution at the time points I need 
         method='RK45'
     )
