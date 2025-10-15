@@ -320,6 +320,13 @@ export class SimulationManager {
 
             console.log('[SimulationManager] Trajectory data loaded successfully:', trajectoryData.length, 'points');
 
+            // Initialize spacecraft position to trajectory start (critical for camera positioning)
+            const startData = this.trajectoryManager.getDataAtTime(0);
+            if (startData && startData.position && this.entryVehicle) {
+                this.entryVehicle.setPosition(startData.position);
+                console.log('[SimulationManager] Spacecraft initialized at J2000 trajectory start:', startData.position);
+            }
+
         } catch (error) {
             console.error('[SimulationManager] Error loading data:', error);
             alert(`Failed to load trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3010.`);

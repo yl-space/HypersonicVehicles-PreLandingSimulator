@@ -65,9 +65,23 @@ export class CameraController {
     }
     
     init() {
-        // Set initial camera position focused on spacecraft (will be updated when target is set)
-        this.camera.position.set(0, 0, 1);
-        this.camera.lookAt(0, 0, 0);
+        // Set initial camera position to view trajectory in J2000 frame
+        // MSL trajectory starts at approximately x=-6.06, y=30.76, z=16.05 (scaled J2000 coords)
+        // Position camera to view the entry from a good angle that shows the trajectory clearly
+        // Camera looks toward the positive Y hemisphere where the trajectory is located
+        this.camera.position.set(-10, 40, 25);  // View from angle that shows trajectory clearly
+        this.camera.lookAt(0, 30, 15);  // Look toward the trajectory start region
+        this.camera.up.set(0, 1, 0);  // Maintain standard Y-up orientation
+
+        // Cinematic camera tracking state
+        this.cinematic = {
+            offset: new THREE.Vector3(0, 0.03, 0.1),  // Camera offset relative to spacecraft (right, up, back)
+            smoothing: 0.08,  // Smooth position tracking
+            orientationSmoothing: 0.05,  // Smoother orientation tracking
+            lookAheadDistance: 0.02,  // Look slightly ahead of spacecraft
+            upVector: new THREE.Vector3(0, 1, 0),  // Target up vector
+            currentUp: new THREE.Vector3(0, 1, 0)  // Current smoothed up vector
+        };
 
         this.setupEventListeners();
     }
@@ -224,41 +238,32 @@ export class CameraController {
     
     setTarget(target) {
         this.target = target;
-
-        // Immediately focus camera on the new target (spacecraft)
-        if (target && target.position) {
-            const targetPos = target.position.clone();
-            this.camera.position.set(
-                targetPos.x,
-                targetPos.y + 0.1,
-                targetPos.z + 0.3
-            );
-            this.camera.lookAt(targetPos);
-        }
+        // Do NOT immediately move camera - respect J2000-aware initialization
+        // Camera will smoothly transition to following target during update loop
     }
     
     update(deltaTime, vehicleData) {
         if (!this.target) return;
-        
+
         // Apply inertia damping
         if (this.mode === 'orbit' && !this.mouse.isDown) {
             if (Math.abs(this.inertia.deltaX) > 0.0001 || Math.abs(this.inertia.deltaY) > 0.0001) {
                 this.orbit.theta -= this.inertia.deltaX;
-                this.orbit.phi = Math.max(this.orbit.minPhi, 
+                this.orbit.phi = Math.max(this.orbit.minPhi,
                     Math.min(this.orbit.maxPhi, this.orbit.phi + this.inertia.deltaY));
-                
+
                 this.inertia.deltaX *= this.inertia.damping;
                 this.inertia.deltaY *= this.inertia.damping;
             }
         }
-        
+
         const targetPos = this.target.position.clone();
         let desiredPosition = new THREE.Vector3();
         let lookAtPoint = targetPos.clone();
-        
+
         switch (this.mode) {
             case 'follow':
-                // Follow mode with free mouse rotation capability
+                // Cinematic follow mode - spacecraft always centered and upright
                 if (this.followOrbit.enabled && (Math.abs(this.followOrbit.theta) > 0.01 || Math.abs(this.followOrbit.phi) > 0.01)) {
                     // User has rotated camera - use orbital positioning around spacecraft
                     const distance = this.state.distance;
@@ -268,38 +273,55 @@ export class CameraController {
                         distance * Math.sin(this.followOrbit.phi);
                     desiredPosition.z = targetPos.z +
                         distance * Math.cos(this.followOrbit.phi) * Math.cos(this.followOrbit.theta);
+
+                    // Maintain upright orientation
+                    this.cinematic.upVector.set(0, 1, 0);
                 } else {
-                    // Auto-follow mode - camera follows spacecraft from behind
-                    if (vehicleData && vehicleData.velocity instanceof THREE.Vector3) {
-                        // Get velocity direction for trailing camera
+                    // Cinematic auto-follow mode - position camera in spacecraft's local reference frame
+                    if (vehicleData && vehicleData.velocity instanceof THREE.Vector3 && vehicleData.position instanceof THREE.Vector3) {
                         const velocity = vehicleData.velocity.clone();
-                        if (velocity.length() > 0.001) {
-                            velocity.normalize();
+                        const position = vehicleData.position.clone();
 
-                            // Position camera behind and slightly above the spacecraft
+                        if (velocity.length() > 0.001 && position.length() > 0.001) {
+                            // Build spacecraft-centric coordinate system
+                            const forward = velocity.clone().normalize();  // Direction of motion
+                            const radial = position.clone().normalize();   // Radial from Mars (up direction)
+
+                            // Right vector = perpendicular to both forward and radial
+                            const right = new THREE.Vector3().crossVectors(forward, radial).normalize();
+
+                            // Recalculate up to be perpendicular to forward and right (ensures orthogonal frame)
+                            const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+
+                            // Apply camera offset in spacecraft's local coordinate system
+                            // offset.x = right, offset.y = up, offset.z = back (opposite to forward)
                             desiredPosition.copy(targetPos);
-                            desiredPosition.sub(velocity.clone().multiplyScalar(this.state.distance));
-                            desiredPosition.y += this.state.height;
+                            desiredPosition.add(right.multiplyScalar(this.cinematic.offset.x * this.state.distance));
+                            desiredPosition.add(up.multiplyScalar(this.cinematic.offset.y * this.state.distance));
+                            desiredPosition.add(forward.multiplyScalar(-this.cinematic.offset.z * this.state.distance));
 
-                            // Add slight offset to avoid looking directly from behind
-                            const sideOffset = new THREE.Vector3();
-                            sideOffset.crossVectors(velocity, new THREE.Vector3(0, 1, 0)).normalize();
-                            desiredPosition.add(sideOffset.multiplyScalar(this.state.distance * 0.2));
+                            // Set up vector to keep spacecraft upright in frame (aligned with radial direction)
+                            this.cinematic.upVector.copy(radial);
+
+                            // Look slightly ahead of spacecraft for more dynamic framing
+                            lookAtPoint.copy(targetPos).add(forward.multiplyScalar(this.cinematic.lookAheadDistance));
                         } else {
-                            // Static follow when no velocity
+                            // Fallback for zero velocity
                             desiredPosition.set(
-                                targetPos.x - this.state.distance * 0.7,
+                                targetPos.x,
                                 targetPos.y + this.state.height,
-                                targetPos.z - this.state.distance * 0.7
+                                targetPos.z + this.state.distance
                             );
+                            this.cinematic.upVector.set(0, 1, 0);
                         }
                     } else {
-                        // Default follow position
+                        // Default follow position when no vehicle data
                         desiredPosition.set(
-                            targetPos.x - this.state.distance * 0.7,
+                            targetPos.x,
                             targetPos.y + this.state.height,
-                            targetPos.z - this.state.distance * 0.7
+                            targetPos.z + this.state.distance
                         );
+                        this.cinematic.upVector.set(0, 1, 0);
                     }
                 }
 
@@ -310,11 +332,8 @@ export class CameraController {
                     const direction = desiredPosition.clone().normalize();
                     desiredPosition.copy(direction.multiplyScalar(marsRadius + 0.5));
                 }
-
-                // Always look at the spacecraft
-                lookAtPoint = targetPos.clone();
                 break;
-                
+
             case 'orbit':
                 // Orbit mode - user-controlled camera around target
                 desiredPosition.x = targetPos.x +
@@ -324,21 +343,28 @@ export class CameraController {
                 desiredPosition.z = targetPos.z +
                     this.orbit.radius * Math.sin(this.orbit.phi) * Math.cos(this.orbit.theta);
 
-                // Always look at spacecraft
+                // Standard up vector for orbit mode
+                this.cinematic.upVector.set(0, 1, 0);
                 lookAtPoint = targetPos.clone();
                 break;
         }
-        
-        // Smooth camera movement
-        this.camera.position.lerp(desiredPosition, this.smoothness);
-        
-        // Update camera orientation
-        const currentLookAt = new THREE.Vector3();
-        this.camera.getWorldDirection(currentLookAt);
-        currentLookAt.add(this.camera.position);
-        currentLookAt.lerp(lookAtPoint, this.smoothness);
-        this.camera.lookAt(currentLookAt);
-        
+
+        // Smooth camera position movement
+        this.camera.position.lerp(desiredPosition, this.cinematic.smoothing);
+
+        // Smooth up vector transition for stable orientation
+        this.cinematic.currentUp.lerp(this.cinematic.upVector, this.cinematic.orientationSmoothing);
+        this.cinematic.currentUp.normalize();
+
+        // Update camera orientation with smoothed up vector
+        const toTarget = lookAtPoint.clone().sub(this.camera.position).normalize();
+        const right = new THREE.Vector3().crossVectors(toTarget, this.cinematic.currentUp).normalize();
+        const correctedUp = new THREE.Vector3().crossVectors(right, toTarget).normalize();
+
+        // Apply orientation
+        this.camera.up.copy(correctedUp);
+        this.camera.lookAt(lookAtPoint);
+
         // Update field of view based on distance (cinematic effect)
         if (this.mode === 'follow' && vehicleData) {
             const altitude = vehicleData.altitude || 100;
@@ -375,7 +401,8 @@ export class CameraController {
     }
     
     reset() {
-        // Reset camera to spacecraft-focused position
+        // Reset camera to J2000-aware position
+        // This ensures the camera looks toward the correct hemisphere where the trajectory is
         if (this.target) {
             const targetPos = this.target.position.clone();
             this.camera.position.set(
@@ -385,8 +412,10 @@ export class CameraController {
             );
             this.camera.lookAt(targetPos);
         } else {
-            this.camera.position.set(0, 0.05, 0.2);
-            this.camera.lookAt(0, 0, 0);
+            // Reset to J2000-correct initial view
+            this.camera.position.set(-10, 40, 25);
+            this.camera.lookAt(0, 30, 15);
+            this.camera.up.set(0, 1, 0);
         }
 
         this.orbit.theta = Math.PI / 4;
@@ -402,5 +431,9 @@ export class CameraController {
         // Reset inertia
         this.inertia.deltaX = 0;
         this.inertia.deltaY = 0;
+
+        // Reset cinematic camera state
+        this.cinematic.upVector.set(0, 1, 0);
+        this.cinematic.currentUp.set(0, 1, 0);
     }
 }
