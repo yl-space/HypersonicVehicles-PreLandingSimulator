@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Three.js Import</title>
+</head>
+<body>
+    <h1>Testing Three.js Module Resolution</h1>
+    <div id="result"></div>
+
+    <script type="module">
+        // Test if Three.js loads correctly
+        try {
+            const module = await import('/node_modules/three/build/three.module.js');
+            document.getElementById('result').innerHTML = '<p style="color: green;">✓ Three.js loaded successfully!</p>';
+            console.log('Three.js loaded:', module);
+        } catch (error) {
+            document.getElementById('result').innerHTML = '<p style="color: red;">✗ Failed to load Three.js: ' + error.message + '</p>';
+            console.error('Error loading Three.js:', error);
+        }
+    </script>
+</body>
+</html>

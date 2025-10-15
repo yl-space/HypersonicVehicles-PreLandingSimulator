@@ -2,7 +2,7 @@
  * Main simulation controller with planet switching
  */
 
-import * as THREE from '/node_modules/three/build/three.module.js';
+import * as THREE from 'three';
 import { SceneManager } from '../core/SceneManager.js';
 import { CameraController } from '../core/CameraController.js';
 import { EntryVehicle } from '../components/spacecraft/EntryVehicle.js';

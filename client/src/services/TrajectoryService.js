@@ -4,7 +4,7 @@
  * Communicates with sim-server FastAPI backend on port 3010
  */
 
-import * as THREE from '/node_modules/three/build/three.module.js';
+import * as THREE from 'three';
 
 export class TrajectoryService {
     constructor(config = {}) {

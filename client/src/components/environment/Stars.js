@@ -3,7 +3,7 @@
  * Creates a starfield background using texture tiling
  */
 
-import * as THREE from '/node_modules/three/build/three.module.js';
+import * as THREE from 'three';
 
 export class Stars {
     constructor() {

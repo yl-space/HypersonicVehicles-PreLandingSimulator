@@ -77,7 +77,15 @@
     </noscript>
 
     <!-- Three.js -->
-    <!-- Three.js will be loaded from CDN via direct imports in JS files -->
+    <!-- Import map for Three.js module resolution -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "/node_modules/three/build/three.module.js",
+            "three/": "/node_modules/three/"
+        }
+    }
+    </script>
 
     <!-- Main Application -->
     <script type="module">
