@@ -65,12 +65,11 @@ export class CameraController {
     }
     
     init() {
-        // Set initial camera position to view trajectory in J2000 frame
-        // MSL trajectory starts at approximately x=-6.06, y=30.76, z=16.05 (scaled J2000 coords)
-        // Position camera to view the entry from a good angle that shows the trajectory clearly
-        // Camera looks toward the positive Y hemisphere where the trajectory is located
-        this.camera.position.set(-10, 40, 25);  // View from angle that shows trajectory clearly
-        this.camera.lookAt(0, 30, 15);  // Look toward the trajectory start region
+        // Set initial camera position safely outside Mars
+        // Will smoothly transition to spacecraft once it's positioned at trajectory start
+        // Position camera at a safe distance from Mars center (Mars radius = 33.9 units)
+        this.camera.position.set(0, 50, 50);  // Safe position above Mars
+        this.camera.lookAt(0, 0, 0);  // Look at Mars center initially
         this.camera.up.set(0, 1, 0);  // Maintain standard Y-up orientation
 
         // Cinematic camera tracking state
@@ -80,7 +79,8 @@ export class CameraController {
             orientationSmoothing: 0.05,  // Smoother orientation tracking
             lookAheadDistance: 0.02,  // Look slightly ahead of spacecraft
             upVector: new THREE.Vector3(0, 1, 0),  // Target up vector
-            currentUp: new THREE.Vector3(0, 1, 0)  // Current smoothed up vector
+            currentUp: new THREE.Vector3(0, 1, 0),  // Current smoothed up vector
+            initialized: false  // Track if camera has locked onto spacecraft
         };
 
         this.setupEventListeners();
@@ -266,6 +266,7 @@ export class CameraController {
                 // Cinematic follow mode - spacecraft always centered and upright
                 if (this.followOrbit.enabled && (Math.abs(this.followOrbit.theta) > 0.01 || Math.abs(this.followOrbit.phi) > 0.01)) {
                     // User has rotated camera - use orbital positioning around spacecraft
+                    // BUT ALWAYS LOOK AT SPACECRAFT (maintain focus)
                     const distance = this.state.distance;
                     desiredPosition.x = targetPos.x +
                         distance * Math.cos(this.followOrbit.phi) * Math.sin(this.followOrbit.theta);
@@ -274,8 +275,15 @@ export class CameraController {
                     desiredPosition.z = targetPos.z +
                         distance * Math.cos(this.followOrbit.phi) * Math.cos(this.followOrbit.theta);
 
-                    // Maintain upright orientation
-                    this.cinematic.upVector.set(0, 1, 0);
+                    // Maintain spacecraft-centric up vector (radial from Mars)
+                    if (vehicleData && vehicleData.position instanceof THREE.Vector3 && vehicleData.position.length() > 0.001) {
+                        this.cinematic.upVector.copy(vehicleData.position.clone().normalize());
+                    } else {
+                        this.cinematic.upVector.set(0, 1, 0);
+                    }
+
+                    // ALWAYS look at spacecraft - never lose focus
+                    lookAtPoint = targetPos.clone();
                 } else {
                     // Cinematic auto-follow mode - position camera in spacecraft's local reference frame
                     if (vehicleData && vehicleData.velocity instanceof THREE.Vector3 && vehicleData.position instanceof THREE.Vector3) {
@@ -325,17 +333,26 @@ export class CameraController {
                     }
                 }
 
-                // Ensure camera doesn't go below Mars surface
+                // Ensure camera doesn't go below Mars surface or through the planet
                 const distanceFromCenter = desiredPosition.length();
                 const marsRadius = this.orbit.planetRadius;
-                if (distanceFromCenter < marsRadius + 0.5) {
+                const minSafeDistance = marsRadius + 0.5;  // 0.5 units above surface
+
+                if (distanceFromCenter < minSafeDistance) {
+                    // Push camera away from Mars center to safe distance
                     const direction = desiredPosition.clone().normalize();
-                    desiredPosition.copy(direction.multiplyScalar(marsRadius + 0.5));
+                    desiredPosition.copy(direction.multiplyScalar(minSafeDistance));
+                }
+
+                // Mark camera as initialized once spacecraft has valid position
+                if (!this.cinematic.initialized && vehicleData && vehicleData.position && vehicleData.position.length() > 1.0) {
+                    this.cinematic.initialized = true;
                 }
                 break;
 
             case 'orbit':
                 // Orbit mode - user-controlled camera around target
+                // ALWAYS keep spacecraft in view and never go inside planet
                 desiredPosition.x = targetPos.x +
                     this.orbit.radius * Math.sin(this.orbit.phi) * Math.sin(this.orbit.theta);
                 desiredPosition.y = targetPos.y +
@@ -343,8 +360,32 @@ export class CameraController {
                 desiredPosition.z = targetPos.z +
                     this.orbit.radius * Math.sin(this.orbit.phi) * Math.cos(this.orbit.theta);
 
-                // Standard up vector for orbit mode
-                this.cinematic.upVector.set(0, 1, 0);
+                // Ensure camera doesn't go through Mars
+                const orbitDistFromCenter = desiredPosition.length();
+                const orbitMarsRadius = this.orbit.planetRadius;
+                const minOrbitDistance = orbitMarsRadius + 0.5;
+
+                if (orbitDistFromCenter < minOrbitDistance) {
+                    // Push camera away from Mars center
+                    const direction = desiredPosition.clone().normalize();
+                    desiredPosition.copy(direction.multiplyScalar(minOrbitDistance));
+                }
+
+                // Ensure camera maintains minimum distance from spacecraft
+                const distToSpacecraft = desiredPosition.distanceTo(targetPos);
+                if (distToSpacecraft < 0.02) {  // Minimum 0.02 units from spacecraft
+                    const toCamera = desiredPosition.clone().sub(targetPos).normalize();
+                    desiredPosition.copy(targetPos).add(toCamera.multiplyScalar(0.02));
+                }
+
+                // Use spacecraft-centric up vector for orbit mode too
+                if (vehicleData && vehicleData.position instanceof THREE.Vector3 && vehicleData.position.length() > 0.001) {
+                    this.cinematic.upVector.copy(vehicleData.position.clone().normalize());
+                } else {
+                    this.cinematic.upVector.set(0, 1, 0);
+                }
+
+                // ALWAYS look at spacecraft - maintain focus
                 lookAtPoint = targetPos.clone();
                 break;
         }

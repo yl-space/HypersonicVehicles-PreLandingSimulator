@@ -90,18 +90,82 @@ export class TrajectoryService {
     }
 
     /**
-     * Modify trajectory with new bank angle
-     * Recalculates entire trajectory from backend with new control parameters
+     * Modify trajectory with new bank angle FROM CURRENT INSTANT ONWARDS
+     * Sends current state (time, position, velocity) to backend
+     * Backend recalculates trajectory from that point forward only
      * @param {number} bankAngleDeg - Bank angle in degrees
-     * @returns {Promise<Array>} New trajectory with modified bank angle
+     * @param {number} currentTime - Current simulation time in seconds
+     * @param {Object} currentState - Current spacecraft state
+     * @returns {Promise<Array>} Future trajectory points from current instant onwards
      */
-    async modifyTrajectoryWithBankAngle(bankAngleDeg) {
+    async modifyTrajectoryFromCurrentState(bankAngleDeg, currentTime, currentState) {
         // Convert degrees to radians for backend
         const bankAngleRad = THREE.MathUtils.degToRad(bankAngleDeg);
 
-        console.log(`[TrajectoryService] Modifying trajectory with bank angle: ${bankAngleDeg}° (${bankAngleRad.toFixed(4)} rad)`);
+        console.log(`[TrajectoryService] Modifying trajectory from t=${currentTime.toFixed(2)}s with bank angle: ${bankAngleDeg}° (${bankAngleRad.toFixed(4)} rad)`);
+        console.log('[TrajectoryService] Current state:', {
+            position: currentState.positionMeters,
+            velocity: currentState.velocityMetersPerSec
+        });
 
-        // Update control parameters and recalculate
+        // Prepare parameters in the exact format backend expects
+        const params = {
+            planet: this.currentParams.planet,
+            vehicle: this.currentParams.vehicle,
+            control: { bank_angle: bankAngleRad },
+            // Send current state as initial conditions for continuation
+            init: {
+                time_s: currentTime,
+                x_m: currentState.positionMeters.x,
+                y_m: currentState.positionMeters.y,
+                z_m: currentState.positionMeters.z,
+                vx_m_s: currentState.velocityMetersPerSec.x,
+                vy_m_s: currentState.velocityMetersPerSec.y,
+                vz_m_s: currentState.velocityMetersPerSec.z
+            },
+            serialize_arrow: false
+        };
+
+        try {
+            const response = await fetch(`${this.config.backendUrl}/high-fidelity/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(params),
+                signal: AbortSignal.timeout(this.config.timeout)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Backend returned ${response.status}: ${errorText}`);
+            }
+
+            const data = await response.json();
+            console.log('[TrajectoryService] Received continuation trajectory:', {
+                points: data.time_s?.length || 0,
+                startTime: data.time_s?.[0] || 0,
+                endTime: data.time_s?.[data.time_s.length - 1] || 0
+            });
+
+            // Transform backend response to frontend format
+            const futureTrajectory = this.transformBackendResponse(data);
+
+            return futureTrajectory;
+
+        } catch (error) {
+            console.error('[TrajectoryService] Failed to modify trajectory from current state:', error);
+            throw new Error(`Failed to recalculate trajectory: ${error.message}`);
+        }
+    }
+
+    /**
+     * @deprecated Use modifyTrajectoryFromCurrentState instead
+     * This method recalculates entire trajectory which is incorrect behavior
+     */
+    async modifyTrajectoryWithBankAngle(bankAngleDeg) {
+        console.warn('[TrajectoryService] modifyTrajectoryWithBankAngle is deprecated - use modifyTrajectoryFromCurrentState');
+        const bankAngleRad = THREE.MathUtils.degToRad(bankAngleDeg);
         return await this.calculateTrajectory({
             control: { bank_angle: bankAngleRad }
         });

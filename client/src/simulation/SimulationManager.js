@@ -625,6 +625,12 @@ export class SimulationManager {
             return;
         }
 
+        // Need current vehicle data to send to backend
+        if (!this.state.vehicleData) {
+            console.warn('[SimulationManager] No vehicle data available for trajectory modification');
+            return;
+        }
+
         // Prevent concurrent backend calls
         if (this._bankAngleUpdateInProgress) {
             console.log('[SimulationManager] Bank angle update already in progress, skipping');
@@ -645,23 +651,48 @@ export class SimulationManager {
         this._bankAngleCacheAngle = bankAngle;
         this._bankAngleUpdateInProgress = true;
 
-        console.log(`[SimulationManager] Recalculating trajectory with bank angle ${bankAngle}°`);
+        console.log(`[SimulationManager] Recalculating trajectory FROM CURRENT TIME with bank angle ${bankAngle}°`);
 
         try {
-            // Call backend to recalculate entire trajectory with new bank angle
-            const newTrajectory = await this.trajectoryService.modifyTrajectoryWithBankAngle(bankAngle);
+            // Get current state in meters (unscaled) for backend
+            const currentData = this.state.vehicleData;
 
-            if (newTrajectory && newTrajectory.length > 0) {
-                // Update trajectory manager with new data
-                this.trajectoryManager.setTrajectoryData(newTrajectory);
+            // Prepare current state in backend format
+            const currentState = {
+                positionMeters: currentData.positionMeters || new THREE.Vector3(
+                    currentData.position.x / 0.00001,
+                    currentData.position.y / 0.00001,
+                    currentData.position.z / 0.00001
+                ),
+                velocityMetersPerSec: currentData.velocity  // Already in m/s
+            };
+
+            console.log('[SimulationManager] Sending current state to backend:', {
+                time: this.state.currentTime,
+                position: currentState.positionMeters,
+                velocity: currentState.velocityMetersPerSec
+            });
+
+            // Call backend to recalculate trajectory FROM CURRENT INSTANT ONWARDS
+            const futureTrajectory = await this.trajectoryService.modifyTrajectoryFromCurrentState(
+                bankAngle,
+                this.state.currentTime,
+                currentState
+            );
+
+            if (futureTrajectory && futureTrajectory.length > 0) {
+                // SPLICE new trajectory from current time - PRESERVES PAST TRAJECTORY
+                this.trajectoryManager.spliceTrajectoryFromTime(this.state.currentTime, futureTrajectory);
 
                 // Cache result
-                this._bankAngleCache = newTrajectory;
+                this._bankAngleCache = futureTrajectory;
 
                 // Update total time if changed
-                this.state.totalTime = newTrajectory[newTrajectory.length - 1].time;
+                if (this.trajectoryManager.trajectoryData.length > 0) {
+                    this.state.totalTime = this.trajectoryManager.trajectoryData[this.trajectoryManager.trajectoryData.length - 1].time;
+                }
 
-                console.log(`[SimulationManager] Applied bank angle ${bankAngle}° - trajectory recalculated with ${newTrajectory.length} points`);
+                console.log(`[SimulationManager] Applied bank angle ${bankAngle}° - future trajectory recalculated with ${futureTrajectory.length} points`);
             } else {
                 console.error('[SimulationManager] Backend returned empty trajectory');
             }

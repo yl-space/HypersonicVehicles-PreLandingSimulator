@@ -31,22 +31,22 @@ export class TrajectoryManager {
     createTrajectoryVisualization() {
         // Use BufferGeometry for better performance
         this.pathGeometry = new THREE.BufferGeometry();
-        
-        // Materials with modern features - thinner lines for better view
+
+        // Materials with increased visibility - thicker, more opaque lines
         this.pastMaterial = new THREE.LineBasicMaterial({
-            color: 0x444444,  // Dark gray for traveled path
-            linewidth: 1,
-            opacity: 0.4,
+            color: 0xaaaaaa,  // Light gray for traveled path - more visible
+            linewidth: 3,     // Thicker line
+            opacity: 0.9,     // More opaque
             transparent: true
         });
 
         this.futureMaterial = new THREE.LineDashedMaterial({
-            color: 0xff0000,  // Red for future path
-            linewidth: 1,     // Reduced thickness
-            opacity: 0.6,
+            color: 0xff3333,  // Bright red for future path - more visible
+            linewidth: 3,     // Thicker line
+            opacity: 0.9,     // More opaque
             transparent: true,
-            dashSize: 2,      // Smaller dashes
-            gapSize: 1,       // Smaller gaps
+            dashSize: 3,      // Larger dashes for visibility
+            gapSize: 1.5,     // Slightly larger gaps
             scale: 1
         });
         
@@ -74,9 +74,11 @@ export class TrajectoryManager {
         // Geometry for each point - minimal detail for performance
         const pointGeometry = new THREE.SphereGeometry(0.02, 4, 2);
         const pointMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00ffff
+            color: 0x00ffff,
+            transparent: true,
+            opacity: 0.0  // Make points invisible - user requested removal
         });
-        
+
         // Use InstancedMesh for performance
         const maxPoints = 1000;
         this.pathPoints = new THREE.InstancedMesh(
@@ -84,19 +86,22 @@ export class TrajectoryManager {
             pointMaterial,
             maxPoints
         );
-        
+
+        // Make invisible by default - user requested removal of markers
+        this.pathPoints.visible = false;
+
         // Initialize instance color attribute
         const colors = new Float32Array(maxPoints * 3);
         for (let i = 0; i < maxPoints * 3; i++) {
             colors[i] = 1;
         }
         this.pathPoints.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
-        
+
         // Enable frustum culling for performance
         this.pathPoints.frustumCulled = true;
         this.pathPoints.castShadow = false;
         this.pathPoints.receiveShadow = false;
-        
+
         this.group.add(this.pathPoints);
     }
     
@@ -189,14 +194,14 @@ export class TrajectoryManager {
         // Compute bounding sphere for frustum culling
         this.pathGeometry.computeBoundingSphere();
         
-        // Create full trajectory line - thinner for better visibility
+        // Create full trajectory line - more visible
         this.trajectoryLine = new THREE.Line(
             this.pathGeometry,
             new THREE.LineBasicMaterial({
                 color: 0xffffff,  // White for full path
-                opacity: 0.2,
+                opacity: 0.4,     // More visible
                 transparent: true,
-                linewidth: 1      // Reduced thickness
+                linewidth: 2      // Thicker for visibility
             })
         );
         
@@ -379,6 +384,48 @@ export class TrajectoryManager {
             this.createOptimizedTrajectory();
             this.updateInstancedPoints();
         }
+    }
+
+    /**
+     * Replace trajectory from current time onwards (preserves past trajectory)
+     * Used when bank angle changes - only future path is recalculated
+     * @param {number} currentTime - Current simulation time
+     * @param {Array} futureTrajectoryData - New trajectory data from current time onwards
+     */
+    spliceTrajectoryFromTime(currentTime, futureTrajectoryData) {
+        if (!Array.isArray(futureTrajectoryData) || futureTrajectoryData.length === 0) {
+            console.error('[TrajectoryManager] Invalid future trajectory data');
+            return;
+        }
+
+        // Find index of current time in existing trajectory
+        let spliceIndex = 0;
+        for (let i = 0; i < this.trajectoryData.length - 1; i++) {
+            if (this.trajectoryData[i].time <= currentTime && this.trajectoryData[i + 1].time > currentTime) {
+                spliceIndex = i + 1;  // Replace from next point onwards
+                break;
+            }
+        }
+
+        console.log(`[TrajectoryManager] Splicing trajectory at t=${currentTime.toFixed(2)}s (index ${spliceIndex})`);
+        console.log(`[TrajectoryManager] Keeping past ${spliceIndex} points, replacing with ${futureTrajectoryData.length} new points`);
+
+        // Keep past trajectory points up to current time
+        const pastTrajectory = this.trajectoryData.slice(0, spliceIndex);
+
+        // Combine past with new future trajectory
+        this.trajectoryData = [...pastTrajectory, ...futureTrajectoryData];
+
+        // Update total time
+        if (this.trajectoryData.length > 0) {
+            this.totalTime = this.trajectoryData[this.trajectoryData.length - 1].time;
+        }
+
+        console.log(`[TrajectoryManager] New trajectory: ${this.trajectoryData.length} total points, duration ${this.totalTime.toFixed(2)}s`);
+
+        // Rebuild visualization
+        this.createOptimizedTrajectory();
+        this.updateInstancedPoints();
     }
     
     generateSampleTrajectory() {

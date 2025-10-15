@@ -176,12 +176,12 @@ export class AssetLoader {
         const imageData = ctx.getImageData(0, 0, width, height);
         const data = imageData.data;
         
-        for (let i = 0; i < data.length; i += 4) {
-            const noise = (Math.random() - 0.5) * 20;
-            data[i] += noise;     // Red
-            data[i + 1] += noise; // Green
-            data[i + 2] += noise; // Blue
-        }
+        // for (let i = 0; i < data.length; i += 4) {
+        //     const noise = (Math.random() - 0.5) * 20;
+        //     data[i] += noise;     // Red
+        //     data[i + 1] += noise; // Green
+        //     data[i + 2] += noise; // Blue
+        // }
         
         ctx.putImageData(imageData, 0, 0);
     }
