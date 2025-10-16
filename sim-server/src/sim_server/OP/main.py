@@ -202,8 +202,22 @@ def main(init=None, control=None):
 
 if __name__ == "__main__":
     main()
-    
+    # this block is just a surrogate to be replaced. The input for the recalc function will need to be repalced with real stuff
+    bank_angle_changed = True
+    point_of_input = {
+    "h0": 124999, 
+    "vel0": 6.0836e3, 
+    "theta0": np.deg2rad(-78.8618), 
+    "phi0": np.deg2rad(27.1050),
+    "gamma0": np.deg2rad(-15.5), 
+    "psi0": np.deg2rad(0),
+    }
+    bank_angle_input = {
+    "bank_angle": np.deg2rad(30.0), # [rad] Bank Angle 
+    }
 
-# this block is just a surrogate to be replaced. The input for the recalc function will need to be repalced with real stuff
-#if bank_angle_changed == True:
-#    main(init=point_of_input, control=bank_angle_input)
+    if bank_angle_changed == True:
+        main(init=point_of_input, control=bank_angle_input)
+    else:
+        main(init=None, control=None)
+
