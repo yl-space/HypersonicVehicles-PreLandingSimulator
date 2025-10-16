@@ -175,16 +175,16 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
 
 
 #MAIN FUNCTION STARTS HERE
-def main():
+def main(init=None, control=None):
     from src.sim_server.constants.defaults import DEFAULT_PLANET, DEFAULT_INIT, DEFAULT_VEHICLE, DEFAULT_CONTROL
     from src.sim_server.constants.vehicles import get_vehicle_params
     from src.sim_server.constants.planets import get_planet_params
 
     # Define simulation parameters
     planet = get_planet_params(DEFAULT_PLANET["planet_name"])
-    init = DEFAULT_INIT
+    init = init if init is not None else DEFAULT_INIT
     vehicle = get_vehicle_params(DEFAULT_VEHICLE["vehicle_name"])
-    control = DEFAULT_CONTROL
+    control = control if control is not None else DEFAULT_CONTROL
 
     # Run the high-fidelity simulation
     results = high_fidelity_simulation(planet, init, vehicle, control, verbose=True, return_states=True)
@@ -202,6 +202,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
 
-
-# this block is just a surrogate to be replaced. It emulates the simulation trajectory rendering for user in the web tool 
+# this block is just a surrogate to be replaced. The input for the recalc function will need to be repalced with real stuff
+#if bank_angle_changed == True:
+#    main(init=point_of_input, control=bank_angle_input)
