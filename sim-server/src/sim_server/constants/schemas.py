@@ -9,7 +9,7 @@ class InitParams(BaseModel):
     vel0: Optional[float] = Field(None, description="Initial velocity [m/s]")
     theta0: Optional[float] = Field(None, description="Initial longitude [rad]")
     phi0: Optional[float] = Field(None, description="Initial latitude [rad]")
-    gamma0: Optional[float] = Field(None, description="Flight path angle [rad]")
+    gamma0: Optional[float] = Field(None, description="Initial flight path angle [rad]")
     psi0: Optional[float] = Field(None, description="Initial heading angle [rad]")
 
 class VehicleParams(BaseModel):

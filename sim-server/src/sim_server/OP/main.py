@@ -204,20 +204,42 @@ if __name__ == "__main__":
     main()
     # this block is just a surrogate to be replaced. The input for the recalc function will need to be repalced with real stuff
     bank_angle_changed = True
-    point_of_input = {
-    "h0": 124999, 
-    "vel0": 6.0836e3, 
-    "theta0": np.deg2rad(-78.8618), 
-    "phi0": np.deg2rad(27.1050),
-    "gamma0": np.deg2rad(-15.5), 
-    "psi0": np.deg2rad(0),
-    }
+    # point_of_input = {
+    # "h0": 124999, 
+    # "vel0": 6.0836e3, 
+    # "theta0": np.deg2rad(-78.8618), 
+    # "phi0": np.deg2rad(27.1050),
+    # "gamma0": np.deg2rad(-15.5), 
+    # "psi0": np.deg2rad(0),
+    # }
     bank_angle_input = {
     "bank_angle": np.deg2rad(30.0), # [rad] Bank Angle 
     }
 
-    if bank_angle_changed == True:
-        main(init=point_of_input, control=bank_angle_input)
-    else:
-        main(init=None, control=None)
+    # I will use the example point along the trajectory which is approximatelly number 10000 out of 16157
+    # if the bank angle input remains the same, the final error should remain the same, as documented in pptx
 
+    point_of_input_Cartesian = {
+    "x": 1.205532181396078e+06,
+    "y": -2.796002637077214e+06,
+    "z": 1.558152803402915e+06,
+    "vx": 7.762841024785303e+02,
+    "vy": 4.340321796247736e+02,
+    "vz": 0.882049683132209e+02,
+    }
+
+    def Cartesian_to_Spherical(Cartesian_point: dict) -> dict:
+        """Convert Cartesian coordinates to spherical coordinates with the velocity direction components.
+        
+        Args:
+            Cartesian_point: Dictionary containing Cartesian coordinates [x, y, z] and velocity components [vx, vy, vz]
+        Returns:
+            Dictionary containing spherical coordinates [r, theta, phi] and velocity components [V, psi, gamma]
+        """
+
+    point_of_input_Spherical = Cartesian_to_Spherical(point_of_input_Cartesian)
+
+
+    if bank_angle_changed == True:
+        main(init=point_of_input_Spherical, control=bank_angle_input)
+   
