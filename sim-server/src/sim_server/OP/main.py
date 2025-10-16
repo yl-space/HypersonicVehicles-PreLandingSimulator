@@ -23,6 +23,8 @@ def make_event(ind: int, term: float):
     return event
 
 def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: dict, verbose = False, return_states=False) -> dict:
+#def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: dict, verbose = False, return_states=False, input_type = "Spherical") -> dict:
+
     """Run a high-fidelity simulation of atmospheric entry.
 
     Args:
@@ -33,6 +35,10 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
     Returns:
         Dictionary with simulation results including time, position, and velocity arrays.
     """
+
+    # conver the input into Spherical coordinates
+    #if input_type == "Cartesian":
+
     t0 = _time.time()
     
     ODE_terminal_index = 0
@@ -77,27 +83,50 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         """
         return entryeoms(t, x, planet, vehicle, control)
 
+    t_ODE_start = _time.time()
     sol = solve_ivp(
         rhs,
         t_span=(0.0, simulation_termination["time_limit"]),
         y0=ODE_initial_cond,
         events=exitcon,
-        rtol=1e-9,
-        atol=1e-9,
+        rtol=1e-5,
+        atol=1e-3,
         dense_output=True, # this is needed to evaluate the solution at the time points I need 
-        method='DOP853'
+        method='RK45'
     )
-    if verbose:
-        print("exit conditions triggered at t = ", sol.t_events[0][0])
-   
+
     # resample at the defined time stamps
     t_end = sol.t[-1]
     time_array = np.arange(0.0, t_end + 1e-12, simulation_termination["dt"]) # epsilon is added to include the endpoint. specifics of np.arange
     states = sol.sol(time_array).T  # shape (N, 6)
     
     if verbose:
-        print(f"Script completed in {(_time.time() - t0):.3f} s")
-        print("final velocity is ", states[:, 3][-1] / 1000.0, "km/s" "= Mach ", states[:, 3][-1] / 236.38)
+        #print(f"Script completed in {(_time.time() - t0):.3f} s")
+        #print("final velocity is ", states[:, 3][-1] / 1000.0, "km/s" "= Mach ", states[:, 3][-1] / 236.38)
+        print(f"ODE integration time = {_time.time() - t_ODE_start:.3f} s")
+
+    # save the final state as benchmark: 
+    # remove comment to save the benchmark or change the name to save other stuff 
+    final_output = states[-1, :]
+    #np.savez("benchmark_DOP853_1e9.npz", final_output=final_output)
+
+    # load the benchmark data 
+    benchmark_data = np.load("benchmark_DOP853_1e9.npz")
+    benchmark_final_output = benchmark_data["final_output"]
+    #print("benchmark final output: ", benchmark_final_output)
+
+    if verbose:
+        # print the final state
+        #print("final state: ", final_output)
+        # print the difference of the benchmark and final output for each state separately
+        print("the output below shows the difference between the benchmark and the final output")
+        print(f"difference in radius: {final_output[0] - benchmark_final_output[0]:.5g}")
+        print(f"difference in longitude: {final_output[1] - benchmark_final_output[1]:.5g}")
+        print(f"difference in latitude: {final_output[2] - benchmark_final_output[2]:.5g}")
+        print(f"difference in velocity: {final_output[3] - benchmark_final_output[3]:.5g}")
+        print(f"difference in FPA: {final_output[4] - benchmark_final_output[4]:.5g}")
+        print(f"difference in heading: {final_output[5] - benchmark_final_output[5]:.5g}")
+
 
     # Convert spherical to inertial Cartesian position
     # ref - L1b. Nav. class notes and iPad notebook board
@@ -142,6 +171,9 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         'vz_m_s': vel_inertial[:, 2],
     }
 
+
+
+
 #MAIN FUNCTION STARTS HERE
 def main():
     from src.sim_server.constants.defaults import DEFAULT_PLANET, DEFAULT_INIT, DEFAULT_VEHICLE, DEFAULT_CONTROL
@@ -170,3 +202,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# this block is just a surrogate to be replaced. It emulates the simulation trajectory rendering for user in the web tool 
