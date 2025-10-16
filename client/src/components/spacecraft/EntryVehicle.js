@@ -390,18 +390,24 @@ export class EntryVehicle {
         if (!velocity || !position) return;
         if (!this.vectorsVisible) return;
 
+        // Transform world-space directions to spacecraft local space
+        // Since vectors are children of this.group, we need to account for spacecraft rotation
+        const spacecraftQuaternionInverse = this.group.quaternion.clone().invert();
+
         // ====================================================================================
         // VELOCITY VECTOR (Yellow): Shows actual direction of motion along trajectory
         // ====================================================================================
-        // This is the instantaneous velocity vector from the trajectory data
-        // It points in the direction the spacecraft is actually moving
+        // Velocity is in WORLD space, transform to local space for display
         if (this.velocityArrow && velocity instanceof THREE.Vector3 && velocity.length() > 0.001) {
             const velocityDirection = velocity.clone().normalize();
+            // Transform from world to local space
+            const localVelocityDir = velocityDirection.clone().applyQuaternion(spacecraftQuaternionInverse);
+
             const velocityLength = 0.02;
-            this.velocityArrow.setDirection(velocityDirection);
+            this.velocityArrow.setDirection(localVelocityDir);
             this.velocityArrow.setLength(velocityLength, velocityLength * 0.2, velocityLength * 0.15);
             if (this.vectorLabels.velocity) {
-                const labelPosition = velocityDirection.clone().multiplyScalar(velocityLength + 0.01);
+                const labelPosition = localVelocityDir.clone().multiplyScalar(velocityLength + 0.01);
                 this.vectorLabels.velocity.position.copy(labelPosition);
                 this.vectorLabels.velocity.visible = this.vectorsVisible;
             }
@@ -410,15 +416,17 @@ export class EntryVehicle {
         // ====================================================================================
         // POSITION VECTOR (Magenta): Shows radial direction from Mars center
         // ====================================================================================
-        // This points away from Mars center (radially outward)
-        // It represents the "height" or "altitude" direction
+        // Position is in WORLD space, transform to local space for display
         if (this.positionArrow && position instanceof THREE.Vector3 && position.length() > 0.001) {
             const radialDirection = position.clone().normalize();
+            // Transform from world to local space
+            const localRadialDir = radialDirection.clone().applyQuaternion(spacecraftQuaternionInverse);
+
             const posLength = 0.03;
-            this.positionArrow.setDirection(radialDirection);
+            this.positionArrow.setDirection(localRadialDir);
             this.positionArrow.setLength(posLength, posLength * 0.2, posLength * 0.15);
             if (this.vectorLabels.position) {
-                const labelPosition = radialDirection.clone().multiplyScalar(posLength + 0.01);
+                const labelPosition = localRadialDir.clone().multiplyScalar(posLength + 0.01);
                 this.vectorLabels.position.position.copy(labelPosition);
                 this.vectorLabels.position.visible = this.vectorsVisible;
             }
@@ -427,8 +435,7 @@ export class EntryVehicle {
         // ====================================================================================
         // LIFT VECTOR (Cyan): Shows direction of aerodynamic lift force
         // ====================================================================================
-        // Lift is perpendicular to velocity and modulated by bank angle
-        // For atmospheric entry, lift provides trajectory control
+        // Lift is in WORLD space, transform to local space for display
         if (this.bankAngleArrow && velocity.length() > 0.001 && position.length() > 0.001) {
             const velocityNorm = velocity.clone().normalize();
             const positionNorm = position.clone().normalize();
@@ -469,11 +476,14 @@ export class EntryVehicle {
                 liftDirection.applyQuaternion(bankQuaternion);
             }
 
+            // Transform from world to local space
+            const localLiftDir = liftDirection.clone().applyQuaternion(spacecraftQuaternionInverse);
+
             const bankLength = 0.025;
-            this.bankAngleArrow.setDirection(liftDirection);
+            this.bankAngleArrow.setDirection(localLiftDir);
             this.bankAngleArrow.setLength(bankLength, bankLength * 0.2, bankLength * 0.15);
             if (this.vectorLabels.lift) {
-                const labelPosition = liftDirection.clone().multiplyScalar(bankLength + 0.01);
+                const labelPosition = localLiftDir.clone().multiplyScalar(bankLength + 0.01);
                 this.vectorLabels.lift.position.copy(labelPosition);
                 this.vectorLabels.lift.visible = this.vectorsVisible;
             }

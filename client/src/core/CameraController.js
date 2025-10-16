@@ -107,17 +107,22 @@ export class CameraController {
                 const deltaY = e.clientY - this.mouse.lastY;
 
                 // Add inertia for smoother movement
+                // FIXED: Positive deltaX = drag right = rotate right (add, not subtract)
                 this.inertia.deltaX = deltaX * 0.005;
+                // FIXED: Positive deltaY = drag down = tilt down (add, not subtract)
                 this.inertia.deltaY = deltaY * 0.005;
 
                 if (this.mode === 'orbit') {
-                    this.orbit.theta -= this.inertia.deltaX;
+                    // FIXED: Add deltaX so dragging right rotates right
+                    this.orbit.theta += this.inertia.deltaX;
+                    // FIXED: Add deltaY but clamp to prevent flipping
                     this.orbit.phi = Math.max(this.orbit.minPhi, Math.min(this.orbit.maxPhi,
                         this.orbit.phi + this.inertia.deltaY));
                 } else if (this.mode === 'follow') {
-                    // Apply rotation in follow mode
-                    this.followOrbit.theta -= this.inertia.deltaX;
-                    this.followOrbit.phi = Math.max(-Math.PI / 2, Math.min(Math.PI / 2,
+                    // Apply rotation in follow mode with same fix
+                    this.followOrbit.theta += this.inertia.deltaX;
+                    // Clamp phi to prevent camera flipping
+                    this.followOrbit.phi = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1,
                         this.followOrbit.phi + this.inertia.deltaY));
                 }
 
@@ -183,11 +188,12 @@ export class CameraController {
                     // Single touch rotation
                     const deltaX = e.touches[0].clientX - this.touch.startX;
                     const deltaY = e.touches[0].clientY - this.touch.startY;
-                    
-                    this.orbit.theta -= deltaX * 0.005;
-                    this.orbit.phi = Math.max(this.orbit.minPhi, 
+
+                    // FIXED: Add deltaX (not subtract) for correct touch rotation
+                    this.orbit.theta += deltaX * 0.005;
+                    this.orbit.phi = Math.max(this.orbit.minPhi,
                         Math.min(this.orbit.maxPhi, this.orbit.phi + deltaY * 0.005));
-                    
+
                     this.touch.startX = e.touches[0].clientX;
                     this.touch.startY = e.touches[0].clientY;
                 } else if (e.touches.length === 2) {
@@ -248,7 +254,8 @@ export class CameraController {
         // Apply inertia damping
         if (this.mode === 'orbit' && !this.mouse.isDown) {
             if (Math.abs(this.inertia.deltaX) > 0.0001 || Math.abs(this.inertia.deltaY) > 0.0001) {
-                this.orbit.theta -= this.inertia.deltaX;
+                // FIXED: Add deltaX (not subtract) to match mouse movement direction
+                this.orbit.theta += this.inertia.deltaX;
                 this.orbit.phi = Math.max(this.orbit.minPhi,
                     Math.min(this.orbit.maxPhi, this.orbit.phi + this.inertia.deltaY));
 

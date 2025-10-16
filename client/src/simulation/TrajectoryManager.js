@@ -174,29 +174,43 @@ export class TrajectoryManager {
     
     createOptimizedTrajectory() {
         if (this.trajectoryData.length < 2) return;
-        
+
+        // CRITICAL: Remove old trajectory line before creating new one
+        if (this.trajectoryLine) {
+            this.group.remove(this.trajectoryLine);
+            // Dispose of geometry and material to prevent memory leaks
+            if (this.trajectoryLine.geometry) {
+                this.trajectoryLine.geometry.dispose();
+            }
+            if (this.trajectoryLine.material) {
+                this.trajectoryLine.material.dispose();
+            }
+            this.trajectoryLine = null;
+        }
+
         // Create Float32Array for positions (more efficient)
         const positions = new Float32Array(this.trajectoryData.length * 3);
-        
+
         for (let i = 0; i < this.trajectoryData.length; i++) {
             const point = this.trajectoryData[i];
             positions[i * 3] = point.position.x;
             positions[i * 3 + 1] = point.position.y;
             positions[i * 3 + 2] = point.position.z;
         }
-        
-        // Set BufferAttribute
-        this.pathGeometry.setAttribute(
+
+        // Create new geometry for updated trajectory
+        const newGeometry = new THREE.BufferGeometry();
+        newGeometry.setAttribute(
             'position',
             new THREE.BufferAttribute(positions, 3)
         );
-        
+
         // Compute bounding sphere for frustum culling
-        this.pathGeometry.computeBoundingSphere();
-        
+        newGeometry.computeBoundingSphere();
+
         // Create full trajectory line - more visible
         this.trajectoryLine = new THREE.Line(
-            this.pathGeometry,
+            newGeometry,
             new THREE.LineBasicMaterial({
                 color: 0xffffff,  // White for full path
                 opacity: 0.4,     // More visible
@@ -204,7 +218,7 @@ export class TrajectoryManager {
                 linewidth: 2      // Thicker for visibility
             })
         );
-        
+
         this.group.add(this.trajectoryLine);
     }
     
