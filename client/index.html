@@ -19,304 +19,7 @@
     <link rel="icon" type="image/png" href="/assets/images/favicon.png">
     
     <!-- Styles -->
-    <style>
-        /* Base Styles */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: #000;
-            color: #fff;
-            overflow: hidden;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        
-        /* Canvas Container */
-        #canvas-container {
-            width: 100vw;
-            height: 100vh;
-            position: relative;
-            background: radial-gradient(ellipse at center, #0a0a0a 0%, #000000 100%);
-        }
-        
-        /* Loading Screen */
-        #loading-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #000;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-        }
-        
-        .loading-content {
-            text-align: center;
-        }
-        
-        .loading-spinner {
-            width: 80px;
-            height: 80px;
-            border: 3px solid rgba(255, 102, 0, 0.2);
-            border-top-color: #ff6600;
-            border-radius: 50%;
-            animation: spin 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
-            margin: 0 auto 30px;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .loading-text {
-            font-size: 18px;
-            color: #ccc;
-            margin-bottom: 10px;
-        }
-        
-        .loading-progress {
-            width: 200px;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 2px;
-            margin: 20px auto;
-            overflow: hidden;
-        }
-        
-        .loading-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #ff6600, #ff8800);
-            width: 0%;
-            transition: width 0.3s;
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        
-        /* Header */
-        .header {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            padding: 20px 40px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
-            z-index: 100;
-            pointer-events: none;
-        }
-        
-        .header > * {
-            pointer-events: auto;
-        }
-        
-        .mission-info {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        
-        .nasa-logo {
-            width: 50px;
-            height: 50px;
-            background: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICAgIDxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQ1IiBmaWxsPSIjZmZmIi8+CiAgICA8dGV4dCB4PSI1MCIgeT0iNjUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvcnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSI0NSIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiMwMDAiPk48L3RleHQ+Cjwvc3ZnPg==') center/contain no-repeat;
-        }
-        
-        .mission-title {
-            line-height: 1.4;
-        }
-        
-        .mission-title strong {
-            font-size: 20px;
-            font-weight: 600;
-            display: block;
-            letter-spacing: 2px;
-        }
-        
-        .mission-title span {
-            font-size: 14px;
-            color: #aaa;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .simulation-badge {
-            padding: 8px 20px;
-            background: rgba(255, 102, 0, 0.2);
-            border: 1px solid rgba(255, 102, 0, 0.5);
-            border-radius: 20px;
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: #ff6600;
-            font-weight: 500;
-        }
-        
-        /* Phase Info Panel */
-        #phase-info {
-            position: absolute;
-            top: 100px;
-            left: 40px;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            padding: 30px;
-            border-radius: 10px;
-            max-width: 450px;
-            z-index: 100;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-        }
-        
-        /* Timeline Container */
-        #timeline-container {
-            position: absolute;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 80%;
-            max-width: 900px;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            padding: 25px;
-            border-radius: 10px;
-            z-index: 100;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-        }
-        
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            .header {
-                padding: 15px 20px;
-            }
-            
-            .mission-title strong {
-                font-size: 16px;
-            }
-            
-            #phase-info {
-                left: 20px;
-                right: 20px;
-                max-width: none;
-                padding: 20px;
-            }
-            
-            #timeline-container {
-                width: 95%;
-                bottom: 20px;
-                padding: 20px;
-            }
-            
-            .simulation-badge {
-                display: none;
-            }
-        }
-        
-        /* Fullscreen Styles */
-        :fullscreen #canvas-container {
-            width: 100vw;
-            height: 100vh;
-        }
-        
-        /* Performance Mode */
-        body.performance-mode * {
-            will-change: auto !important;
-            backface-visibility: hidden;
-        }
-        
-        /* No WebGL Fallback */
-        .no-webgl {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            max-width: 500px;
-            padding: 40px;
-            background: rgba(0, 0, 0, 0.9);
-            border-radius: 10px;
-            border: 1px solid #ff6600;
-        }
-        
-        .no-webgl h2 {
-            color: #ff6600;
-            margin-bottom: 20px;
-        }
-        
-        .no-webgl p {
-            color: #ccc;
-            line-height: 1.6;
-            margin-bottom: 20px;
-        }
-        
-        /* Accessibility */
-        .sr-only {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            white-space: nowrap;
-            border: 0;
-        }
-        
-        /* Focus Styles */
-        button:focus,
-        a:focus,
-        input:focus,
-        select:focus {
-            outline: 2px solid #ff6600;
-            outline-offset: 2px;
-        }
-        
-        /* Print Styles */
-        @media print {
-            body {
-                background: white;
-                color: black;
-            }
-            
-            .header,
-            #timeline-container,
-            .camera-controls,
-            .zoom-controls,
-            .settings-panel {
-                display: none !important;
-            }
-        }
-
-    #ui-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        z-index: 100;
-    }
-    
-    #ui-overlay > * {
-        pointer-events: auto;
-    }
-    </style>
+    <link rel="stylesheet" href="styles/app.css">
 </head>
 <body>
     <!-- Loading Screen -->
@@ -353,6 +56,13 @@
 
     <!-- Timeline Controls -->
     <div id="timeline-container" role="region" aria-label="Simulation Timeline Controls"></div>
+    
+    <!-- Zoom Controls -->
+    <div class="zoom-controls" role="group" aria-label="Zoom Controls">
+        <button class="zoom-btn zoom-in" aria-label="Zoom In" title="Zoom In">+</button>
+        <button class="zoom-btn zoom-reset" aria-label="Reset Zoom" title="Reset Zoom">⟲</button>
+        <button class="zoom-btn zoom-out" aria-label="Zoom Out" title="Zoom Out">−</button>
+    </div>
 
     <!-- Screen Reader Announcements -->
     <div class="sr-only" role="status" aria-live="polite" aria-atomic="true" id="sr-announcements"></div>
@@ -367,12 +77,12 @@
     </noscript>
 
     <!-- Three.js -->
+    <!-- Import map for Three.js module resolution -->
     <script type="importmap">
     {
         "imports": {
-            "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/",
-            "three/examples/jsm/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+            "three": "/node_modules/three/build/three.module.js",
+            "three/": "/node_modules/three/"
         }
     }
     </script>
@@ -412,6 +122,75 @@
         import("./src/main.js").then((module) => {
             console.log('Main module loaded successfully:', module);
             // Main.js will handle hiding the loading screen
+            
+            // Add zoom control functionality
+            setTimeout(() => {
+                const zoomInBtn = document.querySelector('.zoom-in');
+                const zoomOutBtn = document.querySelector('.zoom-out');
+                const zoomResetBtn = document.querySelector('.zoom-reset');
+                
+                if (window.MarsEDL && window.MarsEDL.simulation) {
+                    // Fix: cameraController is directly on simulation, not on scene
+                    const cameraController = window.MarsEDL.simulation.cameraController;
+                    
+                    if (!cameraController) {
+                        console.error('Camera controller not found');
+                        return;
+                    }
+                    
+                    console.log('Setting up zoom controls, camera controller found:', cameraController);
+                    
+                    zoomInBtn?.addEventListener('click', () => {
+                        console.log('Zoom in clicked');
+                        if (cameraController.mode === 'orbit') {
+                            cameraController.orbit.radius *= 0.8;
+                            cameraController.orbit.radius = Math.max(
+                                cameraController.state.minDistance,
+                                cameraController.orbit.radius
+                            );
+                        } else {
+                            cameraController.state.distance *= 0.8;
+                            cameraController.state.distance = Math.max(
+                                cameraController.state.minDistance,
+                                cameraController.state.distance
+                            );
+                        }
+                    });
+                    
+                    zoomOutBtn?.addEventListener('click', () => {
+                        console.log('Zoom out clicked');
+                        if (cameraController.mode === 'orbit') {
+                            cameraController.orbit.radius *= 1.25;
+                            cameraController.orbit.radius = Math.min(
+                                cameraController.state.maxDistance,
+                                cameraController.orbit.radius
+                            );
+                        } else {
+                            cameraController.state.distance *= 1.25;
+                            cameraController.state.distance = Math.min(
+                                cameraController.state.maxDistance,
+                                cameraController.state.distance
+                            );
+                        }
+                    });
+                    
+                    zoomResetBtn?.addEventListener('click', () => {
+                        console.log('Zoom reset clicked');
+                        if (cameraController.mode === 'orbit') {
+                            cameraController.orbit.radius = 100;
+                        } else {
+                            cameraController.state.distance = cameraController.state.defaultDistance;
+                        }
+                    });
+                    
+                    // Make buttons visible
+                    if (zoomInBtn) zoomInBtn.style.display = 'flex';
+                    if (zoomOutBtn) zoomOutBtn.style.display = 'flex';
+                    if (zoomResetBtn) zoomResetBtn.style.display = 'flex';
+                } else {
+                    console.error('MarsEDL simulation not found');
+                }
+            }, 3000); // Wait for simulation to initialize
         }).catch(error => {
             console.error('Failed to load application:', error);
             document.getElementById('loading-screen').innerHTML = `

@@ -2,6 +2,8 @@
  * Handles data loading, caching, and API communication
  */
 
+import { BackendAPIClient } from '../services/BackendAPIClient.js';
+
 export class DataManager {
     constructor() {
         this.cache = new Map();
@@ -9,22 +11,66 @@ export class DataManager {
         this.apiEndpoints = {
             trajectories: '/api/trajectories',
             missions: '/api/missions',
-            telemetry: '/api/telemetry'
+            telemetry: '/api/telemetry',
+            highFidelitySim: '/sim/high-fidelity/'
         };
+
+        // Initialize Backend API Client
+        this.backendAPI = new BackendAPIClient({
+            baseURL: this.baseURL,
+            timeout: 10000,
+            retryAttempts: 2,
+            cacheEnabled: true,
+            enableFallback: true
+        });
+
+        // Track data source preference
+        this.preferBackend = true;
+        this.backendAvailable = true;
     }
     
     /**
      * Load trajectory data from CSV file
+     * Now tries backend API first, then falls back to local file
      */
     async loadTrajectoryCSV(filename) {
         const cacheKey = `trajectory_${filename}`;
-        
+
         // Check cache first
         if (this.cache.has(cacheKey)) {
+            console.log(`[DataManager] Using cached trajectory: ${filename}`);
             return this.cache.get(cacheKey);
         }
-        
+
+        // Try backend API first if preferred and available
+        if (this.preferBackend && this.backendAvailable) {
+            console.log(`[DataManager] Attempting to load trajectory from backend: ${filename}`);
+
+            const backendResult = await this.backendAPI.getTrajectory(filename);
+
+            if (backendResult.success && backendResult.data) {
+                console.log(`[DataManager] Successfully loaded trajectory from backend`);
+
+                // Transform backend data to expected format
+                const transformedData = {
+                    headers: backendResult.data.metadata?.columns || ['Time', 'x', 'y', 'z'],
+                    rows: backendResult.data.points || [],
+                    count: backendResult.data.totalPoints || backendResult.data.points?.length || 0,
+                    source: 'backend'
+                };
+
+                this.cache.set(cacheKey, transformedData);
+                return transformedData;
+            } else {
+                console.warn(`[DataManager] Backend failed, falling back to local file`);
+                this.backendAvailable = false;
+            }
+        }
+
+        // Fallback: Load from local files
         try {
+            console.log(`[DataManager] Loading trajectory from local file: ${filename}`);
+
             // Try multiple paths to find the file
             const paths = [
                 `/assets/data/${filename}`,
@@ -33,10 +79,10 @@ export class DataManager {
                 `./data/${filename}`,
                 filename // Try direct path as fallback
             ];
-            
+
             let response;
             let successPath;
-            
+
             for (const path of paths) {
                 try {
                     response = await fetch(path);
@@ -48,21 +94,78 @@ export class DataManager {
                     // Try next path
                 }
             }
-            
+
             if (!response || !response.ok) {
                 throw new Error(`Failed to load trajectory data: ${filename} not found`);
             }
-            
-            console.log(`Loaded trajectory from: ${successPath}`);
+
+            console.log(`[DataManager] Loaded trajectory from: ${successPath}`);
             const csvText = await response.text();
             const data = this.parseCSV(csvText);
-            
+            data.source = 'local';
+
             // Cache the parsed data
             this.cache.set(cacheKey, data);
-            
+
             return data;
         } catch (error) {
-            console.error('Error loading trajectory CSV:', error);
+            console.error('[DataManager] Error loading trajectory CSV:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Load trajectory data from HTTP endpoint
+     */
+    async loadTrajectoryHTTP(params = {}) {``
+        try {
+            // Build URL with query parameters
+            const url = new URL(this.apiEndpoints.highFidelitySim, this.baseURL);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(params)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Ensure the response has the expected format
+            if (data && data.time_s && data.x_m && data.y_m && data.z_m && 
+                data.vx_m_s && data.vy_m_s && data.vz_m_s) {
+                
+                // Convert the simulation data to the same format as CSV
+                const headers = ['Time', 'x', 'y', 'z'];
+                const rows = [];
+                
+                // Convert arrays to row objects
+                const length = data.time_s.length;
+                for (let i = 0; i < length; i++) {
+                    rows.push({
+                        Time: data.time_s[i],
+                        x: data.x_m[i],
+                        y: data.y_m[i],
+                        z: data.z_m[i]
+                    });
+                }
+                
+                return {
+                    headers,
+                    rows,
+                    count: rows.length
+                };
+            } else {
+                throw new Error('Invalid trajectory data format received from HTTP endpoint');
+            }
+            
+        } catch (error) {
+            console.error('Error loading trajectory via HTTP:', error);
             throw error;
         }
     }
@@ -97,29 +200,39 @@ export class DataManager {
     
     /**
      * Load mission configuration
+     * Now tries backend API first with fallback to defaults
      */
     async loadMissionConfig(missionId = 'msl') {
         const cacheKey = `mission_${missionId}`;
-        
+
         if (this.cache.has(cacheKey)) {
+            console.log(`[DataManager] Using cached mission config: ${missionId}`);
             return this.cache.get(cacheKey);
         }
-        
-        try {
-            const response = await fetch(`${this.apiEndpoints.missions}/${missionId}`);
-            if (!response.ok) {
-                // Return default configuration if API fails
-                return this.getDefaultMissionConfig();
+
+        // Try backend API first
+        if (this.preferBackend && this.backendAvailable) {
+            console.log(`[DataManager] Attempting to load mission config from backend: ${missionId}`);
+
+            const backendResult = await this.backendAPI.getMissionConfig(missionId);
+
+            if (backendResult.success && backendResult.data) {
+                console.log(`[DataManager] Successfully loaded mission config from backend`);
+                const config = backendResult.data;
+                config.source = 'backend';
+                this.cache.set(cacheKey, config);
+                return config;
+            } else {
+                console.warn(`[DataManager] Backend mission config failed, using defaults`);
             }
-            
-            const config = await response.json();
-            this.cache.set(cacheKey, config);
-            
-            return config;
-        } catch (error) {
-            console.warn('Failed to load mission config from API, using defaults:', error);
-            return this.getDefaultMissionConfig();
         }
+
+        // Fallback to default configuration
+        console.log(`[DataManager] Using default mission configuration`);
+        const defaultConfig = this.getDefaultMissionConfig();
+        defaultConfig.source = 'default';
+        this.cache.set(cacheKey, defaultConfig);
+        return defaultConfig;
     }
     
     /**
@@ -204,27 +317,24 @@ export class DataManager {
     
     /**
      * Save telemetry data
+     * Now uses backend API with local storage fallback
      */
     async saveTelemetry(telemetryData) {
-        try {
-            const response = await fetch(this.apiEndpoints.telemetry, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(telemetryData)
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to save telemetry');
+        // Try backend API first
+        if (this.preferBackend && this.backendAvailable) {
+            const backendResult = await this.backendAPI.sendTelemetry(telemetryData);
+
+            if (backendResult.success) {
+                console.log('[DataManager] Telemetry saved to backend successfully');
+                return backendResult.data;
+            } else {
+                console.warn('[DataManager] Failed to save telemetry to backend, storing locally');
             }
-            
-            return await response.json();
-        } catch (error) {
-            console.error('Error saving telemetry:', error);
-            // Store locally if API fails
-            this.storeLocalTelemetry(telemetryData);
         }
+
+        // Fallback: Store locally if backend fails
+        this.storeLocalTelemetry(telemetryData);
+        return { success: true, source: 'local' };
     }
     
     /**
@@ -361,17 +471,55 @@ export class DataManager {
      */
     estimateCacheMemory() {
         let totalSize = 0;
-        
+
         this.cache.forEach((value, key) => {
             // Rough estimation
             totalSize += JSON.stringify(value).length;
             totalSize += key.length;
         });
-        
+
         return {
             bytes: totalSize,
             kb: (totalSize / 1024).toFixed(2),
             mb: (totalSize / 1024 / 1024).toFixed(2)
         };
+    }
+
+    /**
+     * Check backend availability
+     */
+    async checkBackendHealth() {
+        const health = await this.backendAPI.healthCheck();
+        this.backendAvailable = health.success;
+        return health;
+    }
+
+    /**
+     * Get backend status
+     */
+    getBackendStatus() {
+        return {
+            available: this.backendAvailable,
+            preferBackend: this.preferBackend,
+            apiStatus: this.backendAPI.getStatus()
+        };
+    }
+
+    /**
+     * Set backend preference
+     */
+    setBackendPreference(prefer) {
+        this.preferBackend = prefer;
+        console.log(`[DataManager] Backend preference set to: ${prefer}`);
+    }
+
+    /**
+     * Force backend check and update availability
+     */
+    async updateBackendAvailability() {
+        const isAvailable = await this.backendAPI.isBackendAvailable();
+        this.backendAvailable = isAvailable;
+        console.log(`[DataManager] Backend availability updated: ${isAvailable}`);
+        return isAvailable;
     }
 }

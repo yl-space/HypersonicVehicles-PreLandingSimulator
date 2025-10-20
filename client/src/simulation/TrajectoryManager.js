@@ -1,4 +1,4 @@
-import * as THREE from '/node_modules/three/build/three.module.js';
+import * as THREE from 'three';
 
 export class TrajectoryManager {
     constructor() {
@@ -7,17 +7,19 @@ export class TrajectoryManager {
         this.marsRadius = 3390000; // meters (NASA data)
         // Scale factor: 1 unit = 100 km for consistency with planet scales
         this.SCALE_FACTOR = 0.00001; // Convert meters to visualization units
-        
+
         // Visual components
         this.group = new THREE.Group();
         this.trajectoryLine = null;
         this.pathPoints = null;
         this.currentPositionMarker = null;
-        
+
         // Performance optimizations
         this.useInstancing = true;
         this.useLOD = true;
-        
+
+        // Backend integration removed - now handled by TrajectoryService in SimulationManager
+
         this.init();
     }
     
@@ -29,22 +31,22 @@ export class TrajectoryManager {
     createTrajectoryVisualization() {
         // Use BufferGeometry for better performance
         this.pathGeometry = new THREE.BufferGeometry();
-        
-        // Materials with modern features - more visible colors
+
+        // Materials with increased visibility - thicker, more opaque lines
         this.pastMaterial = new THREE.LineBasicMaterial({
-            color: 0x00ff00,  // Bright green for traveled path
-            linewidth: 3,
-            opacity: 1.0,
-            transparent: false
+            color: 0xaaaaaa,  // Light gray for traveled path - more visible
+            linewidth: 3,     // Thicker line
+            opacity: 0.9,     // More opaque
+            transparent: true
         });
-        
+
         this.futureMaterial = new THREE.LineDashedMaterial({
-            color: 0xff0000,  // Red for future path
-            linewidth: 3,
-            opacity: 0.8,
+            color: 0xff3333,  // Bright red for future path - more visible
+            linewidth: 3,     // Thicker line
+            opacity: 0.9,     // More opaque
             transparent: true,
-            dashSize: 5,
-            gapSize: 3,
+            dashSize: 3,      // Larger dashes for visibility
+            gapSize: 1.5,     // Slightly larger gaps
             scale: 1
         });
         
@@ -69,12 +71,14 @@ export class TrajectoryManager {
     }
     
     createInstancedPathPoints() {
-        // Geometry for each point
-        const pointGeometry = new THREE.SphereGeometry(0.02, 4, 4);
+        // Geometry for each point - minimal detail for performance
+        const pointGeometry = new THREE.SphereGeometry(0.02, 4, 2);
         const pointMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00ffff
+            color: 0x00ffff,
+            transparent: true,
+            opacity: 0.0  // Make points invisible - user requested removal
         });
-        
+
         // Use InstancedMesh for performance
         const maxPoints = 1000;
         this.pathPoints = new THREE.InstancedMesh(
@@ -82,44 +86,38 @@ export class TrajectoryManager {
             pointMaterial,
             maxPoints
         );
-        
+
+        // Make invisible by default - user requested removal of markers
+        this.pathPoints.visible = false;
+
         // Initialize instance color attribute
         const colors = new Float32Array(maxPoints * 3);
         for (let i = 0; i < maxPoints * 3; i++) {
             colors[i] = 1;
         }
         this.pathPoints.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
-        
+
         // Enable frustum culling for performance
         this.pathPoints.frustumCulled = true;
         this.pathPoints.castShadow = false;
         this.pathPoints.receiveShadow = false;
-        
+
         this.group.add(this.pathPoints);
     }
     
     createPositionMarker() {
-        // Current position indicator - larger and more visible
-        const markerGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+        // Position marker (invisible by default)
+        const markerGeometry = new THREE.SphereGeometry(0.005, 8, 8);
         const markerMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffff00  // Yellow for visibility
+            color: 0xff0000,
+            transparent: true,
+            opacity: 0.0
         });
-        
+
         this.currentPositionMarker = new THREE.Mesh(markerGeometry, markerMaterial);
         this.currentPositionMarker.castShadow = false;
-        
-        // Add glow effect
-        const glowGeometry = new THREE.SphereGeometry(0.8, 16, 16);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffff00,
-            transparent: true,
-            opacity: 0.5,
-            blending: THREE.AdditiveBlending
-        });
-        
-        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        this.currentPositionMarker.add(glow);
-        
+        this.currentPositionMarker.visible = false;
+
         this.group.add(this.currentPositionMarker);
     }
     
@@ -176,37 +174,51 @@ export class TrajectoryManager {
     
     createOptimizedTrajectory() {
         if (this.trajectoryData.length < 2) return;
-        
+
+        // CRITICAL: Remove old trajectory line before creating new one
+        if (this.trajectoryLine) {
+            this.group.remove(this.trajectoryLine);
+            // Dispose of geometry and material to prevent memory leaks
+            if (this.trajectoryLine.geometry) {
+                this.trajectoryLine.geometry.dispose();
+            }
+            if (this.trajectoryLine.material) {
+                this.trajectoryLine.material.dispose();
+            }
+            this.trajectoryLine = null;
+        }
+
         // Create Float32Array for positions (more efficient)
         const positions = new Float32Array(this.trajectoryData.length * 3);
-        
+
         for (let i = 0; i < this.trajectoryData.length; i++) {
             const point = this.trajectoryData[i];
             positions[i * 3] = point.position.x;
             positions[i * 3 + 1] = point.position.y;
             positions[i * 3 + 2] = point.position.z;
         }
-        
-        // Set BufferAttribute
-        this.pathGeometry.setAttribute(
+
+        // Create new geometry for updated trajectory
+        const newGeometry = new THREE.BufferGeometry();
+        newGeometry.setAttribute(
             'position',
             new THREE.BufferAttribute(positions, 3)
         );
-        
+
         // Compute bounding sphere for frustum culling
-        this.pathGeometry.computeBoundingSphere();
-        
+        newGeometry.computeBoundingSphere();
+
         // Create full trajectory line - more visible
         this.trajectoryLine = new THREE.Line(
-            this.pathGeometry,
+            newGeometry,
             new THREE.LineBasicMaterial({
                 color: 0xffffff,  // White for full path
-                opacity: 0.3,
+                opacity: 0.4,     // More visible
                 transparent: true,
-                linewidth: 2
+                linewidth: 2      // Thicker for visibility
             })
         );
-        
+
         this.group.add(this.trajectoryLine);
     }
     
@@ -379,9 +391,55 @@ export class TrajectoryManager {
     setTrajectoryData(data) {
         if (Array.isArray(data)) {
             this.trajectoryData = data;
+            // Store original data for reset functionality
+            if (!this.originalTrajectoryData) {
+                this.originalTrajectoryData = data.map(pt => ({...pt, position: pt.position.clone()}));
+            }
             this.createOptimizedTrajectory();
             this.updateInstancedPoints();
         }
+    }
+
+    /**
+     * Replace trajectory from current time onwards (preserves past trajectory)
+     * Used when bank angle changes - only future path is recalculated
+     * @param {number} currentTime - Current simulation time
+     * @param {Array} futureTrajectoryData - New trajectory data from current time onwards
+     */
+    spliceTrajectoryFromTime(currentTime, futureTrajectoryData) {
+        if (!Array.isArray(futureTrajectoryData) || futureTrajectoryData.length === 0) {
+            console.error('[TrajectoryManager] Invalid future trajectory data');
+            return;
+        }
+
+        // Find index of current time in existing trajectory
+        let spliceIndex = 0;
+        for (let i = 0; i < this.trajectoryData.length - 1; i++) {
+            if (this.trajectoryData[i].time <= currentTime && this.trajectoryData[i + 1].time > currentTime) {
+                spliceIndex = i + 1;  // Replace from next point onwards
+                break;
+            }
+        }
+
+        console.log(`[TrajectoryManager] Splicing trajectory at t=${currentTime.toFixed(2)}s (index ${spliceIndex})`);
+        console.log(`[TrajectoryManager] Keeping past ${spliceIndex} points, replacing with ${futureTrajectoryData.length} new points`);
+
+        // Keep past trajectory points up to current time
+        const pastTrajectory = this.trajectoryData.slice(0, spliceIndex);
+
+        // Combine past with new future trajectory
+        this.trajectoryData = [...pastTrajectory, ...futureTrajectoryData];
+
+        // Update total time
+        if (this.trajectoryData.length > 0) {
+            this.totalTime = this.trajectoryData[this.trajectoryData.length - 1].time;
+        }
+
+        console.log(`[TrajectoryManager] New trajectory: ${this.trajectoryData.length} total points, duration ${this.totalTime.toFixed(2)}s`);
+
+        // Rebuild visualization
+        this.createOptimizedTrajectory();
+        this.updateInstancedPoints();
     }
     
     generateSampleTrajectory() {
@@ -465,7 +523,11 @@ export class TrajectoryManager {
      * @param {number} finalPercent
      */
     offsetTrajectoryLinearlyFromCurrentTime(currentTime, directionX, directionY, finalPercent = 0.1) {
-        if (!this.trajectoryData.length) return;
+        // Logging removed for production use
+        if (!this.trajectoryData.length) {
+            console.log('No trajectory data available');
+            return;
+        }
 
         // Find the current index in the trajectory
         let currentIndex = 0;
@@ -479,6 +541,11 @@ export class TrajectoryManager {
         // Get interpolated data at currentTime
         const currentData = this.getDataAtTime(currentTime);
         if (!currentData) return;
+
+        // Store this in the offset history if it's newer than the last entry
+        if (currentData.time > (this.offsetHistory.length ? this.offsetHistory[this.offsetHistory.length - 1].time : -Infinity)) {
+            this.offsetHistory.push({ time: currentData.time, x: currentData.position.x, y: currentData.position.y, z: currentData.position.z });
+        }
 
         // "Up" is from Mars center to position (radial)
         const up = currentData.position.clone().normalize();
@@ -556,7 +623,220 @@ export class TrajectoryManager {
 
         this.setTrajectoryData(newData);
     }
+
+    /**
+     * Apply physics-based trajectory modification using lift force from bank angle
+     * @param {number} currentTime - Current simulation time
+     * @param {THREE.Vector3} liftForceDirection - Direction of lift force in 3D space
+     * @param {number} bankAngle - Current bank angle in degrees
+     */
+    offsetTrajectoryWithPhysics(currentTime, liftForceDirection, bankAngle) {
+        if (!this.trajectoryData.length || !liftForceDirection) return;
+
+        // Find the current index in the trajectory
+        let currentIndex = 0;
+        for (let i = 0; i < this.trajectoryData.length - 1; i++) {
+            if (this.trajectoryData[i].time <= currentTime && this.trajectoryData[i + 1].time > currentTime) {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        // Get interpolated data at currentTime
+        const currentData = this.getDataAtTime(currentTime);
+        if (!currentData) return;
+
+        // Copy trajectory data and apply physics-based offset
+        const newData = this.trajectoryData.map((pt, i) => {
+            if (i <= currentIndex) {
+                return {
+                    ...pt,
+                    position: pt.position.clone()
+                };
+            }
+
+            // Time factor for cumulative effect
+            const timeDelta = pt.time - currentTime;
+            const timeWeight = Math.min(1.0, timeDelta / 60.0); // Effect builds over 60 seconds
+
+            // Atmospheric effect - stronger in denser atmosphere
+            const altitudeFactor = Math.exp(-Math.max(0, pt.altitude) / 11.1); // Mars scale height
+
+            // Velocity-dependent effect - stronger at higher speeds
+            const velocityFactor = Math.min(1.0, pt.velocityMagnitude / 5000); // Normalize to entry speed
+
+            // Bank angle effect magnitude
+            const bankAngleFactor = Math.sin(THREE.MathUtils.degToRad(Math.abs(bankAngle))) * 2.0;
+
+            // Combined effect magnitude
+            const effectMagnitude = timeWeight * altitudeFactor * velocityFactor * bankAngleFactor * 0.01;
+
+            // Apply cumulative lateral displacement
+            const displacement = liftForceDirection.clone().multiplyScalar(effectMagnitude);
+
+            return {
+                ...pt,
+                position: pt.position.clone().add(displacement)
+            };
+        });
+
+        // Recompute derived properties for modified trajectory
+        for (let i = 0; i < newData.length; i++) {
+            const pt = newData[i];
+
+            // Recalculate altitude and distance
+            const unscaledPos = pt.position.clone().multiplyScalar(1 / this.SCALE_FACTOR);
+            const rawDistance = unscaledPos.length();
+            pt.altitude = (rawDistance - this.marsRadius) * 0.001; // km
+            pt.distanceToLanding = rawDistance * 0.001; // km
+
+            // Recalculate velocity based on new positions
+            if (i > 0) {
+                const prevPt = newData[i - 1];
+                const dt = pt.time - prevPt.time;
+                if (dt > 0) {
+                    pt.velocity = pt.position.clone().sub(prevPt.position).divideScalar(dt);
+                    pt.velocityMagnitude = pt.velocity.length() / this.SCALE_FACTOR;
+                } else {
+                    pt.velocity = prevPt.velocity.clone();
+                    pt.velocityMagnitude = prevPt.velocityMagnitude;
+                }
+            } else {
+                // First point: preserve original velocity
+                pt.velocity = pt.velocity ? pt.velocity.clone() : new THREE.Vector3(0, -1, 0);
+                pt.velocityMagnitude = pt.velocity.length() / this.SCALE_FACTOR;
+            }
+        }
+
+        this.setTrajectoryData(newData);
+    }
+
+    /**
+     * Real-time physics-based trajectory modification with immediate visual feedback
+     * Now tries backend first, falls back to local calculation
+     * @param {number} currentTime - Current simulation time
+     * @param {THREE.Vector3} liftForceDirection - Direction of lift force in 3D space
+     * @param {number} bankAngle - Current bank angle in degrees
+     */
+    async offsetTrajectoryWithPhysicsRealTime(currentTime, liftForceDirection, bankAngle) {
+        // REMOVED: Backend integration - now handled by TrajectoryService in SimulationManager
+        // This method is no longer used - keeping for backwards compatibility
+        console.warn('[TrajectoryManager] offsetTrajectoryWithPhysicsRealTime is deprecated and has no effect');
+        console.warn('[TrajectoryManager] All trajectory modifications are now handled by TrajectoryService');
+        return;
+    }
+
+    /**
+     * Local real-time physics-based trajectory modification
+     * Original implementation
+     * @param {number} currentTime - Current simulation time
+     * @param {THREE.Vector3} liftForceDirection - Direction of lift force in 3D space
+     * @param {number} bankAngle - Current bank angle in degrees
+     */
+    offsetTrajectoryWithPhysicsRealTimeLocal(currentTime, liftForceDirection, bankAngle) {
+        if (!this.trajectoryData.length || !liftForceDirection) {
+            return;
+        }
+
+        // Find the current index in the trajectory
+        let currentIndex = 0;
+        for (let i = 0; i < this.trajectoryData.length - 1; i++) {
+            if (this.trajectoryData[i].time <= currentTime && this.trajectoryData[i + 1].time > currentTime) {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        // Get interpolated data at currentTime
+        const currentData = this.getDataAtTime(currentTime);
+        if (!currentData) return;
+
+        // Enhanced real-time modification with immediate effect
+        const newData = this.trajectoryData.map((pt, i) => {
+            if (i <= currentIndex) {
+                return {
+                    ...pt,
+                    position: pt.position.clone()
+                };
+            }
+
+            // Immediate strong effect for real-time feedback
+            const timeDelta = pt.time - currentTime;
+            const timeWeight = Math.min(1.0, timeDelta / 30.0); // Faster effect build-up
+
+            // Enhanced atmospheric effect
+            const altitudeFactor = Math.exp(-Math.max(0, pt.altitude) / 11.1);
+
+            // Enhanced velocity effect
+            const velocityFactor = Math.min(1.0, pt.velocityMagnitude / 4000);
+
+            // Stronger bank angle effect for immediate visibility
+            const bankAngleFactor = Math.sin(THREE.MathUtils.degToRad(Math.abs(bankAngle))) * 5.0;
+
+            // Enhanced effect magnitude for real-time response
+            const effectMagnitude = timeWeight * altitudeFactor * velocityFactor * bankAngleFactor * 0.03;
+
+            // Apply enhanced lateral displacement
+            const displacement = liftForceDirection.clone().multiplyScalar(effectMagnitude);
+
+            return {
+                ...pt,
+                position: pt.position.clone().add(displacement)
+            };
+        });
+
+        // Recompute derived properties
+        for (let i = 0; i < newData.length; i++) {
+            const pt = newData[i];
+
+            // Recalculate altitude and distance
+            const unscaledPos = pt.position.clone().multiplyScalar(1 / this.SCALE_FACTOR);
+            const rawDistance = unscaledPos.length();
+            pt.altitude = (rawDistance - this.marsRadius) * 0.001;
+            pt.distanceToLanding = rawDistance * 0.001;
+
+            // Recalculate velocity
+            if (i > 0) {
+                const prevPt = newData[i - 1];
+                const dt = pt.time - prevPt.time;
+                if (dt > 0) {
+                    pt.velocity = pt.position.clone().sub(prevPt.position).divideScalar(dt);
+                    pt.velocityMagnitude = pt.velocity.length() / this.SCALE_FACTOR;
+                } else {
+                    pt.velocity = prevPt.velocity.clone();
+                    pt.velocityMagnitude = prevPt.velocityMagnitude;
+                }
+            } else {
+                pt.velocity = pt.velocity ? pt.velocity.clone() : new THREE.Vector3(0, -1, 0);
+                pt.velocityMagnitude = pt.velocity.length() / this.SCALE_FACTOR;
+            }
+        }
+
+        this.setTrajectoryData(newData);
+
+        // Force immediate visual update
+        this.updateTrajectoryDisplay(currentTime);
+    }
+
+    resetTrajectory() {
+        // Reset to original trajectory data if available
+        if (this.originalTrajectoryData) {
+            this.setTrajectoryData(this.originalTrajectoryData.slice());
+        } else {
+            // Generate sample trajectory if no original data
+            this.generateSampleTrajectory();
+        }
+        
+        // Reset trajectory display
+        this.updateTrajectoryDisplay(0);
+        this.updateTrajectoryVisibility(0);
+    }
     
+    /**
+     * REMOVED: setBackendPreference, getBackendStatus, checkBackendAvailability
+     * Backend integration now handled by TrajectoryService in SimulationManager
+     */
+
     dispose() {
         this.group.traverse((child) => {
             if (child.geometry) child.geometry.dispose();
@@ -568,5 +848,6 @@ export class TrajectoryManager {
                 }
             }
         });
+        // No backend API to dispose
     }
 }

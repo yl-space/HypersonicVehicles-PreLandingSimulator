@@ -18,7 +18,6 @@ export class PhaseInfo {
     
     init() {
         this.createDOM();
-        this.addStyles();
     }
     
     createDOM() {
@@ -67,20 +66,20 @@ export class PhaseInfo {
             <div class="additional-telemetry">
                 <div class="telemetry-grid">
                     <div class="telemetry-cell">
-                        <span class="cell-label">G-Force</span>
-                        <span class="cell-value" id="gforce-value">0.0g</span>
+                        <span class="cell-label">Angle of Attack</span>
+                        <span class="cell-value" id="aoa-value">-16.0°</span>
                     </div>
                     <div class="telemetry-cell">
-                        <span class="cell-label">Heat Shield</span>
-                        <span class="cell-value" id="heat-value">0°C</span>
+                        <span class="cell-label">Bank Angle</span>
+                        <span class="cell-value" id="bank-value">0.0°</span>
                     </div>
                     <div class="telemetry-cell">
                         <span class="cell-label">Mach</span>
                         <span class="cell-value" id="mach-value">0.0</span>
                     </div>
                     <div class="telemetry-cell">
-                        <span class="cell-label">Drag</span>
-                        <span class="cell-value" id="drag-value">0.0 kN</span>
+                        <span class="cell-label">G-Force</span>
+                        <span class="cell-value" id="gforce-value">0.0g</span>
                     </div>
                 </div>
             </div>
@@ -108,217 +107,13 @@ export class PhaseInfo {
             progressBar: document.getElementById('phase-progress-bar'),
             progressLabel: document.getElementById('phase-progress-label'),
             gforce: document.getElementById('gforce-value'),
-            heat: document.getElementById('heat-value'),
+            aoa: document.getElementById('aoa-value'),
+            bank: document.getElementById('bank-value'),
             mach: document.getElementById('mach-value'),
-            drag: document.getElementById('drag-value'),
             scrollIndicator: document.getElementById('scroll-indicator')
         };
     }
     
-    addStyles() {
-        const style = document.createElement('style');
-        style.textContent = `
-            .phase-info {
-                animation: fadeIn 0.5s ease-out;
-            }
-            
-            @keyframes fadeIn {
-                from { opacity: 0; transform: translateY(20px); }
-                to { opacity: 1; transform: translateY(0); }
-            }
-            
-            .phase-title {
-                font-size: 36px;
-                font-weight: 300;
-                margin-bottom: 20px;
-                letter-spacing: -0.5px;
-                animation: slideIn 0.6s ease-out;
-            }
-            
-            @keyframes slideIn {
-                from { transform: translateX(-30px); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
-            }
-            
-            .telemetry {
-                margin: 20px 0;
-            }
-            
-            .telemetry-item {
-                margin: 10px 0;
-                font-size: 16px;
-                display: flex;
-                align-items: baseline;
-                gap: 8px;
-            }
-            
-            .telemetry-label {
-                font-weight: 600;
-                color: #ccc;
-            }
-            
-            .telemetry-value {
-                font-family: 'Courier New', monospace;
-                font-size: 20px;
-                font-weight: bold;
-                color: #fff;
-                min-width: 100px;
-                display: inline-block;
-            }
-            
-            .phase-description {
-                margin: 25px 0;
-                line-height: 1.7;
-                color: #aaa;
-                font-size: 15px;
-            }
-            
-            .countdown {
-                margin: 25px 0;
-                padding: 15px;
-                background: rgba(255, 102, 0, 0.1);
-                border-left: 3px solid #f60;
-                border-radius: 0 5px 5px 0;
-            }
-            
-            .countdown-label {
-                font-size: 14px;
-                color: #999;
-                margin-right: 10px;
-            }
-            
-            .countdown-value {
-                font-size: 24px;
-                font-weight: bold;
-                font-family: 'Courier New', monospace;
-                color: #f60;
-            }
-            
-            .next-phase {
-                margin: 20px 0;
-                font-size: 14px;
-                color: #888;
-            }
-            
-            .next-phase-label {
-                margin-bottom: 5px;
-            }
-            
-            .next-phase-info {
-                color: #ccc;
-            }
-            
-            #next-phase-name {
-                color: #fff;
-                font-weight: 600;
-            }
-            
-            #next-phase-time {
-                font-family: 'Courier New', monospace;
-                color: #f60;
-            }
-            
-            .phase-progress {
-                margin: 30px 0 20px;
-            }
-            
-            .progress-bar {
-                height: 4px;
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 2px;
-                overflow: hidden;
-                margin-bottom: 8px;
-            }
-            
-            .progress-fill {
-                height: 100%;
-                background: linear-gradient(90deg, #f60, #ff8800);
-                border-radius: 2px;
-                width: 0%;
-                transition: width 0.3s ease-out;
-            }
-            
-            .progress-label {
-                font-size: 11px;
-                color: #666;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-            }
-            
-            .additional-telemetry {
-                margin-top: 30px;
-                padding-top: 20px;
-                border-top: 1px solid rgba(255, 255, 255, 0.1);
-            }
-            
-            .telemetry-grid {
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 15px;
-            }
-            
-            .telemetry-cell {
-                background: rgba(0, 0, 0, 0.3);
-                padding: 12px 15px;
-                border-radius: 5px;
-                display: flex;
-                flex-direction: column;
-                gap: 5px;
-            }
-            
-            .cell-label {
-                font-size: 11px;
-                color: #888;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-            
-            .cell-value {
-                font-size: 18px;
-                font-weight: bold;
-                font-family: 'Courier New', monospace;
-            }
-            
-            .scroll-indicator {
-                position: absolute;
-                bottom: 20px;
-                left: 50%;
-                transform: translateX(-50%);
-                display: flex;
-                align-items: center;
-                gap: 5px;
-                font-size: 12px;
-                color: #666;
-                animation: bounce 2s infinite;
-                cursor: pointer;
-            }
-            
-            @keyframes bounce {
-                0%, 100% { transform: translateX(-50%) translateY(0); }
-                50% { transform: translateX(-50%) translateY(5px); }
-            }
-            
-            .scroll-indicator:hover {
-                color: #999;
-            }
-            
-            /* Responsive */
-            @media (max-width: 768px) {
-                .phase-title {
-                    font-size: 28px;
-                }
-                
-                .telemetry-value {
-                    font-size: 18px;
-                }
-                
-                .telemetry-grid {
-                    grid-template-columns: 1fr;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-    }
     
     update(phase, vehicleData, currentTime, totalTime) {
         if (!phase) return;
@@ -394,27 +189,29 @@ export class PhaseInfo {
         
         // Hide scroll indicator after first phase
         if (currentTime > 30) {
-            this.elements.scrollIndicator.style.display = 'none';
+            this.elements.scrollIndicator.classList.add('hidden');
         }
     }
     
     animatePhaseChange(phase) {
         // Fade out and in effect
-        this.elements.title.style.animation = 'none';
-        this.elements.description.style.animation = 'none';
+        this.elements.title.classList.add('no-animation');
+        this.elements.description.classList.add('no-animation');
         
         setTimeout(() => {
             this.elements.title.textContent = phase.name;
             this.elements.description.textContent = phase.description;
-            this.elements.title.style.animation = 'slideIn 0.6s ease-out';
-            this.elements.description.style.animation = 'fadeIn 0.6s ease-out 0.2s both';
+            this.elements.title.classList.remove('no-animation');
+            this.elements.description.classList.remove('no-animation');
+            this.elements.title.classList.add('slide-in-animation');
+            this.elements.description.classList.add('fade-in-delayed-animation');
         }, 50);
     }
     
     updateAdditionalTelemetry(vehicleData, phase) {
         // Extract velocity magnitude properly
         let velocity = 0;
-        
+
         if (typeof vehicleData.velocityMagnitude === 'number' && !isNaN(vehicleData.velocityMagnitude)) {
             velocity = vehicleData.velocityMagnitude;
         } else if (typeof vehicleData.velocity === 'number' && !isNaN(vehicleData.velocity)) {
@@ -424,40 +221,67 @@ export class PhaseInfo {
                 velocity = vehicleData.velocity.length() * 100000;
             }
         }
-        
-        // G-Force calculation (simplified)
+
+        // Angle of Attack - get from vehicle attitude state if available
+        const aoa = vehicleData.angleOfAttack !== undefined ? vehicleData.angleOfAttack : -16;
+        this.elements.aoa.textContent = `${aoa.toFixed(1)}°`;
+
+        // Bank Angle - get from vehicle attitude state if available
+        const bankAngle = vehicleData.bankAngle !== undefined ? vehicleData.bankAngle : 0;
+        this.elements.bank.textContent = `${bankAngle.toFixed(1)}°`;
+
+        // Mach number - use actual calculation if available, otherwise simplified
+        let mach = 0;
+        if (vehicleData.mach !== undefined && !isNaN(vehicleData.mach)) {
+            mach = vehicleData.mach;
+        } else {
+            // Speed of sound on Mars varies with altitude, approximate 240 m/s at surface
+            const altitude = vehicleData.altitude || 0;
+            const soundSpeed = 240 - (altitude * 0.5); // Rough approximation
+            mach = velocity / Math.max(soundSpeed, 150);
+        }
+        this.elements.mach.textContent = isNaN(mach) ? '0.0' : mach.toFixed(1);
+
+        // G-Force calculation (simplified based on deceleration)
         const gForce = Math.min(velocity / 5000, 8);
         this.elements.gforce.textContent = isNaN(gForce) ? '0.0g' : `${gForce.toFixed(1)}g`;
-        
-        // Heat shield temperature (based on velocity)
-        const temp = Math.min(velocity * 0.15, 2000);
-        this.elements.heat.textContent = isNaN(temp) ? '0°C' : `${Math.round(temp)}°C`;
-        
-        // Mach number (simplified)
-        const mach = velocity / 343; // Speed of sound approximation
-        this.elements.mach.textContent = isNaN(mach) ? '0.0' : mach.toFixed(1);
-        
-        // Drag force (simplified)
-        const altitude = vehicleData.altitude || 0;
-        const drag = (velocity / 100) * (1 - altitude / 132);
-        this.elements.drag.textContent = isNaN(drag) ? '0.0 kN' : `${drag.toFixed(1)} kN`;
-        
+
         // Color code values based on severity
         this.colorCodeValue(this.elements.gforce, gForce, 4, 6);
-        this.colorCodeValue(this.elements.heat, temp, 1000, 1500);
         this.colorCodeValue(this.elements.mach, mach, 10, 20);
+
+        // Highlight AoA when it changes (SUFR maneuver)
+        if (Math.abs(aoa) < 1) {
+            this.elements.aoa.style.color = '#00ff00'; // Green for zero AoA
+        } else {
+            this.elements.aoa.style.color = '#ffffff'; // White for trim AoA
+        }
+
+        // Highlight bank angle when non-zero
+        if (Math.abs(bankAngle) > 5) {
+            this.elements.bank.style.color = '#ffaa00'; // Orange for active banking
+        } else {
+            this.elements.bank.style.color = '#ffffff'; // White for wings level
+        }
     }
     
     colorCodeValue(element, value, warningThreshold, dangerThreshold) {
         if (!element || isNaN(value)) return;
         
-        element.style.color = value > dangerThreshold ? '#ff3333' :
-                             value > warningThreshold ? '#ff9933' : '#00ff66';
+        element.classList.remove('value-normal', 'value-warning', 'value-danger');
+        
+        if (value > dangerThreshold) {
+            element.classList.add('value-danger');
+        } else if (value > warningThreshold) {
+            element.classList.add('value-warning');
+        } else {
+            element.classList.add('value-normal');
+        }
     }
     
     updatePhaseProgress(phase, currentTime) {
         if (!phase.nextPhaseTime) {
-            this.elements.progressBar.style.width = '100%';
+            this.elements.progressBar.style.setProperty('--progress-width', '100%');
             return;
         }
         
@@ -465,7 +289,7 @@ export class PhaseInfo {
         const timeInPhase = currentTime - phase.time;
         const progress = Math.max(0, Math.min(100, (timeInPhase / phaseDuration) * 100));
         
-        this.elements.progressBar.style.width = `${progress}%`;
+        this.elements.progressBar.style.setProperty('--progress-width', `${progress}%`);
         this.elements.progressLabel.textContent = `Phase Progress - ${Math.round(progress)}%`;
     }
     
@@ -473,23 +297,12 @@ export class PhaseInfo {
         const alert = document.createElement('div');
         alert.className = `phase-alert alert-${type}`;
         alert.textContent = message;
-        alert.style.cssText = `
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: ${type === 'warning' ? '#ff6600' : '#00ccff'};
-            color: #fff;
-            padding: 15px 25px;
-            border-radius: 5px;
-            font-weight: bold;
-            animation: alertSlide 0.5s ease-out;
-            z-index: 1000;
-        `;
+        alert.classList.add('alert-slide-in');
         
         this.options.container.appendChild(alert);
         
         setTimeout(() => {
-            alert.style.animation = 'alertSlide 0.5s ease-out reverse';
+            alert.classList.add('alert-slide-out');
             setTimeout(() => alert.remove(), 500);
         }, 3000);
     }

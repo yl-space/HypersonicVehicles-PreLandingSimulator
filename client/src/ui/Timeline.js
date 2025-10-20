@@ -40,25 +40,23 @@ export class Timeline {
                 <div class="timeline-info">
                     <span class="current-time" id="current-time">Feb 18, 2021 03:48:41 pm</span>
                     <span class="separator">|</span>
-                    <span class="playback-rate">
-                        RATE 
-                        <select id="playback-speed">
-                            <option value="0.25">0.25x</option>
-                            <option value="0.5">0.5x</option>
-                            <option value="1" selected>1x</option>
-                            <option value="2">2x</option>
-                            <option value="5">5x</option>
-                            <option value="10">10x</option>
-                        </select>
-                        SEC(S)/SEC
-                    </span>
+                    <div class="playback-rate">
+                        <span class="rate-label">RATE</span>
+                        <div class="rate-buttons" id="rate-buttons">
+                            <button class="rate-button" data-rate="0.25">0.25</button>
+                            <button class="rate-button" data-rate="0.5">0.5</button>
+                            <button class="rate-button active" data-rate="1">1</button>
+                            <button class="rate-button" data-rate="2">2</button>
+                            <button class="rate-button" data-rate="3">3</button>
+                        </div>
+                        <span class="rate-label">SEC(S)/SEC</span>
+                    </div>
                 </div>
                 
                 <button class="replay-button" id="replay-button">
                     <svg width="20" height="20" viewBox="0 0 24 24">
                         <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" fill="currentColor"/>
                     </svg>
-                    REPLAY
                 </button>
             </div>
             
@@ -85,7 +83,7 @@ export class Timeline {
             playIcon: this.options.container.querySelector('.play-icon'),
             pauseIcon: this.options.container.querySelector('.pause-icon'),
             currentTime: document.getElementById('current-time'),
-            playbackSpeed: document.getElementById('playback-speed'),
+            rateButtons: document.getElementById('rate-buttons'),
             replayButton: document.getElementById('replay-button'),
             scrubber: document.getElementById('timeline-scrubber'),
             progress: document.getElementById('timeline-progress'),
@@ -94,156 +92,6 @@ export class Timeline {
             markers: document.getElementById('timeline-markers')
         };
         
-        // Add CSS
-        this.addStyles();
-    }
-    
-    addStyles() {
-        const style = document.createElement('style');
-        style.textContent = `
-            .timeline-scrubber {
-                position: relative;
-                height: 40px;
-                padding: 10px 0;
-                cursor: pointer;
-            }
-            
-            .timeline-track {
-                position: relative;
-                height: 6px;
-                background: #333;
-                border-radius: 3px;
-                overflow: visible;
-            }
-            
-            .timeline-buffered {
-                position: absolute;
-                height: 100%;
-                background: #555;
-                border-radius: 3px;
-                width: 100%;
-            }
-            
-            .timeline-progress {
-                position: absolute;
-                height: 100%;
-                background: #f60;
-                border-radius: 3px;
-                width: 0%;
-                transition: width 0.1s ease-out;
-            }
-            
-            .timeline-progress.scrubbing {
-                transition: none;
-            }
-            
-            .timeline-handle {
-                position: absolute;
-                right: -8px;
-                top: 50%;
-                transform: translateY(-50%);
-                width: 16px;
-                height: 16px;
-                background: #fff;
-                border-radius: 50%;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                cursor: grab;
-                transition: transform 0.1s;
-            }
-            
-            .timeline-handle:hover {
-                transform: translateY(-50%) scale(1.2);
-            }
-            
-            .timeline-handle:active {
-                cursor: grabbing;
-                transform: translateY(-50%) scale(1.1);
-            }
-            
-            .timeline-markers {
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 100%;
-                pointer-events: none;
-            }
-            
-            .timeline-marker {
-                position: absolute;
-                width: 2px;
-                height: 12px;
-                background: rgba(255, 255, 255, 0.3);
-                top: -3px;
-            }
-            
-            .timeline-tooltip {
-                position: absolute;
-                bottom: 100%;
-                left: 0;
-                background: rgba(0, 0, 0, 0.9);
-                color: #fff;
-                padding: 8px 12px;
-                border-radius: 4px;
-                font-size: 12px;
-                white-space: nowrap;
-                pointer-events: none;
-                opacity: 0;
-                transform: translateY(5px);
-                transition: opacity 0.2s, transform 0.2s;
-                margin-bottom: 10px;
-            }
-            
-            .timeline-tooltip.visible {
-                opacity: 1;
-                transform: translateY(0);
-            }
-            
-            .timeline-tooltip::after {
-                content: '';
-                position: absolute;
-                top: 100%;
-                left: 50%;
-                transform: translateX(-50%);
-                border: 5px solid transparent;
-                border-top-color: rgba(0, 0, 0, 0.9);
-            }
-            
-            .tooltip-phase {
-                display: block;
-                color: #f60;
-                font-size: 11px;
-                margin-top: 2px;
-            }
-            
-            #playback-speed {
-                background: transparent;
-                border: 1px solid #666;
-                color: #fff;
-                padding: 2px 5px;
-                margin: 0 5px;
-                cursor: pointer;
-            }
-            
-            .replay-button {
-                display: flex;
-                align-items: center;
-                gap: 5px;
-                background: #444;
-                border: none;
-                color: #fff;
-                padding: 8px 16px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 14px;
-                margin-left: auto;
-            }
-            
-            .replay-button:hover {
-                background: #555;
-            }
-        `;
-        document.head.appendChild(style);
     }
     
     setupEventListeners() {
@@ -252,11 +100,22 @@ export class Timeline {
             this.options.onPlayPause();
         });
         
-        // Playback speed
-        this.elements.playbackSpeed.addEventListener('change', (e) => {
-            this.state.playbackSpeed = parseFloat(e.target.value);
-            if (this.options.onSpeedChange) {
-                this.options.onSpeedChange(this.state.playbackSpeed);
+        // Playback speed buttons
+        this.elements.rateButtons.addEventListener('click', (e) => {
+            if (e.target.classList.contains('rate-button')) {
+                // Remove active class from all buttons
+                this.elements.rateButtons.querySelectorAll('.rate-button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                // Add active class to clicked button
+                e.target.classList.add('active');
+                
+                // Update playback speed
+                this.state.playbackSpeed = parseFloat(e.target.dataset.rate);
+                if (this.options.onSpeedChange) {
+                    this.options.onSpeedChange(this.state.playbackSpeed);
+                }
             }
         });
         
@@ -433,6 +292,13 @@ export class Timeline {
     
     setPlaybackSpeed(speed) {
         this.state.playbackSpeed = speed;
-        this.elements.playbackSpeed.value = speed;
+        
+        // Update active button
+        this.elements.rateButtons.querySelectorAll('.rate-button').forEach(btn => {
+            btn.classList.remove('active');
+            if (parseFloat(btn.dataset.rate) === speed) {
+                btn.classList.add('active');
+            }
+        });
     }
 }

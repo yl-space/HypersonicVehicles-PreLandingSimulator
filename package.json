@@ -1,5 +1,5 @@
 {
-  "name": "HSV-simulation",
+  "name": "hsv-simulation",
   "version": "1.0.0",
   "description": "Interactive HSV Entry, Descent, and Landing Simulation using Three.js",
   "main": "server/index.js",
@@ -23,14 +23,15 @@
   "author": "HSV Simulation Team",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "helmet": "^7.0.0",
     "compression": "^1.7.4",
-    "multer": "^1.4.5-lts.1",
-    "winston": "^3.10.0",
+    "cors": "^2.8.5",
     "csvtojson": "^2.0.10",
-    "three": "^0.170.0"
+    "express": "^4.18.2",
+    "express-http-proxy": "^2.1.2",
+    "helmet": "^7.0.0",
+    "multer": "^1.4.5-lts.1",
+    "three": "^0.170.0",
+    "winston": "^3.10.0"
   },
   "engines": {
     "node": ">=18.0.0",

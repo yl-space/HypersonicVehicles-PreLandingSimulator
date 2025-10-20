@@ -2,7 +2,7 @@
  * Main simulation controller with planet switching
  */
 
-import * as THREE from '/node_modules/three/build/three.module.js';
+import * as THREE from 'three';
 import { SceneManager } from '../core/SceneManager.js';
 import { CameraController } from '../core/CameraController.js';
 import { EntryVehicle } from '../components/spacecraft/EntryVehicle.js';
@@ -16,7 +16,8 @@ import { Timeline } from '../ui/Timeline.js';
 import { PhaseInfo } from '../ui/PhaseInfo.js';
 import { Controls } from '../ui/Controls.js';
 import { DataManager } from '../data/DataManager.js';
-import { CoordinateAxes } from '../components/helpers/CoordinateAxes.js';
+import { TrajectoryService } from '../services/TrajectoryService.js';
+import { config } from '../config/SimulationConfig.js';
 
 export class SimulationManager {
     constructor(options = {}) {
@@ -34,6 +35,7 @@ export class SimulationManager {
         this.trajectoryManager = null;
         this.phaseController = null;
         this.dataManager = null;
+        this.trajectoryService = null;
         
         // Scene objects
         this.entryVehicle = null;
@@ -42,7 +44,6 @@ export class SimulationManager {
         this.jupiter = null;
         this.currentPlanet = null;
         this.stars = null;
-        this.coordinateAxes = null;
 
         // UI components
         this.timeline = null;
@@ -57,18 +58,15 @@ export class SimulationManager {
             playbackSpeed: 1,
             currentPhase: 0,
             vehicleData: null,
-            currentPlanet: 'jupiter'
+            currentPlanet: 'mars',
+            bankAngle: 0
         };
         
         // Animation
         this.clock = new THREE.Clock();
         this.animationId = null;
 
-        this.raycaster = new THREE.Raycaster();
-        this.mouse = new THREE.Vector2();
-        this.clickEnabled = true; // Enable trajectory click functionality
-        this.lastClickTime = 0;
-        this.clickCooldown = 500;
+        // Removed trajectory clicking functionality
         
         this.init();
     }
@@ -81,12 +79,18 @@ export class SimulationManager {
             this.sceneManager.renderer
         );
         
-        // Ensure Jupiter is active by default
-        this.sceneManager.switchPlanet('jupiter');
+        // Ensure Mars is active by default
+        this.sceneManager.switchPlanet('mars');
         
         this.trajectoryManager = new TrajectoryManager();
         this.phaseController = new PhaseController();
         this.dataManager = new DataManager();
+
+        // Initialize backend-only trajectory service
+        this.trajectoryService = new TrajectoryService({
+            backendUrl: config.get('dataSource.backendUrl') || 'http://localhost:3010',
+            timeout: 30000
+        });
         
         // Create scene objects
         this.createSceneObjects();
@@ -119,15 +123,10 @@ export class SimulationManager {
         this.earth = new Earth();
         this.jupiter = new Jupiter();
         
-        // Start with Jupiter visible
-        this.currentPlanet = this.jupiter;
-        this.sceneManager.addToAllScenes(this.jupiter.getObject3D());
-        
-        // Create coordinate axes for reference 
-        // Using scale of 300 units to be clearly visible with planet scales
-        this.coordinateAxes = new CoordinateAxes(300);
-        this.sceneManager.addToAllScenes(this.coordinateAxes.getObject3D());
-        
+        // Start with Mars visible
+        this.currentPlanet = this.mars;
+        this.sceneManager.addToAllScenes(this.mars.getObject3D());
+
         // Create entry vehicle
         this.entryVehicle = new EntryVehicle();
         this.sceneManager.addToAllScenes(this.entryVehicle.getObject3D());
@@ -161,6 +160,7 @@ export class SimulationManager {
             onCameraMode: (mode) => this.setCameraMode(mode),
             onZoom: (direction) => this.handleZoom(direction),
             onBankAngle: (lastAngle, angle) => this.handleBankAngle(lastAngle, angle),
+            onSettings: (setting) => this.handleSettings(setting)
         });
         
         // Add planet switching buttons to existing UI
@@ -184,7 +184,7 @@ export class SimulationManager {
         
         ['mars', 'earth', 'jupiter'].forEach(planet => {
             const btn = document.createElement('button');
-            btn.className = `planet-btn ${planet === 'jupiter' ? 'active' : ''}`;
+            btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''}`;
             btn.textContent = planet.charAt(0).toUpperCase() + planet.slice(1);
             btn.style.cssText = `
                 padding: 12px 24px;
@@ -263,11 +263,11 @@ export class SimulationManager {
                 btn.textContent.toLowerCase() === planetName.toLowerCase());
         });
         
-        // Adjust camera for different planet sizes with smaller spacecraft
+        // Adjust camera for different planet sizes with smaller spacecraft (now properly scaled)
         const cameraDistances = {
-            mars: 5,      // View distance for Mars with small spacecraft
-            earth: 8,     // View distance for Earth  
-            jupiter: 20   // View distance for Jupiter (larger planet)
+            mars: 0.1,    // Very close spacecraft-centric view for Mars
+            earth: 0.2,   // Close view for Earth
+            jupiter: 0.5  // Close view for Jupiter
         };
         
         if (cameraDistances[planetName]) {
@@ -277,95 +277,60 @@ export class SimulationManager {
     
     async loadData() {
         try {
-            // Extract filename from path
-            const filename = this.options.dataPath.split('/').pop();
-            
-            // Load trajectory data using existing DataManager method
-            const csvData = await this.dataManager.loadTrajectoryCSV(filename);
-            
-            // Transform CSV data to trajectory format with proper Vector3 objects
-            const trajectoryData = [];
-            let prevPosition = null;
-            
-            for (let i = 0; i < csvData.rows.length; i++) {
-                const row = csvData.rows[i];
-                
-                // Parse values as floats
-                const time = parseFloat(row.Time || row.time || 0);
-                const x = parseFloat(row.x || 0);
-                const y = parseFloat(row.y || 0);
-                const z = parseFloat(row.z || 0);
-                
-                if (!isNaN(time) && !isNaN(x) && !isNaN(y) && !isNaN(z)) {
-                    // Calculate raw distance from Mars center
-                    const rawDistance = Math.sqrt(x * x + y * y + z * z);
-                    
-                    // Mars radius in meters
-                    const marsRadiusMeters = 3390000;
-                    
-                    // Calculate altitude (distance from surface)
-                    const altitude = rawDistance - marsRadiusMeters;
-                    
-                    // Scale factor for visualization (matching EntryVehicle scale)
-                    const SCALE_FACTOR = 0.00001;
-                    
-                    // Create position vector
-                    const position = new THREE.Vector3(
-                        x * SCALE_FACTOR,
-                        y * SCALE_FACTOR,
-                        z * SCALE_FACTOR
-                    );
-                    
-                    // Calculate velocity vector
-                    let velocityVector = new THREE.Vector3(0, -1, 0);
-                    let velocityMagnitude = 5900 * (1 - time / 260.65);
-                    
-                    if (prevPosition && i > 0) {
-                        const prevTime = trajectoryData[trajectoryData.length - 1].time;
-                        const dt = time - prevTime;
-                        if (dt > 0) {
-                            velocityVector = position.clone().sub(prevPosition).divideScalar(dt);
-                            velocityMagnitude = velocityVector.length() / SCALE_FACTOR;
-                            velocityVector.normalize();
-                        }
-                    }
-                    
-                    trajectoryData.push({
-                        time: time,
-                        position: position,
-                        altitude: altitude * 0.001, // Convert to km for display
-                        velocity: velocityVector, // Ensure it's a Vector3
-                        velocityMagnitude: velocityMagnitude,
-                        distanceToLanding: rawDistance * 0.001 // km
-                    });
-                    
-                    prevPosition = position.clone();
-                }
+            console.log('[SimulationManager] Loading trajectory from backend...');
+
+            // Check backend health first
+            const backendStatus = await this.trajectoryService.getBackendStatus();
+            console.log('[SimulationManager] Backend status:', backendStatus);
+
+            if (!backendStatus.available) {
+                throw new Error(`Backend server not available at ${backendStatus.backendUrl}. Please start the sim-server on port 3010.`);
             }
-            
+
+            // Load initial trajectory with default parameters (bank angle = 0)
+            const trajectoryData = await this.trajectoryService.calculateTrajectory({
+                control: { bank_angle: 0.0 }  // Initial bank angle = 0 radians
+            });
+
+            console.log('[SimulationManager] Loaded trajectory from backend:', {
+                points: trajectoryData.length,
+                duration: trajectoryData[trajectoryData.length - 1].time.toFixed(2) + 's'
+            });
+
             // Set trajectory data in TrajectoryManager
             this.trajectoryManager.setTrajectoryData(trajectoryData);
-            
+
+            // Update total time from trajectory
+            if (trajectoryData.length > 0) {
+                this.state.totalTime = trajectoryData[trajectoryData.length - 1].time;
+            }
+
             // Load mission configuration
             const missionConfig = await this.dataManager.loadMissionConfig();
-            
+
             // PhaseController expects setPhases with array
             if (missionConfig.phases) {
                 this.phaseController.setPhases(missionConfig.phases);
             }
-            
+
             // Notify data loaded
             if (this.options.onDataLoaded) {
                 this.options.onDataLoaded();
             }
-            
-            console.log('Trajectory data loaded successfully:', trajectoryData.length, 'points');
-            
+
+            console.log('[SimulationManager] Trajectory data loaded successfully:', trajectoryData.length, 'points');
+
+            // Initialize spacecraft position to trajectory start (critical for camera positioning)
+            const startData = this.trajectoryManager.getDataAtTime(0);
+            if (startData && startData.position && this.entryVehicle) {
+                this.entryVehicle.setPosition(startData.position);
+                console.log('[SimulationManager] Spacecraft initialized at J2000 trajectory start:', startData.position);
+            }
+
         } catch (error) {
-            console.error('Error loading data:', error);
-            // Use sample data if loading fails
-            this.trajectoryManager.generateSampleTrajectory();
-            console.log('Using sample trajectory data');
+            console.error('[SimulationManager] Error loading data:', error);
+            alert(`Failed to load trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3010.`);
+            throw error;  // Re-throw to prevent app from running without data
         }
     }
     
@@ -373,8 +338,8 @@ export class SimulationManager {
         // Window resize
         window.addEventListener('resize', () => this.handleResize());
         
-        // Mouse click for trajectory interaction
-        this.sceneManager.renderer.domElement.addEventListener('click', (e) => this.onMouseClick(e));
+        // Mouse click for trajectory interaction - REMOVED
+        // this.sceneManager.renderer.domElement.addEventListener('click', (e) => this.onMouseClick(e));
         
         // Keyboard controls
         window.addEventListener('keydown', (e) => this.handleKeyPress(e));
@@ -418,6 +383,12 @@ export class SimulationManager {
             case 'd':
                 this.controls.updateBankAngleRelative(5);
                 break;
+            case 'v':
+            case 'V':
+                if (this.entryVehicle) {
+                    this.entryVehicle.toggleVectors();
+                }
+                break;
         }
     }
     
@@ -445,17 +416,22 @@ export class SimulationManager {
         
         // Get vehicle data at current time
         this.state.vehicleData = this.trajectoryManager.getDataAtTime(this.state.currentTime);
-        
+
         if (this.state.vehicleData) {
             // Update spacecraft position
             if (this.entryVehicle && this.state.vehicleData.position) {
                 this.entryVehicle.setPosition(this.state.vehicleData.position);
-                
-                // Update rotation based on velocity
+
+                // Update spacecraft attitude using scientifically accurate method
+                // This maintains trim angle of attack and bank angle per MSL EDL standards
                 const velocityVector = this.trajectoryManager.getVelocityVector(this.state.currentTime);
                 if (velocityVector && velocityVector.length() > 0.001) {
-                    const lookAtPoint = this.state.vehicleData.position.clone().add(velocityVector);
-                    this.entryVehicle.getObject3D().lookAt(lookAtPoint);
+                    // Use scientific attitude calculation (trim AoA + bank angle)
+                    this.entryVehicle.setScientificAttitude(
+                        velocityVector,
+                        this.state.vehicleData.position,
+                        this.state.bankAngle
+                    );
                 }
             }
             
@@ -475,7 +451,7 @@ export class SimulationManager {
         this.cameraController.update(deltaTime, this.state.vehicleData);
         
         // Update entry vehicle effects
-        this.entryVehicle.update(this.state.currentTime, this.state.vehicleData);
+        this.entryVehicle.update(this.state.currentTime, this.state.vehicleData, this.state.bankAngle);
         
         // Update current planet
         if (this.currentPlanet) {
@@ -486,12 +462,7 @@ export class SimulationManager {
         if (this.stars) {
             this.stars.update(deltaTime);
         }
-        
-        // Update coordinate axes
-        if (this.coordinateAxes) {
-            this.coordinateAxes.update(this.cameraController.camera);
-        }
-        
+
         // Planet rotation removed - planets remain stationary in J2000 reference frame
         
         // Update trajectory visibility
@@ -507,9 +478,17 @@ export class SimulationManager {
         
         // Update UI
         this.timeline.update(this.state.currentTime, this.state.isPlaying);
+
+        // Enhance vehicle data with attitude information for telemetry display
+        const enhancedVehicleData = {
+            ...this.state.vehicleData,
+            angleOfAttack: this.entryVehicle ? this.entryVehicle.attitude.angleOfAttack : -16,
+            bankAngle: this.state.bankAngle
+        };
+
         this.phaseInfo.update(
             this.phaseController.phases[this.state.currentPhase],
-            this.state.vehicleData,
+            enhancedVehicleData,
             this.state.currentTime,
             this.state.totalTime
         );
@@ -530,32 +509,7 @@ export class SimulationManager {
         }
     }
     
-    onMouseClick(event) {
-        if (!this.clickEnabled) return; // Allow clicking even when paused
-        
-        const now = Date.now();
-        if (now - this.lastClickTime < this.clickCooldown) return;
-        
-        this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-        
-        this.raycaster.setFromCamera(this.mouse, this.cameraController.camera);
-        
-        const trajectoryLine = this.trajectoryManager.getTrajectoryLine();
-        if (trajectoryLine) {
-            const intersects = this.raycaster.intersectObject(trajectoryLine);
-            
-            if (intersects.length > 0) {
-                const clickedPoint = intersects[0].point;
-                const clickedTime = this.trajectoryManager.getTimeFromPosition(clickedPoint);
-                
-                if (clickedTime !== null) {
-                    this.seekTo(clickedTime);
-                    this.lastClickTime = now;
-                }
-            }
-        }
-    }
+    // onMouseClick method removed - no longer needed for trajectory clicking
     
     play() {
         this.state.isPlaying = true;
@@ -592,10 +546,41 @@ export class SimulationManager {
     }
     
     restart() {
+        // Full simulation reset
         this.state.currentTime = 0;
         this.state.isPlaying = false;
+        this.state.currentPhase = 0;
+        this.state.bankAngle = 0;
+        
+        // Reset trajectory display
+        if (this.trajectoryManager) {
+            this.trajectoryManager.resetTrajectory();
+        }
+        
+        // Reset spacecraft state
+        if (this.entryVehicle) {
+            this.entryVehicle.setVectorsVisible(false);
+            // Reset spacecraft position to start
+            const startData = this.trajectoryManager.getDataAtTime(0);
+            if (startData && startData.position) {
+                this.entryVehicle.setPosition(startData.position);
+            }
+        }
+        
+        // Reset UI elements
+        if (this.controls && this.controls.elements.bankAngleSlider) {
+            this.controls.elements.bankAngleSlider.value = 0;
+            this.controls.elements.bankAngleValue.textContent = '0°';
+            this.controls.lastSliderValue = 0;
+        }
+        
+        // Reset camera
+        if (this.cameraController) {
+            this.cameraController.reset();
+        }
+        
+        // Seek to beginning
         this.seekTo(0);
-        this.cameraController.reset();
     }
     
     handleResize() {
@@ -604,14 +589,122 @@ export class SimulationManager {
     }
 
     handleBankAngle(lastAngle, angle) {
-        this.offsetTrajectory(angle - lastAngle, 0);
+        this.state.bankAngle = angle;
+
+        // Apply realistic bank angle physics - immediate trajectory modification
+        this.applyBankAnglePhysicsRealTime(angle);
+
+        // Show vectors automatically when bank angle changes
+        if (this.entryVehicle) {
+            this.entryVehicle.setVectorsVisible(true, true); // true for auto-fade
+        }
+    }
+    
+    handleSettings(setting) {
+        if (setting.type === 'showVectors') {
+            if (this.entryVehicle) {
+                this.entryVehicle.setVectorsVisible(setting.value);
+            }
+        }
     }
 
-    offsetTrajectory(directionX, directionY) {
-        if (!this.trajectoryManager) return;
+    // All physics calculations now done by backend - no local physics methods needed
 
-        this.trajectoryManager.offsetTrajectoryLinearlyFromCurrentTime(this.state.currentTime, directionX, directionY);
+    // Throttle async calls to avoid performance issues in real-time loop
+    _lastBankAngleUpdate = 0;
+    _bankAngleCache = null;
+    _bankAngleCacheAngle = null;
+    _bankAngleUpdateInProgress = false;
+
+    async applyBankAnglePhysicsRealTime(bankAngle) {
+        const now = performance.now();
+        const THROTTLE_INTERVAL = 500; // ms - increased for backend calls
+
+        if (!this.trajectoryService) {
+            console.warn('[SimulationManager] TrajectoryService not initialized');
+            return;
+        }
+
+        // Need current vehicle data to send to backend
+        if (!this.state.vehicleData) {
+            console.warn('[SimulationManager] No vehicle data available for trajectory modification');
+            return;
+        }
+
+        // Prevent concurrent backend calls
+        if (this._bankAngleUpdateInProgress) {
+            console.log('[SimulationManager] Bank angle update already in progress, skipping');
+            return;
+        }
+
+        // Use cached result if within throttle interval and angle hasn't changed
+        if (
+            this._bankAngleCache &&
+            this._bankAngleCacheAngle === bankAngle &&
+            now - this._lastBankAngleUpdate < THROTTLE_INTERVAL
+        ) {
+            console.log(`[SimulationManager] Using cached trajectory for bank angle ${bankAngle}°`);
+            return;
+        }
+
+        this._lastBankAngleUpdate = now;
+        this._bankAngleCacheAngle = bankAngle;
+        this._bankAngleUpdateInProgress = true;
+
+        console.log(`[SimulationManager] Recalculating trajectory FROM CURRENT TIME with bank angle ${bankAngle}°`);
+
+        try {
+            // Get current state in meters (unscaled) for backend
+            const currentData = this.state.vehicleData;
+
+            // Prepare current state in backend format
+            const currentState = {
+                positionMeters: currentData.positionMeters || new THREE.Vector3(
+                    currentData.position.x / 0.00001,
+                    currentData.position.y / 0.00001,
+                    currentData.position.z / 0.00001
+                ),
+                velocityMetersPerSec: currentData.velocity  // Already in m/s
+            };
+
+            console.log('[SimulationManager] Sending current state to backend:', {
+                time: this.state.currentTime,
+                position: currentState.positionMeters,
+                velocity: currentState.velocityMetersPerSec
+            });
+
+            // Call backend to recalculate trajectory FROM CURRENT INSTANT ONWARDS
+            const futureTrajectory = await this.trajectoryService.modifyTrajectoryFromCurrentState(
+                bankAngle,
+                this.state.currentTime,
+                currentState
+            );
+
+            if (futureTrajectory && futureTrajectory.length > 0) {
+                // SPLICE new trajectory from current time - PRESERVES PAST TRAJECTORY
+                this.trajectoryManager.spliceTrajectoryFromTime(this.state.currentTime, futureTrajectory);
+
+                // Cache result
+                this._bankAngleCache = futureTrajectory;
+
+                // Update total time if changed
+                if (this.trajectoryManager.trajectoryData.length > 0) {
+                    this.state.totalTime = this.trajectoryManager.trajectoryData[this.trajectoryManager.trajectoryData.length - 1].time;
+                }
+
+                console.log(`[SimulationManager] Applied bank angle ${bankAngle}° - future trajectory recalculated with ${futureTrajectory.length} points`);
+            } else {
+                console.error('[SimulationManager] Backend returned empty trajectory');
+            }
+        } catch (error) {
+            console.error('[SimulationManager] Error applying bank angle physics:', error);
+            alert(`Failed to recalculate trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3010.`);
+        } finally {
+            this._bankAngleUpdateInProgress = false;
+        }
     }
+
+    // Removed legacy physics methods - all calculations now done by backend
     
     dispose() {
         if (this.animationId) {
@@ -637,5 +730,45 @@ export class SimulationManager {
 
     getState() {
         return this.state;
+    }
+
+    // Removed switchCalculationMode - backend-only mode, no switching needed
+
+    /**
+     * Get current calculation mode and status
+     * @returns {Object} Current mode information
+     */
+    getCalculationModeInfo() {
+        return {
+            currentMode: config.get('dataSource.mode'),
+            backendUrl: config.get('dataSource.backendUrl'),
+            fallbackEnabled: config.get('dataSource.fallbackToFrontend'),
+            cacheEnabled: config.get('dataSource.cacheResults'),
+            physicsEngine: this.physicsEngine ? 'available' : 'not available',
+            dataProvider: this.dataProvider ? this.dataProvider.getConfig() : 'not available'
+        };
+    }
+
+    /**
+     * Test backend connectivity
+     * @returns {Promise<boolean>} Whether backend is accessible
+     */
+    async testBackendConnection() {
+        if (!this.dataProvider) {
+            return false;
+        }
+
+        try {
+            // Try to fetch a simple test endpoint
+            const response = await fetch(`${config.get('dataSource.backendUrl')}/health`, {
+                method: 'GET',
+                timeout: 5000
+            });
+
+            return response.ok;
+        } catch (error) {
+            console.log('Backend connection test failed:', error.message);
+            return false;
+        }
     }
 }

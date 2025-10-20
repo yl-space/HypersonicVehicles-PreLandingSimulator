@@ -1,9 +1,8 @@
-import * as THREE from '/node_modules/three/build/three.module.js';
-import { EffectComposer } from '/node_modules/three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from '/node_modules/three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from '/node_modules/three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { SMAAPass } from '/node_modules/three/examples/jsm/postprocessing/SMAAPass.js';
-import { OutputPass } from '/node_modules/three/examples/jsm/postprocessing/OutputPass.js';
+import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
 export class SceneManager {
     constructor(container) {
@@ -23,7 +22,7 @@ export class SceneManager {
             lines: 0
         };
         
-        // Modern Three.js features
+
         this.USE_WEBGPU = false; // Set to true when WebGPU is stable
         this.USE_PMREM = true; // Use PMREM for better environment maps
         
@@ -64,8 +63,8 @@ export class SceneManager {
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         
         // Enable modern features
-        this.renderer.useLegacyLights = false; // Use physically correct lighting
-        this.renderer.shadowMap.autoUpdate = false; // Manual shadow updates for performance
+        this.renderer.useLegacyLights = false; 
+        this.renderer.shadowMap.autoUpdate = false; 
         
         this.container.appendChild(this.renderer.domElement);
     }
@@ -76,8 +75,8 @@ export class SceneManager {
         this.camera = new THREE.PerspectiveCamera(
             50,
             aspect,
-            1,      // Increased near plane to prevent z-fighting
-            100000  // Increased far plane for large scale scenes
+            0.001,  // Very close near plane for small spacecraft (0.01 units)
+            10000   // Far plane for large scale scenes
         );
         
         this.camera.position.set(150, 100, 150);
@@ -94,17 +93,8 @@ export class SceneManager {
         // Render pass - will be updated with scene later
         this.renderPass = new RenderPass(null, this.camera);
         this.composer.addPass(this.renderPass);
+
         
-        // Bloom for atmospheric effects (reduced strength to prevent black patches)
-        const bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(this.container.clientWidth, this.container.clientHeight),
-            0.2,  // Reduced strength
-            0.3,  // Reduced radius
-            0.9   // Higher threshold (less bloom)
-        );
-        this.composer.addPass(bloomPass);
-        
-        // SMAA for better antialiasing
         const smaaPass = new SMAAPass(
             this.container.clientWidth * this.renderer.getPixelRatio(),
             this.container.clientHeight * this.renderer.getPixelRatio()
@@ -212,7 +202,6 @@ export class SceneManager {
     }
     
     updatePlanetRotation(deltaTime) {
-        // Planet rotation removed - planets remain stationary in J2000 reference frame
         // This method kept for compatibility but does nothing
     }
     
