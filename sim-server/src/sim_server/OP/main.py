@@ -175,16 +175,16 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
 
 
 #MAIN FUNCTION STARTS HERE
-def main():
+def main(init=None, control=None):
     from src.sim_server.constants.defaults import DEFAULT_PLANET, DEFAULT_INIT, DEFAULT_VEHICLE, DEFAULT_CONTROL
     from src.sim_server.constants.vehicles import get_vehicle_params
     from src.sim_server.constants.planets import get_planet_params
 
     # Define simulation parameters
     planet = get_planet_params(DEFAULT_PLANET["planet_name"])
-    init = DEFAULT_INIT
+    init = init if init is not None else DEFAULT_INIT
     vehicle = get_vehicle_params(DEFAULT_VEHICLE["vehicle_name"])
-    control = DEFAULT_CONTROL
+    control = control if control is not None else DEFAULT_CONTROL
 
     # Run the high-fidelity simulation
     results = high_fidelity_simulation(planet, init, vehicle, control, verbose=True, return_states=True)
@@ -202,6 +202,86 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # this block is just a surrogate to be replaced. The input for the recalc function will need to be repalced with real stuff
+    from src.sim_server.constants.defaults import DEFAULT_PLANET
+    from src.sim_server.constants.planets import get_planet_params
+    planet = get_planet_params(DEFAULT_PLANET["planet_name"])
+    bank_angle_changed = True
+    # point_of_input = {
+    # "h0": 124999, 
+    # "vel0": 6.0836e3, 
+    # "theta0": np.deg2rad(-78.8618), 
+    # "phi0": np.deg2rad(27.1050),
+    # "gamma0": np.deg2rad(-15.5), 
+    # "psi0": np.deg2rad(0),
+    # }
+    bank_angle_input = {
+    "bank_angle": np.deg2rad(30.0), # [rad] Bank Angle 
+    }
 
+    # I will use the example point along the trajectory which is approximatelly number 10000 out of 16157
+    # if the bank angle input remains the same, the final error should remain the same, as documented in pptx
 
-# this block is just a surrogate to be replaced. It emulates the simulation trajectory rendering for user in the web tool 
+    point_of_input_Cartesian = {
+    "x": 1.205532181396078e+06,
+    "y": -2.796002637077214e+06,
+    "z": 1.558152803402915e+06,
+    "vx": 7.762841024785303e+02,
+    "vy": 4.340321796247736e+02,
+    "vz": 0.882049683132209e+02,
+    }
+
+    def DCM_ENU_2_ECEF(theta: float, phi: float) -> np.ndarray:
+        """Calculate the Direction Cosine Matrix from ENU to ECEF.
+        
+        Args:
+            theta: Longitude [rad]
+            phi: Latitude [rad]
+        Returns:
+            Direction Cosine Matrix from ENU to ECEF
+        """
+        return np.array([[-np.sin(theta), -np.cos(theta)*np.sin(phi), np.cos(theta)*np.cos(phi)],
+                         [np.cos(theta), -np.sin(theta)*np.sin(phi), np.cos(phi)*np.sin(theta)],
+                         [0, np.cos(phi), np.sin(phi)]])
+
+    def Cartesian_to_Spherical(Cartesian_point: dict) -> dict:
+        """Convert Cartesian coordinates to spherical coordinates with the velocity direction components.
+        
+        Args:
+            Cartesian_point: Dictionary containing Cartesian coordinates [x, y, z] and velocity components [vx, vy, vz]
+        Returns:
+            Dictionary containing spherical coordinates [r, theta, phi] and velocity components [V, psi, gamma]
+        """
+        r = np.sqrt(Cartesian_point["x"]**2 + Cartesian_point["y"]**2 + Cartesian_point["z"]**2)
+        theta = np.arctan2(Cartesian_point["y"], Cartesian_point["x"])
+        phi = np.pi/2 - np.acos(Cartesian_point["z"] / r)
+        V_mag = np.sqrt(Cartesian_point["vx"]**2 + Cartesian_point["vy"]**2 + Cartesian_point["vz"]**2)
+        r_hat = np.array([Cartesian_point["x"], Cartesian_point["y"], Cartesian_point["z"]]) / r
+        V_r = np.dot(np.array([Cartesian_point["vx"], Cartesian_point["vy"], Cartesian_point["vz"]]), r_hat)
+        V_theta = np.sqrt(V_mag**2 - V_r**2)
+        gamma = np.arctan2(V_r, V_theta)
+        DCM_ENU_2_ECEF_value = DCM_ENU_2_ECEF(theta, phi)
+        V_ENU = DCM_ENU_2_ECEF_value.T @ np.array([Cartesian_point["vx"], Cartesian_point["vy"], Cartesian_point["vz"]])
+        psi = np.arctan2(V_ENU[1], V_ENU[0])
+        return {
+            "r": r,
+            "theta": theta,
+            "phi": phi,
+            "V": V_mag,
+            "psi": psi,
+            "gamma": gamma,
+        }
+
+    point_of_input_Spherical = Cartesian_to_Spherical(point_of_input_Cartesian)
+    new_init = {
+        "h0": point_of_input_Spherical["r"] - planet["rp"], # [m] Initial altitude us beeded as input 
+        "vel0": point_of_input_Spherical["V"],
+        "theta0": point_of_input_Spherical["theta"],
+        "phi0": point_of_input_Spherical["phi"],
+        "gamma0": point_of_input_Spherical["gamma"],
+        "psi0": point_of_input_Spherical["psi"],
+    }
+
+    if bank_angle_changed == True:
+        main(init=new_init, control=bank_angle_input)
+   
