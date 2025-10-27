@@ -818,19 +818,6 @@ export class TrajectoryManager {
         this.updateTrajectoryDisplay(currentTime);
     }
 
-    resetTrajectory() {
-        // Reset to original trajectory data if available
-        if (this.originalTrajectoryData) {
-            this.setTrajectoryData(this.originalTrajectoryData.slice());
-        } else {
-            // Generate sample trajectory if no original data
-            this.generateSampleTrajectory();
-        }
-        
-        // Reset trajectory display
-        this.updateTrajectoryDisplay(0);
-        this.updateTrajectoryVisibility(0);
-    }
     
     /**
      * REMOVED: setBackendPreference, getBackendStatus, checkBackendAvailability

@@ -128,18 +128,18 @@
                 const zoomInBtn = document.querySelector('.zoom-in');
                 const zoomOutBtn = document.querySelector('.zoom-out');
                 const zoomResetBtn = document.querySelector('.zoom-reset');
-                
+
                 if (window.MarsEDL && window.MarsEDL.simulation) {
                     // Fix: cameraController is directly on simulation, not on scene
                     const cameraController = window.MarsEDL.simulation.cameraController;
-                    
+
                     if (!cameraController) {
                         console.error('Camera controller not found');
                         return;
                     }
-                    
+
                     console.log('Setting up zoom controls, camera controller found:', cameraController);
-                    
+
                     zoomInBtn?.addEventListener('click', () => {
                         console.log('Zoom in clicked');
                         if (cameraController.mode === 'orbit') {
@@ -156,7 +156,7 @@
                             );
                         }
                     });
-                    
+
                     zoomOutBtn?.addEventListener('click', () => {
                         console.log('Zoom out clicked');
                         if (cameraController.mode === 'orbit') {
@@ -173,7 +173,7 @@
                             );
                         }
                     });
-                    
+
                     zoomResetBtn?.addEventListener('click', () => {
                         console.log('Zoom reset clicked');
                         if (cameraController.mode === 'orbit') {
@@ -182,7 +182,7 @@
                             cameraController.state.distance = cameraController.state.defaultDistance;
                         }
                     });
-                    
+
                     // Make buttons visible
                     if (zoomInBtn) zoomInBtn.style.display = 'flex';
                     if (zoomOutBtn) zoomOutBtn.style.display = 'flex';

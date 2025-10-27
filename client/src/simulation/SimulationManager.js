@@ -393,10 +393,6 @@ export class SimulationManager {
             case '2':
                 this.setCameraMode('orbit');
                 break;
-            case 'r':
-            case 'R':
-                this.restart();
-                break;
             case 'a':
                 this.controls.updateBankAngleRelative(-5);
                 break;
@@ -565,43 +561,6 @@ export class SimulationManager {
         this.cameraController.zoom(direction);
     }
     
-    restart() {
-        // Full simulation reset
-        this.state.currentTime = 0;
-        this.state.isPlaying = false;
-        this.state.currentPhase = 0;
-        this.state.bankAngle = 0;
-        
-        // Reset trajectory display
-        if (this.trajectoryManager) {
-            this.trajectoryManager.resetTrajectory();
-        }
-        
-        // Reset spacecraft state
-        if (this.entryVehicle) {
-            this.entryVehicle.setVectorsVisible(false);
-            // Reset spacecraft position to start
-            const startData = this.trajectoryManager.getDataAtTime(0);
-            if (startData && startData.position) {
-                this.entryVehicle.setPosition(startData.position);
-            }
-        }
-        
-        // Reset UI elements
-        if (this.controls && this.controls.elements.bankAngleSlider) {
-            this.controls.elements.bankAngleSlider.value = 0;
-            this.controls.elements.bankAngleValue.textContent = '0°';
-            this.controls.lastSliderValue = 0;
-        }
-        
-        // Reset camera
-        if (this.cameraController) {
-            this.cameraController.reset();
-        }
-        
-        // Seek to beginning
-        this.seekTo(0);
-    }
     
     handleResize() {
         this.sceneManager.handleResize();
