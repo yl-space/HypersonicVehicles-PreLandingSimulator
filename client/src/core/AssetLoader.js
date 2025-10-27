@@ -4,6 +4,8 @@
  */
 
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 
 export class AssetLoader {
     constructor() {
@@ -11,12 +13,20 @@ export class AssetLoader {
         this.textureLoader = new THREE.TextureLoader(this.loadingManager);
         this.cache = new Map();
         this.loadingProgress = new Map();
-        
+
         // Asset paths
         this.basePath = '/assets/';
         this.texturePath = this.basePath + 'textures/';
         this.modelPath = this.basePath + 'models/';
-        
+
+        // Initialize GLTF loader
+        this.gltfLoader = new GLTFLoader(this.loadingManager);
+
+        // Optional: Setup Draco loader for compressed models
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath('/node_modules/three/examples/jsm/libs/draco/');
+        this.gltfLoader.setDRACOLoader(dracoLoader);
+
         // Setup loading manager callbacks
         this.setupLoadingManager();
     }
@@ -321,6 +331,168 @@ export class AssetLoader {
         });
     }
     
+    /**
+     * Load GLTF/GLB model with caching
+     */
+    async loadGLTFModel(filename, options = {}) {
+        const cacheKey = `gltf_${filename}`;
+
+        // Check cache
+        if (this.cache.has(cacheKey)) {
+            return this.cache.get(cacheKey);
+        }
+
+        const path = this.modelPath + filename;
+
+        return new Promise((resolve, reject) => {
+            this.gltfLoader.load(
+                path,
+                (gltf) => {
+                    // Process the model if needed
+                    if (options.processModel) {
+                        options.processModel(gltf);
+                    }
+
+                    // Cache the entire GLTF object
+                    this.cache.set(cacheKey, gltf);
+
+                    console.log(`GLTF model loaded: ${filename}`, gltf);
+                    resolve(gltf);
+                },
+                (progress) => {
+                    const percent = progress.total > 0
+                        ? (progress.loaded / progress.total) * 100
+                        : 0;
+                    console.log(`Loading ${filename}: ${percent.toFixed(0)}%`);
+                },
+                (error) => {
+                    console.error(`Failed to load GLTF model ${filename}:`, error);
+                    reject(error);
+                }
+            );
+        });
+    }
+
+    /**
+     * Extract and prepare model from GLTF with axis transformation tracking
+     */
+    prepareGLTFModel(gltf, modelConfig = {}) {
+        const model = gltf.scene || gltf.scenes[0];
+
+        // Calculate bounding box and center
+        const bbox = new THREE.Box3().setFromObject(model);
+        const center = bbox.getCenter(new THREE.Vector3());
+        const size = bbox.getSize(new THREE.Vector3());
+
+        // Create model metadata (store as plain objects to avoid circular references)
+        const metadata = {
+            name: modelConfig.name || 'unnamed_model',
+            originalAxes: modelConfig.originalAxes || {
+                forward: '+Z',  // Default assumption
+                up: '+Y',
+                right: '+X'
+            },
+            boundingBox: {
+                center: { x: center.x, y: center.y, z: center.z },
+                size: { x: size.x, y: size.y, z: size.z },
+                min: { x: bbox.min.x, y: bbox.min.y, z: bbox.min.z },
+                max: { x: bbox.max.x, y: bbox.max.y, z: bbox.max.z }
+            },
+            animations: gltf.animations ? gltf.animations.map(a => a.name) : [],
+            // Don't store userData directly as it may contain circular references
+            hasUserData: !!model.userData
+        };
+
+        // Apply transformations if specified
+        if (modelConfig.transformations) {
+            const { rotation, scale, position } = modelConfig.transformations;
+
+            if (rotation) {
+                model.rotation.set(
+                    THREE.MathUtils.degToRad(rotation.x || 0),
+                    THREE.MathUtils.degToRad(rotation.y || 0),
+                    THREE.MathUtils.degToRad(rotation.z || 0)
+                );
+            }
+
+            if (scale) {
+                if (typeof scale === 'number') {
+                    model.scale.setScalar(scale);
+                } else {
+                    model.scale.set(scale.x || 1, scale.y || 1, scale.z || 1);
+                }
+            }
+
+            if (position) {
+                model.position.set(position.x || 0, position.y || 0, position.z || 0);
+            }
+
+            // Recalculate bounding box after transformations
+            bbox.setFromObject(model);
+            const transformedCenter = bbox.getCenter(new THREE.Vector3());
+            const transformedSize = bbox.getSize(new THREE.Vector3());
+            metadata.transformedBoundingBox = {
+                center: { x: transformedCenter.x, y: transformedCenter.y, z: transformedCenter.z },
+                size: { x: transformedSize.x, y: transformedSize.y, z: transformedSize.z }
+            };
+        }
+
+        // Store metadata on the model
+        model.userData.modelMetadata = metadata;
+
+        return { model, metadata };
+    }
+
+    /**
+     * Load spacecraft model with proper configuration
+     */
+    async loadSpacecraftModel(modelName = 'dragon_converted/dragon/dragon.gltf', config = {}) {
+        try {
+            const gltf = await this.loadGLTFModel(modelName);
+
+            // Default spacecraft model configurations
+            const modelConfigs = {
+                'dragon_converted/dragon/dragon.gltf': {
+                    name: 'Dragon Spacecraft',
+                    originalAxes: {
+                        forward: '+X',  // Adjust based on actual model
+                        up: '+Z',
+                        right: '-Y'
+                    },
+                    transformations: {
+                        rotation: { x: -90, y: 0, z: 0 },  // Align to simulation axes
+                        scale: 0.001,  // Scale down for visualization
+                        position: { x: 0, y: 0, z: 0 }
+                    }
+                },
+                'generic_RV_dragon_like/generic_RV_dragon_like/generic_RV_dragon_like.gltf': {
+                    name: 'Generic RV Dragon-like',
+                    originalAxes: {
+                        forward: '+Z',
+                        up: '+Y',
+                        right: '+X'
+                    },
+                    transformations: {
+                        rotation: { x: 0, y: 0, z: 0 },
+                        scale: 0.001,
+                        position: { x: 0, y: 0, z: 0 }
+                    }
+                }
+            };
+
+            // Merge default config with provided config
+            const finalConfig = {
+                ...modelConfigs[modelName],
+                ...config
+            };
+
+            return this.prepareGLTFModel(gltf, finalConfig);
+        } catch (error) {
+            console.error('Error loading spacecraft model:', error);
+            throw error;
+        }
+    }
+
     /**
      * Preload all essential assets
      */

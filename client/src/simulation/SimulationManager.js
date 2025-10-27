@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { SceneManager } from '../core/SceneManager.js';
 import { CameraController } from '../core/CameraController.js';
+import { AssetLoader } from '../core/AssetLoader.js';
 import { EntryVehicle } from '../components/spacecraft/EntryVehicle.js';
 import { Mars } from '../components/environment/Mars.js';
 import { Earth } from '../components/environment/Earth.js';
@@ -15,6 +16,7 @@ import { PhaseController } from './PhaseController.js';
 import { Timeline } from '../ui/Timeline.js';
 import { PhaseInfo } from '../ui/PhaseInfo.js';
 import { Controls } from '../ui/Controls.js';
+import { ModelSelector } from '../ui/ModelSelector.js';
 import { DataManager } from '../data/DataManager.js';
 import { TrajectoryService } from '../services/TrajectoryService.js';
 import { config } from '../config/SimulationConfig.js';
@@ -32,6 +34,7 @@ export class SimulationManager {
         // Core components
         this.sceneManager = null;
         this.cameraController = null;
+        this.assetLoader = null;
         this.trajectoryManager = null;
         this.phaseController = null;
         this.dataManager = null;
@@ -49,6 +52,7 @@ export class SimulationManager {
         this.timeline = null;
         this.phaseInfo = null;
         this.controls = null;
+        this.modelSelector = null;
         
         // Simulation state
         this.state = {
@@ -81,7 +85,10 @@ export class SimulationManager {
         
         // Ensure Mars is active by default
         this.sceneManager.switchPlanet('mars');
-        
+
+        // Initialize asset loader for loading 3D models
+        this.assetLoader = new AssetLoader();
+
         this.trajectoryManager = new TrajectoryManager();
         this.phaseController = new PhaseController();
         this.dataManager = new DataManager();
@@ -92,9 +99,9 @@ export class SimulationManager {
             timeout: 30000
         });
         
-        // Create scene objects
-        this.createSceneObjects();
-        
+        // Create scene objects (now async to handle GLTF loading)
+        await this.createSceneObjects();
+
         // Initialize UI
         this.initializeUI();
         
@@ -113,30 +120,34 @@ export class SimulationManager {
         }
     }
     
-    createSceneObjects() {
+    async createSceneObjects() {
         // Create stars background
         this.stars = new Stars();
         this.sceneManager.addToAllScenes(this.stars.getObject3D());
-        
+
         // Create all planets
         this.mars = new Mars();
         this.earth = new Earth();
         this.jupiter = new Jupiter();
-        
+
         // Start with Mars visible
         this.currentPlanet = this.mars;
         this.sceneManager.addToAllScenes(this.mars.getObject3D());
 
-        // Create entry vehicle
-        this.entryVehicle = new EntryVehicle();
+        // Create and initialize entry vehicle with asset loader for GLTF model support
+        this.entryVehicle = new EntryVehicle(this.assetLoader);
+
+        // Initialize the vehicle (loads GLTF if available) - must await this!
+        await this.entryVehicle.init();
+
         this.sceneManager.addToAllScenes(this.entryVehicle.getObject3D());
-        
+
         // Add trajectory line to all scenes
         const trajectoryObject = this.trajectoryManager.getObject3D();
         if (trajectoryObject) {
             this.sceneManager.addToAllScenes(trajectoryObject);
         }
-        
+
         // Set camera target
         this.cameraController.setTarget(this.entryVehicle.getObject3D());
     }
@@ -162,7 +173,16 @@ export class SimulationManager {
             onBankAngle: (lastAngle, angle) => this.handleBankAngle(lastAngle, angle),
             onSettings: (setting) => this.handleSettings(setting)
         });
-        
+
+        // Model selector for spacecraft
+        this.modelSelector = new ModelSelector({
+            container: document.body,
+            entryVehicle: this.entryVehicle,
+            onModelChange: (modelId) => {
+                console.log(`Model changed to: ${modelId}`);
+            }
+        });
+
         // Add planet switching buttons to existing UI
         this.addPlanetControls();
     }
@@ -726,6 +746,7 @@ export class SimulationManager {
         this.timeline.dispose();
         this.phaseInfo.dispose();
         this.controls.dispose();
+        if (this.modelSelector) this.modelSelector.dispose();
     }
 
     getState() {
