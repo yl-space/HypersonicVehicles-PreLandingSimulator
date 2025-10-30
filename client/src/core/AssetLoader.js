@@ -461,7 +461,7 @@ export class AssetLoader {
                     },
                     transformations: {
                         rotation: { x: -90, y: 0, z: 0 },  // Align to simulation axes
-                        scale: 0.001,  // Scale down for visualization
+                        scale: 0.01,  // Increased scale for better visibility
                         position: { x: 0, y: 0, z: 0 }
                     }
                 },
@@ -474,7 +474,7 @@ export class AssetLoader {
                     },
                     transformations: {
                         rotation: { x: 0, y: 0, z: 0 },
-                        scale: 0.001,
+                        scale: 0.01,  // Increased scale for better visibility
                         position: { x: 0, y: 0, z: 0 }
                     }
                 }

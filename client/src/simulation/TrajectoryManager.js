@@ -49,21 +49,30 @@ export class TrajectoryManager {
             gapSize: 1.5,     // Slightly larger gaps
             scale: 1
         });
-        
-        // Create separate lines for past and future
-        this.pastLine = new THREE.Line(
-            new THREE.BufferGeometry(),
-            this.pastMaterial
-        );
-        
-        this.futureLine = new THREE.Line(
-            new THREE.BufferGeometry(),
-            this.futureMaterial
-        );
-        
+
+        // Pre-allocate buffer attributes for performance
+        const maxPoints = 2000;
+        this.pastPositionBuffer = new Float32Array(maxPoints * 3);
+        this.futurePositionBuffer = new Float32Array(maxPoints * 3);
+
+        // Create separate lines for past and future with pre-allocated buffers
+        const pastGeometry = new THREE.BufferGeometry();
+        pastGeometry.setAttribute('position', new THREE.BufferAttribute(this.pastPositionBuffer, 3));
+        pastGeometry.setDrawRange(0, 0); // Start with no points drawn
+
+        const futureGeometry = new THREE.BufferGeometry();
+        futureGeometry.setAttribute('position', new THREE.BufferAttribute(this.futurePositionBuffer, 3));
+        futureGeometry.setDrawRange(0, 0); // Start with no points drawn
+
+        this.pastLine = new THREE.Line(pastGeometry, this.pastMaterial);
+        this.pastLine.frustumCulled = true; // Enable frustum culling for performance
+
+        this.futureLine = new THREE.Line(futureGeometry, this.futureMaterial);
+        this.futureLine.frustumCulled = true; // Enable frustum culling for performance
+
         this.group.add(this.pastLine);
         this.group.add(this.futureLine);
-        
+
         // Create instanced mesh for trajectory points
         if (this.useInstancing) {
             this.createInstancedPathPoints();
@@ -260,69 +269,73 @@ export class TrajectoryManager {
     
     updateTrajectoryDisplay(currentTime) {
         if (this.trajectoryData.length < 2) return;
-        
+
         // Find current position in trajectory
         let currentIndex = 0;
         for (let i = 0; i < this.trajectoryData.length - 1; i++) {
-            if (this.trajectoryData[i].time <= currentTime && 
+            if (this.trajectoryData[i].time <= currentTime &&
                 this.trajectoryData[i + 1].time > currentTime) {
                 currentIndex = i;
                 break;
             }
         }
-        
-        // Update past line
-        const pastPositions = [];
-        for (let i = 0; i <= currentIndex; i++) {
+
+        // Update past line using pre-allocated buffer
+        let pastPointCount = 0;
+        for (let i = 0; i <= currentIndex && pastPointCount * 3 < this.pastPositionBuffer.length - 3; i++) {
             const p = this.trajectoryData[i].position;
-            pastPositions.push(p.x, p.y, p.z);
+            this.pastPositionBuffer[pastPointCount * 3] = p.x;
+            this.pastPositionBuffer[pastPointCount * 3 + 1] = p.y;
+            this.pastPositionBuffer[pastPointCount * 3 + 2] = p.z;
+            pastPointCount++;
         }
-        
+
         const currentData = this.getDataAtTime(currentTime);
         if (currentData?.position) {
-            pastPositions.push(
-                currentData.position.x,
-                currentData.position.y,
-                currentData.position.z
-            );
-            
+            if (pastPointCount * 3 < this.pastPositionBuffer.length - 3) {
+                this.pastPositionBuffer[pastPointCount * 3] = currentData.position.x;
+                this.pastPositionBuffer[pastPointCount * 3 + 1] = currentData.position.y;
+                this.pastPositionBuffer[pastPointCount * 3 + 2] = currentData.position.z;
+                pastPointCount++;
+            }
+
             // Update marker position
             this.currentPositionMarker.position.copy(currentData.position);
         }
-        
-        // Update future line
-        const futurePositions = [];
-        if (currentData?.position) {
-            futurePositions.push(
-                currentData.position.x,
-                currentData.position.y,
-                currentData.position.z
-            );
+
+        // Update future line using pre-allocated buffer
+        let futurePointCount = 0;
+        if (currentData?.position && futurePointCount * 3 < this.futurePositionBuffer.length - 3) {
+            this.futurePositionBuffer[futurePointCount * 3] = currentData.position.x;
+            this.futurePositionBuffer[futurePointCount * 3 + 1] = currentData.position.y;
+            this.futurePositionBuffer[futurePointCount * 3 + 2] = currentData.position.z;
+            futurePointCount++;
         }
-        
-        for (let i = currentIndex + 1; i < this.trajectoryData.length; i++) {
+
+        for (let i = currentIndex + 1; i < this.trajectoryData.length && futurePointCount * 3 < this.futurePositionBuffer.length - 3; i++) {
             const p = this.trajectoryData[i].position;
-            futurePositions.push(p.x, p.y, p.z);
+            this.futurePositionBuffer[futurePointCount * 3] = p.x;
+            this.futurePositionBuffer[futurePointCount * 3 + 1] = p.y;
+            this.futurePositionBuffer[futurePointCount * 3 + 2] = p.z;
+            futurePointCount++;
         }
-        
-        // Update geometries efficiently
-        if (pastPositions.length >= 6) {
-            this.pastLine.geometry.setAttribute(
-                'position',
-                new THREE.Float32BufferAttribute(pastPositions, 3)
-            );
+
+        // Update geometries efficiently - just update draw range and mark for update
+        if (pastPointCount > 1) {
+            const pastPositionAttr = this.pastLine.geometry.getAttribute('position');
+            pastPositionAttr.needsUpdate = true;
+            this.pastLine.geometry.setDrawRange(0, pastPointCount);
             this.pastLine.geometry.computeBoundingSphere();
         }
-        
-        if (futurePositions.length >= 6) {
-            this.futureLine.geometry.setAttribute(
-                'position',
-                new THREE.Float32BufferAttribute(futurePositions, 3)
-            );
+
+        if (futurePointCount > 1) {
+            const futurePositionAttr = this.futureLine.geometry.getAttribute('position');
+            futurePositionAttr.needsUpdate = true;
+            this.futureLine.geometry.setDrawRange(0, futurePointCount);
             this.futureLine.geometry.computeBoundingSphere();
             this.futureLine.computeLineDistances();
         }
-        
+
         // Update point visibility based on time
         this.updatePointVisibility(currentTime);
     }

@@ -49,13 +49,19 @@ async function init() {
         
         // Store reference
         window.MarsEDL.simulation = simulation;
-        
+
         // Setup global controls
         setupGlobalControls();
-        
+
+        // Initialize zoom controls now that simulation is ready
+        if (window.initializeZoomControls) {
+            window.initializeZoomControls();
+            console.log('Zoom controls initialized');
+        }
+
         // Hide loading screen
         hideLoadingScreen();
-        
+
         // Show welcome dialog
         if (!hasSeenWelcome()) {
             showWelcomeDialog();

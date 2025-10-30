@@ -53,13 +53,13 @@ export class SceneManager {
         // Use standard WebGLRenderer for production stability
         this.renderer = new THREE.WebGLRenderer(params);
         
-        // Modern renderer settings
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap at 2 for performance
+        // Modern renderer settings - reduced pixel ratio for better performance
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1)); // Cap at 1 for better performance
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.0;
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.type = THREE.BasicShadowMap; // Changed from PCFSoftShadowMap for better performance
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         
         // Enable modern features
@@ -87,20 +87,20 @@ export class SceneManager {
     }
     
     setupPostProcessing() {
-        // Modern post-processing pipeline
+        // Simplified post-processing pipeline for better performance
         this.composer = new EffectComposer(this.renderer);
-        
+
         // Render pass - will be updated with scene later
         this.renderPass = new RenderPass(null, this.camera);
         this.composer.addPass(this.renderPass);
 
-        
-        const smaaPass = new SMAAPass(
-            this.container.clientWidth * this.renderer.getPixelRatio(),
-            this.container.clientHeight * this.renderer.getPixelRatio()
-        );
-        this.composer.addPass(smaaPass);
-        
+        // Disable SMAA temporarily for better performance
+        // const smaaPass = new SMAAPass(
+        //     this.container.clientWidth * this.renderer.getPixelRatio(),
+        //     this.container.clientHeight * this.renderer.getPixelRatio()
+        // );
+        // this.composer.addPass(smaaPass);
+
         // Output pass for correct color space
         const outputPass = new OutputPass();
         this.composer.addPass(outputPass);
@@ -119,10 +119,10 @@ export class SceneManager {
         const sunLight = new THREE.DirectionalLight(0xffffff, 3.0);
         sunLight.position.set(100, 50, 75);
         sunLight.castShadow = true;
-        
-        // Optimized shadow settings
-        sunLight.shadow.mapSize.width = 2048;
-        sunLight.shadow.mapSize.height = 2048;
+
+        // Reduced shadow settings for better performance
+        sunLight.shadow.mapSize.width = 1024;  // Reduced from 2048
+        sunLight.shadow.mapSize.height = 1024;  // Reduced from 2048
         sunLight.shadow.camera.near = 0.5;
         sunLight.shadow.camera.far = 500;
         sunLight.shadow.camera.left = -100;
@@ -162,25 +162,26 @@ export class SceneManager {
     }
     
     setupPerformanceMonitoring() {
-        // Monitor render info
-        this.renderer.info.autoReset = false;
-        
+        // Disable performance monitoring to avoid GPU stalls
+        // this.renderer.info.autoReset = false;
+
         // Optional: Stats.js integration
         if (typeof Stats !== 'undefined') {
             this.stats = new Stats();
             this.container.appendChild(this.stats.dom);
         }
     }
-    
+
     updatePerformanceMetrics() {
-        const info = this.renderer.info;
-        this.performanceMonitor.drawCalls = info.render.calls;
-        this.performanceMonitor.triangles = info.render.triangles;
-        this.performanceMonitor.points = info.render.points;
-        this.performanceMonitor.lines = info.render.lines;
-        
+        // Temporarily disabled to fix GPU stall issues with ReadPixels
+        // const info = this.renderer.info;
+        // this.performanceMonitor.drawCalls = info.render.calls;
+        // this.performanceMonitor.triangles = info.render.triangles;
+        // this.performanceMonitor.points = info.render.points;
+        // this.performanceMonitor.lines = info.render.lines;
+
         // Reset for next frame
-        this.renderer.info.reset();
+        // this.renderer.info.reset();
     }
     
     addToAllScenes(object) {

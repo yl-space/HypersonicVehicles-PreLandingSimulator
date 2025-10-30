@@ -639,14 +639,29 @@ export class EntryVehicle {
     
     updatePlasmaTail(intensity) {
         if (!this.effects.plasmaTail) return;
-        
+
+        // Skip update if intensity is too low (performance optimization)
+        if (intensity < 0.01) {
+            this.effects.plasmaTail.visible = false;
+            return;
+        } else {
+            this.effects.plasmaTail.visible = true;
+        }
+
         const positions = this.effects.plasmaTail.geometry.attributes.position;
         const velocities = this.effects.plasmaTail.geometry.attributes.velocity;
         const lifetimes = this.effects.plasmaTail.geometry.attributes.lifetime;
-        
-        for (let i = 0; i < positions.count; i++) {
+
+        // Update only every other frame for performance
+        const skipFrame = Date.now() % 2 === 0;
+        if (skipFrame && intensity < 0.5) return;
+
+        // Update fewer particles when intensity is low
+        const particlesToUpdate = Math.ceil(positions.count * Math.min(1, intensity + 0.3));
+
+        for (let i = 0; i < particlesToUpdate; i++) {
             lifetimes.array[i] -= 0.01;
-            
+
             if (lifetimes.array[i] <= 0) {
                 // Reset particle - scaled for smaller spacecraft
                 positions.array[i * 3] = (Math.random() - 0.5) * 0.04;  // Scaled to spacecraft size
@@ -660,10 +675,10 @@ export class EntryVehicle {
                 positions.array[i * 3 + 2] += velocities.array[i * 3 + 2];
             }
         }
-        
+
         positions.needsUpdate = true;
         lifetimes.needsUpdate = true;
-        
+
         this.effects.plasmaTail.material.opacity = intensity * 0.5;
     }
     

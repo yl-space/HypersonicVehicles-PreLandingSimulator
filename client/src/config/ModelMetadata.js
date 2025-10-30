@@ -43,8 +43,8 @@ export const ModelMetadata = {
                 z: 0,    // Degrees - rotate around Z axis
                 order: 'XYZ'
             },
-            // Scale factor (uniform or per-axis)
-            scale: 0.001,  // 1:1000 scale for visualization
+            // Scale factor (uniform or per-axis) - increased for visibility
+            scale: 0.01,  // Increased scale for better visibility
             // Position offset after centering
             position: { x: 0, y: 0, z: 0 }
         },
@@ -89,7 +89,7 @@ export const ModelMetadata = {
                 z: 0,
                 order: 'YXZ'
             },
-            scale: 0.001,
+            scale: 0.01,  // Increased scale for better visibility
             position: { x: 0, y: 0, z: 0 }
         },
         centerOffset: { x: 0, y: 0, z: 0 },
