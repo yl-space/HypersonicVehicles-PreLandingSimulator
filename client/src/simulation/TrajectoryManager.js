@@ -441,7 +441,27 @@ export class TrajectoryManager {
         this.createOptimizedTrajectory();
         this.updateInstancedPoints();
     }
-    
+
+    /**
+     * Reset trajectory to original data
+     * Used when rerunning simulation
+     */
+    resetToOriginal() {
+        if (this.originalTrajectoryData) {
+            console.log('[TrajectoryManager] Resetting to original trajectory');
+            // Deep copy the original data
+            this.trajectoryData = this.originalTrajectoryData.map(pt => ({
+                ...pt,
+                position: pt.position.clone()
+            }));
+            // Rebuild visualization
+            this.createOptimizedTrajectory();
+            this.updateInstancedPoints();
+        } else {
+            console.warn('[TrajectoryManager] No original trajectory data to reset to');
+        }
+    }
+
     generateSampleTrajectory() {
         const points = 500;
         const data = [];
