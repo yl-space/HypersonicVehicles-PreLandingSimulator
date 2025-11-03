@@ -116,7 +116,8 @@ export class TrajectoryService {
             control: { bank_angle: bankAngleRad },
             // Send current state as initial conditions for continuation
             init: {
-                time_s: currentTime, // Currently not used by backend
+                coord_type: 'cartesian', 
+                start_time_s: currentTime, // Currently not used by backend
                 x_m: currentState.positionMeters.x,
                 y_m: currentState.positionMeters.y,
                 z_m: currentState.positionMeters.z,

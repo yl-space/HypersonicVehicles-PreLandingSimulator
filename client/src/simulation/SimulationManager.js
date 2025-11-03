@@ -289,15 +289,6 @@ export class SimulationManager {
 
             // Load initial trajectory with default parameters (bank angle = 0)
             const trajectoryData = await this.trajectoryService.calculateTrajectory({
-                // init: {
-                //     coord_type: "cartesian",
-                //     x: 1.205532181396078e+06,
-                //     y: -2.796002637077214e+06,
-                //     z: 1.558152803402915e+06,
-                //     vx: 7.762841024785303e+02,
-                //     vy: 4.340321796247736e+02,
-                //     vz: 0.882049683132209e+02,
-                // },
                 control: { bank_angle: 0.0 }  // Initial bank angle = 0 radians
             });
 

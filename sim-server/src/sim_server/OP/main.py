@@ -152,7 +152,7 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
 
     if return_states:
         return {
-            'time_s': time_array,
+            'time_s': time_array + init.get("start_time_s", 0.0),
             'states': states,
             'pos_inertial': pos_inertial,
             'vel_inertial': vel_inertial,
@@ -160,7 +160,7 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
 
     # Return the results
     return {
-        'time_s': time_array,
+        'time_s': time_array + init.get("start_time_s", 0.0),
         'x_m': pos_inertial[:, 0],
         'y_m': pos_inertial[:, 1], 
         'z_m': pos_inertial[:, 2],

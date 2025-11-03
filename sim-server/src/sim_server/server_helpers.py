@@ -35,12 +35,12 @@ def parse_simulation_params(
         
         # Convert Cartesian to Spherical
         cartesian_dict = {
-            "x": init.x, 
-            "y": init.y, 
-            "z": init.z,
-            "vx": init.vx, 
-            "vy": init.vy, 
-            "vz": init.vz
+            "x": init.x_m, 
+            "y": init.y_m, 
+            "z": init.z_m,
+            "vx": init.vx_m_s, 
+            "vy": init.vy_m_s, 
+            "vz": init.vz_m_s
         }
         spherical = Cartesian_to_Spherical(cartesian_dict)
         
@@ -52,6 +52,7 @@ def parse_simulation_params(
             "phi0": spherical["phi"],
             "gamma0": spherical["gamma"],
             "psi0": spherical["psi"],
+            "start_time_s": init.start_time_s,
         }
     else:
         # Spherical coordinates - use directly
