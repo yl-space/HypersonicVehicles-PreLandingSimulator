@@ -1,7 +1,7 @@
 /**
  * TrajectoryService.js
  * Backend-only trajectory calculation service
- * Communicates with sim-server FastAPI backend on port 3010
+ * Communicates with sim-server FastAPI backend on port 3001 (proxied through Express server)
  */
 
 import * as THREE from 'three';
@@ -9,7 +9,7 @@ import * as THREE from 'three';
 export class TrajectoryService {
     constructor(config = {}) {
         this.config = {
-            backendUrl: config.backendUrl || 'http://localhost:3010',
+            backendUrl: config.backendUrl || 'http://localhost:3001',
             timeout: config.timeout || 30000, // 30 seconds for physics calculations
             marsRadius: 3390000, // meters
             scaleFactorVisualization: 0.00001, // Convert meters to visualization units
@@ -20,6 +20,7 @@ export class TrajectoryService {
         this.currentParams = {
             planet: { planet_name: 'mars' },
             init: {
+                coord_type: 'spherical',
                 h0: 124999,                    // [m] Entry altitude
                 vel0: 6083.6,                  // [m/s] Entry velocity
                 theta0: -1.376,                // [rad] Longitude (-78.8618°)
@@ -55,7 +56,7 @@ export class TrajectoryService {
         console.log('[TrajectoryService] Calling backend with params:', this.currentParams);
 
         try {
-            const response = await fetch(`${this.config.backendUrl}/high-fidelity/`, {
+            const response = await fetch(`${this.config.backendUrl}/sim/high-fidelity/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -115,7 +116,7 @@ export class TrajectoryService {
             control: { bank_angle: bankAngleRad },
             // Send current state as initial conditions for continuation
             init: {
-                time_s: currentTime,
+                time_s: currentTime, // Currently not used by backend
                 x_m: currentState.positionMeters.x,
                 y_m: currentState.positionMeters.y,
                 z_m: currentState.positionMeters.z,
@@ -127,7 +128,7 @@ export class TrajectoryService {
         };
 
         try {
-            const response = await fetch(`${this.config.backendUrl}/high-fidelity/`, {
+            const response = await fetch(`${this.config.backendUrl}/sim/high-fidelity/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
