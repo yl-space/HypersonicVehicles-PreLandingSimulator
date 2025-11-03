@@ -36,7 +36,7 @@ export class Timeline {
                         </g>
                     </svg>
                 </button>
-                
+
                 <div class="timeline-info">
                     <span class="current-time" id="current-time">Feb 18, 2021 03:48:41 pm</span>
                     <span class="separator">|</span>
@@ -52,25 +52,12 @@ export class Timeline {
                         <span class="rate-label">SEC(S)/SEC</span>
                     </div>
                 </div>
-                
-                <button class="replay-button" id="replay-button">
-                    <svg width="20" height="20" viewBox="0 0 24 24">
-                        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" fill="currentColor"/>
-                    </svg>
-                </button>
             </div>
-            
-            <div class="timeline-scrubber" id="timeline-scrubber">
+
+            <div class="timeline-progress-bar" id="timeline-progress-bar">
                 <div class="timeline-track">
-                    <div class="timeline-buffered" id="timeline-buffered"></div>
-                    <div class="timeline-progress" id="timeline-progress">
-                        <div class="timeline-handle" id="timeline-handle"></div>
-                    </div>
+                    <div class="timeline-progress" id="timeline-progress"></div>
                     <div class="timeline-markers" id="timeline-markers"></div>
-                </div>
-                <div class="timeline-tooltip" id="timeline-tooltip">
-                    <span class="tooltip-time"></span>
-                    <span class="tooltip-phase"></span>
                 </div>
             </div>
         `;
@@ -84,11 +71,8 @@ export class Timeline {
             pauseIcon: this.options.container.querySelector('.pause-icon'),
             currentTime: document.getElementById('current-time'),
             rateButtons: document.getElementById('rate-buttons'),
-            replayButton: document.getElementById('replay-button'),
-            scrubber: document.getElementById('timeline-scrubber'),
+            progressBar: document.getElementById('timeline-progress-bar'),
             progress: document.getElementById('timeline-progress'),
-            handle: document.getElementById('timeline-handle'),
-            tooltip: document.getElementById('timeline-tooltip'),
             markers: document.getElementById('timeline-markers')
         };
         
@@ -99,7 +83,7 @@ export class Timeline {
         this.elements.playButton.addEventListener('click', () => {
             this.options.onPlayPause();
         });
-        
+
         // Playback speed buttons
         this.elements.rateButtons.addEventListener('click', (e) => {
             if (e.target.classList.contains('rate-button')) {
@@ -107,10 +91,10 @@ export class Timeline {
                 this.elements.rateButtons.querySelectorAll('.rate-button').forEach(btn => {
                     btn.classList.remove('active');
                 });
-                
+
                 // Add active class to clicked button
                 e.target.classList.add('active');
-                
+
                 // Update playback speed
                 this.state.playbackSpeed = parseFloat(e.target.dataset.rate);
                 if (this.options.onSpeedChange) {
@@ -118,60 +102,14 @@ export class Timeline {
                 }
             }
         });
-        
-        // Replay button
-        this.elements.replayButton.addEventListener('click', () => {
-            this.options.onTimeUpdate(0);
-        });
-        
-        // Scrubbing
-        let scrubbing = false;
-        
-        const startScrub = (e) => {
-            scrubbing = true;
-            this.state.isScrubbing = true;
-            this.elements.progress.classList.add('scrubbing');
-            this.updateTimeFromEvent(e);
-        };
-        
-        const scrub = (e) => {
-            if (scrubbing) {
-                this.updateTimeFromEvent(e);
-            }
-            this.updateTooltip(e);
-        };
-        
-        const endScrub = () => {
-            scrubbing = false;
-            this.state.isScrubbing = false;
-            this.elements.progress.classList.remove('scrubbing');
-        };
-        
-        this.elements.scrubber.addEventListener('mousedown', startScrub);
-        document.addEventListener('mousemove', scrub);
-        document.addEventListener('mouseup', endScrub);
-        
-        // Touch support
-        this.elements.scrubber.addEventListener('touchstart', (e) => {
-            startScrub(e.touches[0]);
-        });
-        
-        document.addEventListener('touchmove', (e) => {
-            if (scrubbing) {
-                scrub(e.touches[0]);
-            }
-        });
-        
-        document.addEventListener('touchend', endScrub);
-        
-        // Tooltip
-        this.elements.scrubber.addEventListener('mouseenter', () => {
-            this.elements.tooltip.classList.add('visible');
-        });
-        
-        this.elements.scrubber.addEventListener('mouseleave', () => {
-            if (!scrubbing) {
-                this.elements.tooltip.classList.remove('visible');
+
+        // No scrubbing or replay allowed - user can only watch the simulation progress
+
+        // Keyboard shortcuts (only space for play/pause)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === ' ') {
+                e.preventDefault();
+                this.options.onPlayPause();
             }
         });
     }
@@ -224,11 +162,9 @@ export class Timeline {
             this.elements.playButton.classList.remove('playing');
         }
         
-        // Update progress bar
-        if (!this.state.isScrubbing) {
-            const progress = (currentTime / this.options.totalTime) * 100;
-            this.elements.progress.style.width = `${progress}%`;
-        }
+        // Update progress bar (non-interactive, display only)
+        const progress = (currentTime / this.options.totalTime) * 100;
+        this.elements.progress.style.width = `${progress}%`;
         
         // Update time display
         this.updateTimeDisplay(currentTime);

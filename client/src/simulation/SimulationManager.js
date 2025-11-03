@@ -63,7 +63,10 @@ export class SimulationManager {
             currentPhase: 0,
             vehicleData: null,
             currentPlanet: 'mars',
-            bankAngle: 0
+            bankAngle: 0,
+            bankingHistory: [],  // Store banking angle adjustments: [{time, angle}]
+            isRerunnning: false,  // Flag to indicate if we're replaying with history
+            simulationCompleted: false  // Track if simulation has completed once
         };
         
         // Animation
@@ -157,7 +160,7 @@ export class SimulationManager {
         this.timeline = new Timeline({
             container: document.getElementById('timeline-container'),
             totalTime: this.state.totalTime,
-            onTimeUpdate: (time) => this.seekTo(time),
+            // onTimeUpdate removed - no seeking allowed during simulation
             onPlayPause: () => this.togglePlayPause()
         });
         
@@ -393,10 +396,6 @@ export class SimulationManager {
             case '2':
                 this.setCameraMode('orbit');
                 break;
-            case 'r':
-            case 'R':
-                this.restart();
-                break;
             case 'a':
                 this.controls.updateBankAngleRelative(-5);
                 break;
@@ -428,12 +427,36 @@ export class SimulationManager {
     updateSimulation(deltaTime) {
         // Update simulation time
         this.state.currentTime += deltaTime * this.state.playbackSpeed;
-        
+
+        // Check if we're replaying and need to apply banking history
+        if (this.state.isRerunnning && this.state.bankingHistory.length > 0) {
+            // Apply banking changes from history at the right time
+            for (let i = 0; i < this.state.bankingHistory.length; i++) {
+                const adjustment = this.state.bankingHistory[i];
+                if (adjustment.time <= this.state.currentTime &&
+                    adjustment.time > this.state.currentTime - deltaTime) {
+                    // Apply the historical banking angle
+                    this.state.bankAngle = adjustment.angle;
+                    this.applyBankAnglePhysicsRealTime(adjustment.angle);
+                    console.log(`Applied historical banking: ${adjustment.angle}° at t=${adjustment.time}`);
+                }
+            }
+        }
+
         if (this.state.currentTime >= this.state.totalTime) {
             this.state.currentTime = this.state.totalTime;
             this.pause();
+
+            // Mark simulation as completed
+            if (!this.state.simulationCompleted) {
+                this.state.simulationCompleted = true;
+                // Trigger completion callback
+                if (this.options.onSimulationComplete) {
+                    this.options.onSimulationComplete();
+                }
+            }
         }
-        
+
         // Get vehicle data at current time
         this.state.vehicleData = this.trajectoryManager.getDataAtTime(this.state.currentTime);
 
@@ -549,7 +572,39 @@ export class SimulationManager {
     }
     
     seekTo(time) {
+        // Prevent seeking during live simulation unless it's completed
+        if (!this.state.simulationCompleted) {
+            console.log('Seeking disabled during live simulation');
+            return;
+        }
         this.state.currentTime = Math.max(0, Math.min(time, this.state.totalTime));
+        this.updateSimulation(0);
+    }
+
+    resetToStart(bankingHistory = []) {
+        // Reset simulation to beginning for rerun
+        this.state.currentTime = 0;
+        this.state.currentPhase = 0;
+        this.state.isPlaying = false;
+        this.state.bankAngle = 0;
+        this.state.simulationCompleted = false;
+
+        // Store banking history for rerun
+        if (bankingHistory.length > 0) {
+            this.state.bankingHistory = bankingHistory;
+            this.state.isRerunnning = true;
+            console.log(`Rerunning with ${bankingHistory.length} banking adjustments`);
+        } else {
+            this.state.bankingHistory = [];
+            this.state.isRerunnning = false;
+        }
+
+        // Reset trajectory to original
+        if (this.trajectoryManager) {
+            this.trajectoryManager.resetToOriginal();
+        }
+
+        // Reset vehicle position
         this.updateSimulation(0);
     }
     
@@ -565,43 +620,6 @@ export class SimulationManager {
         this.cameraController.zoom(direction);
     }
     
-    restart() {
-        // Full simulation reset
-        this.state.currentTime = 0;
-        this.state.isPlaying = false;
-        this.state.currentPhase = 0;
-        this.state.bankAngle = 0;
-        
-        // Reset trajectory display
-        if (this.trajectoryManager) {
-            this.trajectoryManager.resetTrajectory();
-        }
-        
-        // Reset spacecraft state
-        if (this.entryVehicle) {
-            this.entryVehicle.setVectorsVisible(false);
-            // Reset spacecraft position to start
-            const startData = this.trajectoryManager.getDataAtTime(0);
-            if (startData && startData.position) {
-                this.entryVehicle.setPosition(startData.position);
-            }
-        }
-        
-        // Reset UI elements
-        if (this.controls && this.controls.elements.bankAngleSlider) {
-            this.controls.elements.bankAngleSlider.value = 0;
-            this.controls.elements.bankAngleValue.textContent = '0°';
-            this.controls.lastSliderValue = 0;
-        }
-        
-        // Reset camera
-        if (this.cameraController) {
-            this.cameraController.reset();
-        }
-        
-        // Seek to beginning
-        this.seekTo(0);
-    }
     
     handleResize() {
         this.sceneManager.handleResize();
@@ -609,7 +627,21 @@ export class SimulationManager {
     }
 
     handleBankAngle(lastAngle, angle) {
+        // During rerun, ignore manual banking inputs
+        if (this.state.isRerunnning) {
+            console.log('Banking control disabled during rerun');
+            return;
+        }
+
         this.state.bankAngle = angle;
+
+        // Store banking adjustment in history for replay
+        if (!this.state.simulationCompleted) {
+            this.state.bankingHistory.push({
+                time: this.state.currentTime,
+                angle: angle
+            });
+        }
 
         // Apply realistic bank angle physics - immediate trajectory modification
         this.applyBankAnglePhysicsRealTime(angle);

@@ -265,7 +265,6 @@ export class Controls {
                     <dt>↑/↓</dt><dd>Zoom In/Out</dd>
                     <dt>A/D</dt><dd>Adjust Bank Angle</dd>
                     <dt>V</dt><dd>Toggle Vectors</dd>
-                    <dt>R</dt><dd>Restart Simulation</dd>
                     <dt>F</dt><dd>Fullscreen</dd>
                     <dt>S</dt><dd>Toggle Settings</dd>
                     <dt>?</dt><dd>Toggle Help</dd>
