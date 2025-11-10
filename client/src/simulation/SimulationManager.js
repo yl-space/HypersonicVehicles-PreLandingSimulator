@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { SceneManager } from '../core/SceneManager.js';
 import { CameraController } from '../core/CameraController.js';
+import { AssetLoader } from '../core/AssetLoader.js';
 import { EntryVehicle } from '../components/spacecraft/EntryVehicle.js';
 import { Mars } from '../components/environment/Mars.js';
 import { Earth } from '../components/environment/Earth.js';
@@ -15,6 +16,7 @@ import { PhaseController } from './PhaseController.js';
 import { Timeline } from '../ui/Timeline.js';
 import { PhaseInfo } from '../ui/PhaseInfo.js';
 import { Controls } from '../ui/Controls.js';
+import { ModelSelector } from '../ui/ModelSelector.js';
 import { DataManager } from '../data/DataManager.js';
 import { TrajectoryService } from '../services/TrajectoryService.js';
 import { config } from '../config/SimulationConfig.js';
@@ -32,6 +34,7 @@ export class SimulationManager {
         // Core components
         this.sceneManager = null;
         this.cameraController = null;
+        this.assetLoader = null;
         this.trajectoryManager = null;
         this.phaseController = null;
         this.dataManager = null;
@@ -49,6 +52,7 @@ export class SimulationManager {
         this.timeline = null;
         this.phaseInfo = null;
         this.controls = null;
+        this.modelSelector = null;
         
         // Simulation state
         this.state = {
@@ -59,7 +63,12 @@ export class SimulationManager {
             currentPhase: 0,
             vehicleData: null,
             currentPlanet: 'mars',
-            bankAngle: 0
+            bankAngle: 0,
+            bankingHistory: [],  // Store banking angle adjustments: [{time, angle}]
+            isRerunnning: false,  // Flag to indicate if we're replaying with history
+            simulationCompleted: false,  // Track if simulation has completed once
+            bankControlsLocked: false,
+            playbackInitialized: false
         };
         
         // Animation
@@ -81,20 +90,23 @@ export class SimulationManager {
         
         // Ensure Mars is active by default
         this.sceneManager.switchPlanet('mars');
-        
+
+        // Initialize asset loader for loading 3D models
+        this.assetLoader = new AssetLoader();
+
         this.trajectoryManager = new TrajectoryManager();
         this.phaseController = new PhaseController();
         this.dataManager = new DataManager();
 
         // Initialize backend-only trajectory service
         this.trajectoryService = new TrajectoryService({
-            backendUrl: config.get('dataSource.backendUrl') || 'http://localhost:3010',
+            backendUrl: config.get('dataSource.backendUrl') || 'http://localhost:3001',
             timeout: 30000
         });
         
-        // Create scene objects
-        this.createSceneObjects();
-        
+        // Create scene objects (now async to handle GLTF loading)
+        await this.createSceneObjects();
+
         // Initialize UI
         this.initializeUI();
         
@@ -113,30 +125,34 @@ export class SimulationManager {
         }
     }
     
-    createSceneObjects() {
+    async createSceneObjects() {
         // Create stars background
         this.stars = new Stars();
         this.sceneManager.addToAllScenes(this.stars.getObject3D());
-        
+
         // Create all planets
         this.mars = new Mars();
         this.earth = new Earth();
         this.jupiter = new Jupiter();
-        
+
         // Start with Mars visible
         this.currentPlanet = this.mars;
         this.sceneManager.addToAllScenes(this.mars.getObject3D());
 
-        // Create entry vehicle
-        this.entryVehicle = new EntryVehicle();
+        // Create and initialize entry vehicle with asset loader for GLTF model support
+        this.entryVehicle = new EntryVehicle(this.assetLoader);
+
+        // Initialize the vehicle (loads GLTF if available) - must await this!
+        await this.entryVehicle.init();
+
         this.sceneManager.addToAllScenes(this.entryVehicle.getObject3D());
-        
+
         // Add trajectory line to all scenes
         const trajectoryObject = this.trajectoryManager.getObject3D();
         if (trajectoryObject) {
             this.sceneManager.addToAllScenes(trajectoryObject);
         }
-        
+
         // Set camera target
         this.cameraController.setTarget(this.entryVehicle.getObject3D());
     }
@@ -147,8 +163,11 @@ export class SimulationManager {
             container: document.getElementById('timeline-container'),
             totalTime: this.state.totalTime,
             onTimeUpdate: (time) => this.seekTo(time),
-            onPlayPause: () => this.togglePlayPause()
+            onPlayPause: () => this.togglePlayPause(),
+            onSpeedChange: (speed) => this.setPlaybackSpeed(speed),
+            onReset: () => this.startPlaybackReplay(true)
         });
+        this.timeline.setReplayAvailable(false);
         
         // Phase info panel
         this.phaseInfo = new PhaseInfo({
@@ -162,7 +181,20 @@ export class SimulationManager {
             onBankAngle: (lastAngle, angle) => this.handleBankAngle(lastAngle, angle),
             onSettings: (setting) => this.handleSettings(setting)
         });
-        
+        this.controls.setBankAngleEnabled(true, '');
+
+        // Model selector for spacecraft
+        const selectorContainer = this.controls.getCameraControlsElement
+            ? this.controls.getCameraControlsElement()
+            : document.body;
+        this.modelSelector = new ModelSelector({
+            container: selectorContainer || document.body,
+            entryVehicle: this.entryVehicle,
+            onModelChange: (modelId) => {
+                console.log(`Model changed to: ${modelId}`);
+            }
+        });
+
         // Add planet switching buttons to existing UI
         this.addPlanetControls();
     }
@@ -284,7 +316,7 @@ export class SimulationManager {
             console.log('[SimulationManager] Backend status:', backendStatus);
 
             if (!backendStatus.available) {
-                throw new Error(`Backend server not available at ${backendStatus.backendUrl}. Please start the sim-server on port 3010.`);
+                throw new Error(`Backend server not available at ${backendStatus.backendUrl}. Please start the sim-server on port 3001 (proxied through Express server).`);
             }
 
             // Load initial trajectory with default parameters (bank angle = 0)
@@ -303,6 +335,9 @@ export class SimulationManager {
             // Update total time from trajectory
             if (trajectoryData.length > 0) {
                 this.state.totalTime = trajectoryData[trajectoryData.length - 1].time;
+                if (this.timeline) {
+                    this.timeline.setTotalTime(this.state.totalTime);
+                }
             }
 
             // Load mission configuration
@@ -311,6 +346,9 @@ export class SimulationManager {
             // PhaseController expects setPhases with array
             if (missionConfig.phases) {
                 this.phaseController.setPhases(missionConfig.phases);
+                if (this.timeline) {
+                    this.timeline.setPhases(missionConfig.phases);
+                }
             }
 
             // Notify data loaded
@@ -329,7 +367,7 @@ export class SimulationManager {
 
         } catch (error) {
             console.error('[SimulationManager] Error loading data:', error);
-            alert(`Failed to load trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3010.`);
+            alert(`Failed to load trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3001 (proxied through Express server).`);
             throw error;  // Re-throw to prevent app from running without data
         }
     }
@@ -373,10 +411,6 @@ export class SimulationManager {
             case '2':
                 this.setCameraMode('orbit');
                 break;
-            case 'r':
-            case 'R':
-                this.restart();
-                break;
             case 'a':
                 this.controls.updateBankAngleRelative(-5);
                 break;
@@ -408,12 +442,26 @@ export class SimulationManager {
     updateSimulation(deltaTime) {
         // Update simulation time
         this.state.currentTime += deltaTime * this.state.playbackSpeed;
-        
+
+        // Check if we're replaying and need to apply banking history
+        if (this.state.isRerunnning && this.state.bankingHistory.length > 0) {
+            const playbackAngle = this.getBankAngleForTime(this.state.currentTime);
+            if (playbackAngle !== null && playbackAngle !== undefined) {
+                this.state.bankAngle = playbackAngle;
+            }
+        }
+
         if (this.state.currentTime >= this.state.totalTime) {
             this.state.currentTime = this.state.totalTime;
             this.pause();
+
+            // Mark simulation as completed
+            if (!this.state.simulationCompleted) {
+                this.state.simulationCompleted = true;
+                this.handleInitialRunCompletion();
+            }
         }
-        
+
         // Get vehicle data at current time
         this.state.vehicleData = this.trajectoryManager.getDataAtTime(this.state.currentTime);
 
@@ -529,12 +577,57 @@ export class SimulationManager {
     }
     
     seekTo(time) {
+        // Prevent seeking during live simulation unless it's completed
+        if (!this.state.simulationCompleted) {
+            console.log('Seeking disabled during live simulation');
+            return;
+        }
         this.state.currentTime = Math.max(0, Math.min(time, this.state.totalTime));
+        this.updateSimulation(0);
+    }
+
+    resetToStart(bankingHistory = []) {
+        // Reset simulation to beginning for rerun
+        this.state.currentTime = 0;
+        this.state.currentPhase = 0;
+        this.state.isPlaying = false;
+        this.state.bankAngle = 0;
+        this.state.simulationCompleted = false;
+        if (this.timeline) {
+            this.timeline.setScrubbingEnabled(false);
+            this.timeline.setReplayAvailable(false);
+        }
+        this.state.bankControlsLocked = false;
+        this.state.playbackInitialized = false;
+        if (this.controls) {
+            this.controls.setBankAngleEnabled(true, '');
+        }
+
+        // Store banking history for rerun
+        if (bankingHistory.length > 0) {
+            this.state.bankingHistory = bankingHistory;
+            this.state.isRerunnning = true;
+            console.log(`Rerunning with ${bankingHistory.length} banking adjustments`);
+        } else {
+            this.state.bankingHistory = [];
+            this.state.isRerunnning = false;
+        }
+
+        // Reset trajectory to original
+        if (this.trajectoryManager) {
+            this.trajectoryManager.resetToOriginal();
+        }
+
+        // Reset vehicle position
         this.updateSimulation(0);
     }
     
     setPlaybackSpeed(speed) {
-        this.state.playbackSpeed = speed;
+        const normalizedSpeed = Number(speed) || 1;
+        this.state.playbackSpeed = normalizedSpeed;
+        if (this.timeline) {
+            this.timeline.setPlaybackSpeed(normalizedSpeed);
+        }
     }
     
     setCameraMode(mode) {
@@ -545,43 +638,6 @@ export class SimulationManager {
         this.cameraController.zoom(direction);
     }
     
-    restart() {
-        // Full simulation reset
-        this.state.currentTime = 0;
-        this.state.isPlaying = false;
-        this.state.currentPhase = 0;
-        this.state.bankAngle = 0;
-        
-        // Reset trajectory display
-        if (this.trajectoryManager) {
-            this.trajectoryManager.resetTrajectory();
-        }
-        
-        // Reset spacecraft state
-        if (this.entryVehicle) {
-            this.entryVehicle.setVectorsVisible(false);
-            // Reset spacecraft position to start
-            const startData = this.trajectoryManager.getDataAtTime(0);
-            if (startData && startData.position) {
-                this.entryVehicle.setPosition(startData.position);
-            }
-        }
-        
-        // Reset UI elements
-        if (this.controls && this.controls.elements.bankAngleSlider) {
-            this.controls.elements.bankAngleSlider.value = 0;
-            this.controls.elements.bankAngleValue.textContent = '0°';
-            this.controls.lastSliderValue = 0;
-        }
-        
-        // Reset camera
-        if (this.cameraController) {
-            this.cameraController.reset();
-        }
-        
-        // Seek to beginning
-        this.seekTo(0);
-    }
     
     handleResize() {
         this.sceneManager.handleResize();
@@ -589,7 +645,25 @@ export class SimulationManager {
     }
 
     handleBankAngle(lastAngle, angle) {
+        if (this.state.bankControlsLocked) {
+            console.log('Banking control disabled after initial run');
+            return;
+        }
+        // During rerun, ignore manual banking inputs
+        if (this.state.isRerunnning) {
+            console.log('Banking control disabled during rerun');
+            return;
+        }
+
         this.state.bankAngle = angle;
+
+        // Store banking adjustment in history for replay
+        if (!this.state.simulationCompleted) {
+            this.state.bankingHistory.push({
+                time: this.state.currentTime,
+                angle: angle
+            });
+        }
 
         // Apply realistic bank angle physics - immediate trajectory modification
         this.applyBankAnglePhysicsRealTime(angle);
@@ -690,6 +764,9 @@ export class SimulationManager {
                 // Update total time if changed
                 if (this.trajectoryManager.trajectoryData.length > 0) {
                     this.state.totalTime = this.trajectoryManager.trajectoryData[this.trajectoryManager.trajectoryData.length - 1].time;
+                    if (this.timeline) {
+                        this.timeline.setTotalTime(this.state.totalTime);
+                    }
                 }
 
                 console.log(`[SimulationManager] Applied bank angle ${bankAngle}° - future trajectory recalculated with ${futureTrajectory.length} points`);
@@ -698,13 +775,75 @@ export class SimulationManager {
             }
         } catch (error) {
             console.error('[SimulationManager] Error applying bank angle physics:', error);
-            alert(`Failed to recalculate trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3010.`);
+            alert(`Failed to recalculate trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3001 (proxied through Express server).`);
         } finally {
             this._bankAngleUpdateInProgress = false;
         }
     }
 
     // Removed legacy physics methods - all calculations now done by backend
+    getBankAngleForTime(time) {
+        if (!this.state.bankingHistory || this.state.bankingHistory.length === 0) {
+            return 0;
+        }
+
+        let angle = 0;
+        for (let i = 0; i < this.state.bankingHistory.length; i++) {
+            const adjustment = this.state.bankingHistory[i];
+            if (adjustment.time <= time) {
+                angle = adjustment.angle;
+            } else {
+                break;
+            }
+        }
+        return angle;
+    }
+
+    startPlaybackReplay(autoPlay = true) {
+        if (!this.state.simulationCompleted) {
+            return;
+        }
+
+        this.pause();
+        this.state.isRerunnning = true;
+        this.state.currentTime = 0;
+        this.state.bankAngle = 0;
+
+        if (this.timeline) {
+            this.timeline.setTime(0);
+            this.timeline.setScrubbingEnabled(true);
+        }
+
+        this.seekTo(0);
+
+        if (autoPlay) {
+            this.play();
+        }
+    }
+
+    handleInitialRunCompletion() {
+        if (this.state.playbackInitialized) {
+            return;
+        }
+
+        this.state.playbackInitialized = true;
+        this.state.bankControlsLocked = true;
+
+        if (this.controls) {
+            this.controls.setBankAngleEnabled(false, 'Playback mode active');
+        }
+
+        if (this.timeline) {
+            this.timeline.setScrubbingEnabled(true);
+            this.timeline.setReplayAvailable(true);
+        }
+
+        if (this.options.onSimulationComplete) {
+            this.options.onSimulationComplete();
+        }
+
+        this.startPlaybackReplay(true);
+    }
     
     dispose() {
         if (this.animationId) {
@@ -726,6 +865,7 @@ export class SimulationManager {
         this.timeline.dispose();
         this.phaseInfo.dispose();
         this.controls.dispose();
+        if (this.modelSelector) this.modelSelector.dispose();
     }
 
     getState() {

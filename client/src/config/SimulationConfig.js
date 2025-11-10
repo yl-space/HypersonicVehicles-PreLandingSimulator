@@ -23,7 +23,7 @@ export class SimulationConfig {
             // Data source configuration
             dataSource: {
                 mode: SimulationModes.BACKEND,
-                backendUrl: 'http://localhost:3010',
+                backendUrl: this.baseURL = window.location.origin || 'http://localhost:3001',
                 fallbackToFrontend: false,
                 cacheResults: true,
                 timeout: 30000 // 30 seconds

@@ -136,7 +136,7 @@ app.use('/node_modules', express.static(path.join(__dirname, '..', 'node_modules
 // In Docker: use service name, in local dev: use 127.0.0.1
 const isDocker = process.env.NODE_ENV === 'production' || process.env.DOCKER_ENV;
 const SIM_SERVER_HOST = process.env.SIM_SERVER_HOST || (isDocker ? 'sim-server' : '127.0.0.1');
-const SIM_SERVER_PORT = process.env.SIM_SERVER_PORT || '3010';
+const SIM_SERVER_PORT = process.env.SIM_SERVER_PORT || '8000';
 const SIM_SERVER_URL = `http://${SIM_SERVER_HOST}:${SIM_SERVER_PORT}`;
 
 app.use('/sim', proxy(SIM_SERVER_URL, {

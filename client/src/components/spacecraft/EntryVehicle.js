@@ -1,9 +1,15 @@
 import * as THREE from 'three';
+import { ModelMetadata, ModelTransformHelper, ModelSelector } from '../../config/ModelMetadata.js';
 
 export class EntryVehicle {
-    constructor() {
+    constructor(assetLoader = null) {
+        this.assetLoader = assetLoader;
         this.group = new THREE.Group();
         this.vehicleLOD = null;
+        this.gltfModel = null;  // Store loaded GLTF model
+        this.modelMetadata = null;  // Store model metadata
+        this.useGLTF = assetLoader !== null;  // Use GLTF if asset loader provided
+
         this.effects = {
             heatGlow: null,
             plasmaTail: null,
@@ -12,7 +18,8 @@ export class EntryVehicle {
         this.state = {
             heatShieldAttached: true,
             parachuteDeployed: false,
-            thrustersActive: false
+            thrustersActive: false,
+            modelLoaded: false  // Track if GLTF model is loaded
         };
 
         // Spacecraft attitude state (scientifically accurate)
@@ -38,34 +45,110 @@ export class EntryVehicle {
             position: null
         };
 
-        this.init();
+        // Don't call init in constructor since it's async now
+        // this.init();
     }
-    
-    init() {
-        this.createVehicleWithLOD();
+
+    async init() {
+        // Try to load GLTF model first if asset loader is available
+        if (this.useGLTF && this.assetLoader) {
+            try {
+                await this.loadGLTFModel();
+            } catch (error) {
+                console.error('Failed to load GLTF model during init:', error);
+                // Fall back to cone geometry
+                this.useGLTF = false;
+                this.createVehicleWithLOD();
+            }
+        } else {
+            // Fallback to cone geometry
+            this.createVehicleWithLOD();
+        }
+
         this.createHeatEffects();
         // this.createThrusterSystem();
         // this.createLocalCoordinateAxes(); // REMOVED: User requested removal of body axes
         this.createOrientationVectors();
         this.createVectorLabels();
+
+        return this; // Return this for chaining
     }
-    
-    createVehicleWithLOD() {
-        // Use LOD for performance
+
+    async loadGLTFModel(modelName = null) {
+        try {
+            // Use specified model or get from metadata
+            const modelToLoad = modelName || ModelSelector.getPrimaryModel().filename;
+            this.modelMetadata = ModelSelector.getModelByFilename(modelToLoad) || ModelSelector.getPrimaryModel();
+
+            console.log(`Loading spacecraft model: ${this.modelMetadata.name}`);
+
+            // Load the model using AssetLoader
+            const { model, metadata } = await this.assetLoader.loadSpacecraftModel(
+                modelToLoad,
+                this.modelMetadata
+            );
+
+            this.gltfModel = model;
+            this.state.modelLoaded = true;
+
+            // Create LOD from GLTF model
+            this.createGLTFLOD(model);
+
+            console.log('GLTF model loaded successfully:', metadata);
+
+            // Store metadata for reference (merge carefully to avoid circular references)
+            this.modelMetadata = Object.assign({}, this.modelMetadata, {
+                name: metadata.name,
+                boundingBox: metadata.boundingBox,
+                transformedBoundingBox: metadata.transformedBoundingBox,
+                animations: metadata.animations
+            });
+
+        } catch (error) {
+            console.error('Failed to load GLTF model, falling back to cone geometry:', error);
+            this.useGLTF = false;
+            this.createVehicleWithLOD();
+        }
+    }
+
+    createGLTFLOD(model) {
+        // Create LOD system with GLTF model
         this.vehicleLOD = new THREE.LOD();
-        
+
+        // Clone the model for different LOD levels
+        const highDetail = model.clone();
+        const mediumDetail = model.clone();
+        const lowDetail = model.clone();
+
+        // Apply different scales or simplifications for LOD
+        // High detail - full model
+        this.vehicleLOD.addLevel(highDetail, 0);
+
+        // Medium detail - could reduce texture quality or polygon count
+        this.vehicleLOD.addLevel(mediumDetail, 50);
+
+        // Low detail - simplified version
+        this.vehicleLOD.addLevel(lowDetail, 200);
+
+        this.group.add(this.vehicleLOD);
+    }
+
+    createVehicleWithLOD() {
+        // Use LOD for performance (fallback cone geometry)
+        this.vehicleLOD = new THREE.LOD();
+
         // High detail (close)
         const highDetail = this.createHighDetailVehicle();
         this.vehicleLOD.addLevel(highDetail, 0);
-        
+
         // Medium detail
         const mediumDetail = this.createMediumDetailVehicle();
         this.vehicleLOD.addLevel(mediumDetail, 50);
-        
+
         // Low detail (far)
         const lowDetail = this.createLowDetailVehicle();
         this.vehicleLOD.addLevel(lowDetail, 200);
-        
+
         this.group.add(this.vehicleLOD);
     }
     
@@ -556,14 +639,29 @@ export class EntryVehicle {
     
     updatePlasmaTail(intensity) {
         if (!this.effects.plasmaTail) return;
-        
+
+        // Skip update if intensity is too low (performance optimization)
+        if (intensity < 0.01) {
+            this.effects.plasmaTail.visible = false;
+            return;
+        } else {
+            this.effects.plasmaTail.visible = true;
+        }
+
         const positions = this.effects.plasmaTail.geometry.attributes.position;
         const velocities = this.effects.plasmaTail.geometry.attributes.velocity;
         const lifetimes = this.effects.plasmaTail.geometry.attributes.lifetime;
-        
-        for (let i = 0; i < positions.count; i++) {
+
+        // Update only every other frame for performance
+        const skipFrame = Date.now() % 2 === 0;
+        if (skipFrame && intensity < 0.5) return;
+
+        // Update fewer particles when intensity is low
+        const particlesToUpdate = Math.ceil(positions.count * Math.min(1, intensity + 0.3));
+
+        for (let i = 0; i < particlesToUpdate; i++) {
             lifetimes.array[i] -= 0.01;
-            
+
             if (lifetimes.array[i] <= 0) {
                 // Reset particle - scaled for smaller spacecraft
                 positions.array[i * 3] = (Math.random() - 0.5) * 0.04;  // Scaled to spacecraft size
@@ -577,10 +675,10 @@ export class EntryVehicle {
                 positions.array[i * 3 + 2] += velocities.array[i * 3 + 2];
             }
         }
-        
+
         positions.needsUpdate = true;
         lifetimes.needsUpdate = true;
-        
+
         this.effects.plasmaTail.material.opacity = intensity * 0.5;
     }
     
@@ -736,6 +834,70 @@ export class EntryVehicle {
         return this.group;
     }
     
+    /**
+     * Switch to a different spacecraft model
+     * @param {string} modelName - Name of the model to switch to ('primary', 'backup', 'cone')
+     */
+    async switchModel(modelName) {
+        if (!this.assetLoader && modelName !== 'cone') {
+            console.warn('Cannot switch to GLTF model without AssetLoader');
+            return;
+        }
+
+        // Clear current model
+        if (this.vehicleLOD) {
+            this.group.remove(this.vehicleLOD);
+            this.vehicleLOD.traverse((child) => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.dispose());
+                    } else {
+                        child.material.dispose();
+                    }
+                }
+            });
+        }
+
+        // Load new model based on selection
+        switch (modelName) {
+            case 'primary':
+                {
+                    const primaryModel = ModelSelector.getPrimaryModel();
+                    this.useGLTF = true;
+                    this.modelMetadata = primaryModel;
+                    await this.loadGLTFModel(primaryModel.filename);
+                }
+                break;
+            case 'backup':
+                {
+                    const backupModel = ModelSelector.getBackupModel();
+                    this.useGLTF = true;
+                    this.modelMetadata = backupModel;
+                    await this.loadGLTFModel(backupModel.filename);
+                }
+                break;
+            case 'cone':
+            default:
+                this.useGLTF = false;
+                this.createVehicleWithLOD();
+                break;
+        }
+
+        console.log(`Switched spacecraft model to: ${modelName}`);
+    }
+
+    /**
+     * Get available models
+     */
+    static getAvailableModels() {
+        return [
+            { id: 'primary', name: 'Dragon Spacecraft (GLTF)', requiresAssetLoader: true },
+            { id: 'backup', name: 'Generic RV Dragon-like (GLTF)', requiresAssetLoader: true },
+            { id: 'cone', name: 'Simple Cone (Procedural)', requiresAssetLoader: false }
+        ];
+    }
+
     dispose() {
         this.group.traverse((child) => {
             if (child.geometry) child.geometry.dispose();

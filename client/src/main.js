@@ -43,19 +43,25 @@ async function init() {
             
             onSimulationComplete: () => {
                 console.log('Simulation complete!');
-                showCompletionDialog();
+                showCompletionToast();
             }
         });
         
         // Store reference
         window.MarsEDL.simulation = simulation;
-        
+
         // Setup global controls
         setupGlobalControls();
-        
+
+        // Initialize zoom controls now that simulation is ready
+        if (window.initializeZoomControls) {
+            window.initializeZoomControls();
+            console.log('Zoom controls initialized');
+        }
+
         // Hide loading screen
         hideLoadingScreen();
-        
+
         // Show welcome dialog
         if (!hasSeenWelcome()) {
             showWelcomeDialog();
@@ -216,44 +222,34 @@ function hasSeenWelcome() {
 /**
  * Show completion dialog
  */
-function showCompletionDialog() {
-    const dialog = document.createElement('div');
-    dialog.className = 'completion-dialog';
-    dialog.innerHTML = `
-        <div class="dialog-overlay"></div>
-        <div class="dialog-content">
-            <h2>🎉 Landing Successful!</h2>
-            <p>The spacecraft has successfully completed its entry, descent, and landing sequence.</p>
-            
-            <div class="completion-stats">
-                <div class="stat">
-                    <span class="stat-label">Total Time</span>
-                    <span class="stat-value">4:20</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Max Velocity</span>
-                    <span class="stat-value">19,300 km/h</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Peak G-Force</span>
-                    <span class="stat-value">8.2g</span>
-                </div>
-            </div>
-            
-            <div class="dialog-actions">
-                <button class="btn-primary" id="replay-btn">Replay</button>
-                <button class="btn-secondary" id="export-btn">Export Data</button>
-            </div>
-        </div>
+function showCompletionToast() {
+    if (document.querySelector('.completion-toast')) {
+        return;
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'completion-toast';
+    toast.innerHTML = `
+        <span>Trajectory complete. Use Reset to replay with full controls.</span>
+        <button type="button" aria-label="Dismiss completion message">Dismiss</button>
     `;
-    
-    document.body.appendChild(dialog);
-    // CSP-safe event handlers
-    setTimeout(() => dialog.classList.add('visible'), 100);
-    const replayBtn = document.getElementById('replay-btn');
-    if (replayBtn) replayBtn.addEventListener('click', () => window.replaySimulation());
-    const exportBtn = document.getElementById('export-btn');
-    if (exportBtn) exportBtn.addEventListener('click', () => window.exportTelemetry());
+    const dismissBtn = toast.querySelector('button');
+    dismissBtn.addEventListener('click', () => toast.remove());
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+        });
+    }, 0);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 6000);
 }
 
 /**
@@ -353,22 +349,8 @@ function setupPerformanceMonitor() {
 }
 
 /**
- * Replay simulation
+ * Rerun simulation with banking history
  */
-window.replaySimulation = function() {
-    if (window.MarsEDL.simulation) {
-        window.MarsEDL.simulation.seekTo(0);
-        window.MarsEDL.simulation.play();
-        
-        // Close dialog
-        const dialog = document.querySelector('.completion-dialog');
-        if (dialog) {
-            dialog.classList.remove('visible');
-            setTimeout(() => dialog.remove(), 300);
-        }
-    }
-};
-
 /**
  * Export telemetry data
  */

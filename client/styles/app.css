@@ -317,87 +317,136 @@ body {
     font-weight: 400;
 }
 
-.replay-button {
+.timeline-reset-button {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: #FFFFFF;
-    padding: 8px 16px;
-    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 20px;
     cursor: pointer;
-    font-size: 12px;
-    font-weight: 400;
-    transition: all 0.2s;
+    font-size: 11px;
+    letter-spacing: 0.6px;
     text-transform: uppercase;
-    letter-spacing: 1px;
     order: 0;
-    white-space: nowrap;
-    margin-left: 0;
+    transition: all 0.2s ease;
+    min-width: 78px;
 }
 
-.replay-button:hover {
+.timeline-reset-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.timeline-reset-button:not(:disabled):hover {
     background: rgba(255, 255, 255, 0.2);
+    border-color: #fff;
 }
 
+/* Old scrubber styles - DEPRECATED */
 .timeline-scrubber {
+    display: none; /* Hide old interactive scrubber */
+}
+
+/* Timeline progress bar */
+.timeline-progress-bar {
     position: relative;
-    height: 6px;
-    cursor: pointer;
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 3px;
-    width: 300px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+    width: clamp(180px, 35vw, 420px);
     margin: 0;
     padding: 0;
     order: 3;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: opacity 0.2s ease;
+}
+
+.timeline-progress-bar.is-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.timeline-progress-bar.scrubbing .timeline-progress {
+    transition: none;
 }
 
 .timeline-track {
     position: relative;
     height: 100%;
-    background: transparent;
-    border-radius: 3px;
+    border-radius: 999px;
     overflow: visible;
-}
-
-.timeline-buffered {
-    position: absolute;
-    height: 100%;
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 2px;
-    width: 100%;
 }
 
 .timeline-progress {
     position: absolute;
     height: 100%;
-    background: #FFFFFF;
-    border-radius: 3px;
+    background: linear-gradient(90deg, #ffffff, #ff925a);
+    border-radius: 999px;
     width: 0%;
     transition: width 0.1s ease-out;
-}
-
-.timeline-progress.scrubbing {
-    transition: none;
+    pointer-events: none;
 }
 
 .timeline-handle {
     position: absolute;
-    right: -6px;
     top: 50%;
-    transform: translateY(-50%);
-    width: 12px;
-    height: 12px;
-    background: #fff;
+    transform: translate(-50%, -50%);
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-    cursor: grab;
-    transition: transform 0.1s;
+    background: #ffffff;
+    border: 2px solid rgba(0, 0, 0, 0.65);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.65);
+    pointer-events: none;
+    transition: transform 0.1s ease;
 }
 
-.timeline-handle:hover {
-    transform: translateY(-50%) scale(1.2);
+.timeline-progress-bar:not(.is-disabled) .timeline-handle {
+    pointer-events: auto;
+}
+
+.timeline-progress-bar.scrubbing .timeline-handle,
+.timeline-progress-bar:not(.is-disabled):hover .timeline-handle {
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+/* Completion Toast */
+.completion-toast {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.88);
+    color: #fff;
+    padding: 14px 24px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 200;
+    font-size: 13px;
+    letter-spacing: 0.4px;
+}
+
+.completion-toast button {
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.completion-toast button:hover {
+    background: rgba(255, 255, 255, 0.25);
 }
 
 .timeline-handle:active {
@@ -417,31 +466,30 @@ body {
 .timeline-marker {
     position: absolute;
     width: 2px;
-    height: 12px;
-    background: rgba(255, 255, 255, 0.3);
+    height: 14px;
+    background: rgba(255, 255, 255, 0.35);
     top: -3px;
 }
 
 .timeline-tooltip {
     position: absolute;
-    bottom: 100%;
+    bottom: calc(100% + 10px);
     left: 0;
+    transform: translate(-50%, 0);
     background: rgba(0, 0, 0, 0.9);
     color: #fff;
-    padding: 8px 12px;
+    padding: 6px 10px;
     border-radius: 4px;
     font-size: 12px;
     white-space: nowrap;
     pointer-events: none;
     opacity: 0;
-    transform: translateY(5px);
     transition: opacity 0.2s, transform 0.2s;
-    margin-bottom: 10px;
 }
 
 .timeline-tooltip.visible {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate(-50%, -4px);
 }
 
 .timeline-tooltip::after {
@@ -467,17 +515,17 @@ body {
 
 /* Bank Angle Controls */
 .bank-angle-controls {
-    position: absolute;
-    right: 15px;
-    top: calc(50% + 60px);
-    background: rgba(0, 0, 0, 0.3);
-    padding: 10px;
-    border-radius: 6px;
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    z-index: 100;
-    margin-top: 8px;
-    width: 140px;
+    position: static;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    width: 100%;
+}
+
+.bank-angle-controls.disabled {
+    opacity: 0.5;
+    pointer-events: none;
 }
 
 .bank-slider-row {
@@ -507,7 +555,7 @@ body {
     position: absolute;
     right: 0;
     top: 0;
-    transform: translate(10px, -160%);
+    transform: translate(10px, -140%);
     min-width: 32px;
     color: #fff;
     font-family: 'Courier New', monospace;
@@ -517,32 +565,43 @@ body {
     pointer-events: none;
 }
 
+.bank-angle-status {
+    font-size: 11px;
+    color: #ffb347;
+    margin: 4px 0 0;
+    min-height: 16px;
+}
+
 /* Camera Controls */
 .camera-controls {
     position: absolute;
     top: 50%;
-    right: 15px;
+    right: 20px;
     transform: translateY(-50%);
-    background: rgba(0, 0, 0, 0.3);
-    padding: 12px;
-    border-radius: 6px;
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.35);
+    padding: 16px;
+    border-radius: 10px;
+    backdrop-filter: blur(18px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     z-index: 100;
+    width: 230px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
 }
 
 .control-group {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 8px;
 }
 
 .control-label {
-    font-size: 9px;
-    color: #aaa;
-    letter-spacing: 1px;
-    margin: 0 0 8px 0;
-    text-align: center;
+    font-size: 10px;
+    color: #bbb;
+    letter-spacing: 1.2px;
+    margin: 0;
+    text-align: left;
     text-transform: uppercase;
 }
 
@@ -550,29 +609,31 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #ccc;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #eee;
     cursor: pointer;
-    border-radius: 4px;
-    font-size: 11px;
+    border-radius: 6px;
+    font-size: 12px;
     font-weight: 500;
     letter-spacing: 0.5px;
     transition: all 0.2s;
-    width: 110px;
+    width: 100%;
+    justify-content: space-between;
 }
 
 .camera-mode:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.12);
     color: #fff;
-    transform: translateX(-2px);
+    transform: translateX(-1px);
 }
 
 .camera-mode.active {
-    background: #f60;
-    border-color: #f60;
+    background: rgba(255, 102, 0, 0.3);
+    border-color: #ff6600;
     color: #fff;
+    box-shadow: 0 0 10px rgba(255, 102, 0, 0.4);
 }
 
 .zoom-indicator {
@@ -581,6 +642,91 @@ body {
     color: #888;
     padding: 5px;
     font-family: 'Courier New', monospace;
+}
+
+.model-selector-compact {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.model-selector-compact .selector-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+}
+
+.model-selector-compact .model-status {
+    font-size: 11px;
+    color: #8ecbff;
+    font-weight: 500;
+    letter-spacing: 0.4px;
+    text-align: right;
+}
+
+.model-selector-compact .model-status[data-state="loading"] {
+    color: #ffb347;
+}
+
+.model-selector-compact .model-status[data-state="error"] {
+    color: #ff6b6b;
+}
+
+.model-selector-compact .model-status[data-state="ready"] {
+    color: #8ffe9c;
+}
+
+.model-toggle {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.model-chip {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: #ddd;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s ease;
+    font-size: 11px;
+}
+
+.model-chip:hover:not(.is-disabled) {
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #fff;
+}
+
+.model-chip.active {
+    background: rgba(255, 102, 0, 0.25);
+    border-color: rgba(255, 102, 0, 0.8);
+    box-shadow: 0 6px 18px rgba(255, 102, 0, 0.25);
+    color: #fff;
+}
+
+.model-chip.is-disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.chip-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.chip-badge {
+    display: block;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: #bbb;
 }
 
 /* Settings Panel */
