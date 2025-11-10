@@ -1233,18 +1233,19 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: #666;
-    transition: color 0.3s ease;
     z-index: 101;
-}
-
-.swap-icon:hover {
-    color: #fff;
 }
 
 .swap-icon svg {
     width: 24px;
     height: 24px;
+    color: #ddd;
+    transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.swap-icon:hover svg {
+    color: #fff;
+    transform: scale(1.2);
 }
 
 .content-wrapper {
