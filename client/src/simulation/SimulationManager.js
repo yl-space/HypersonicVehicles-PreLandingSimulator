@@ -490,7 +490,8 @@ export class SimulationManager {
             this.phaseController.phases[this.state.currentPhase],
             enhancedVehicleData,
             this.state.currentTime,
-            this.state.totalTime
+            this.state.totalTime,
+            this.state.bankAngle
         );
     }
     
