@@ -17,11 +17,15 @@ export class PhaseInfo {
         this.showingPlots = false;
         
         // Data arrays for plots
+        this.dataLimit = null; // No limit by default, can be set to a number to limit data points
         this.timeData = [];
         this.distanceData = [];
         this.altitudeData = [];
         this.velocityData = [];
         this.bankAngleData = [];
+
+        this.isReplayMode = false;
+        this.currentTime = 0;
         
         this.init();
     }
@@ -29,15 +33,33 @@ export class PhaseInfo {
     init() {
         this.createDOM();
     }
+
+    reset() {
+        this.isReplayMode = false;
+        this.timeData = [];
+        this.distanceData = [];
+        this.altitudeData = [];
+        this.velocityData = [];
+        this.bankAngleData = [];
+        this.currentTime = 0;
+    }
+
+    setReplayMode(isReplay) {
+        this.isReplayMode = isReplay;
+    }
     
     createDOM() {
         const html = `
-            <div class="swap-icon" id="swap-icon" title="Toggle between telemetry and plots">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="17 1 21 5 17 9"></polyline>
-                    <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
-                    <polyline points="7 23 3 19 7 15"></polyline>
-                    <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+            <div class="swap-icon" id="swap-icon" title="Show plots">
+                <svg class="icon-chart" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+                <svg class="icon-info" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="15" y2="12"></line>
+                    <line x1="3" y1="18" x2="18" y2="18"></line>
                 </svg>
             </div>
             
@@ -142,7 +164,9 @@ export class PhaseInfo {
             swapIcon: document.getElementById('swap-icon'),
             telemetryView: document.getElementById('telemetry-view'),
             plotsView: document.getElementById('plots-view'),
-            plotsContainer: document.getElementById('plots-container')
+            plotsContainer: document.getElementById('plots-container'),
+            iconChart: this.options.container.querySelector('.icon-chart'),
+            iconInfo: this.options.container.querySelector('.icon-info')
         };
         
         // Add swap icon event listener
@@ -154,12 +178,20 @@ export class PhaseInfo {
         this.showingPlots = !this.showingPlots;
         
         if (this.showingPlots) {
+            // Showing plots - display info/text icon
             this.elements.telemetryView.style.display = 'none';
             this.elements.plotsView.style.display = 'block';
+            this.elements.iconChart.style.display = 'none';
+            this.elements.iconInfo.style.display = 'block';
+            this.elements.swapIcon.title = 'Show telemetry';
             this.updatePlots();
         } else {
+            // Showing telemetry - display chart/plot icon
             this.elements.telemetryView.style.display = 'block';
             this.elements.plotsView.style.display = 'none';
+            this.elements.iconChart.style.display = 'block';
+            this.elements.iconInfo.style.display = 'none';
+            this.elements.swapIcon.title = 'Show plots';
         }
     }
     
@@ -168,9 +200,10 @@ export class PhaseInfo {
         
         // Clear previous plots
         this.elements.plotsContainer.innerHTML = '';
-        
+
         // Prepare data for plots
-        const plotData = this.timeData.map((time, i) => ({
+        const timeData = this.isReplayMode ? this.timeData.filter(time => time <= this.currentTime) : this.timeData;
+        const plotData = timeData.map((time, i) => ({
             time: time,
             distance: this.distanceData[i],
             altitude: this.altitudeData[i],
@@ -178,7 +211,7 @@ export class PhaseInfo {
             bankAngle: this.bankAngleData[i]
         }));
 
-        const totalHeight = 500; // Total height for all three plots
+        const totalHeight = 500; 
         const plotHeight = totalHeight / 4;
         
         // Distance plot
@@ -388,22 +421,27 @@ export class PhaseInfo {
                 if ((isNaN(distanceMiles) || isNaN(altitudeMiles) || isNaN(velocityMph)) || (distanceMiles === 0 && altitudeMiles === 0 && velocityMph === 0)) {
                     return;
                 }
-                
-                this.timeData.push(currentTime);
-                this.distanceData.push(distanceMiles);
-                this.altitudeData.push(altitudeMiles);
-                this.velocityData.push(Math.round(velocityMph));
-                this.bankAngleData.push(isNaN(bankAngle) ? 0 : bankAngle);
-                
-                // Limit data arrays to last 500 points to avoid memory issues
-                if (this.timeData.length > 500) {
-                    this.timeData.shift();
-                    this.distanceData.shift();
-                    this.altitudeData.shift();
-                    this.velocityData.shift();
-                    this.bankAngleData.shift();
+
+                if (!this.isReplayMode) {
+                    this.timeData.push(currentTime);
+                    this.distanceData.push(distanceMiles);
+                    this.altitudeData.push(altitudeMiles);
+                    this.velocityData.push(Math.round(velocityMph));
+                    this.bankAngleData.push(isNaN(bankAngle) ? 0 : bankAngle);
+                    
+                    if (this.dataLimit && this.timeData.length > this.dataLimit) {
+                        this.timeData.shift();
+                        this.distanceData.shift();
+                        this.altitudeData.shift();
+                        this.velocityData.shift();
+                        this.bankAngleData.shift();
+                    }
                 }
             }
+        }
+
+        if (this.isReplayMode) {
+            this.currentTime = currentTime;
         }
         
         // Update plots if showing

@@ -619,6 +619,11 @@ export class SimulationManager {
             this.trajectoryManager.resetToOriginal();
         }
 
+        // Reset phase info
+        if (this.phaseInfo) {
+            this.phaseInfo.reset();
+        }
+
         // Reset vehicle position
         this.updateSimulation(0);
     }
@@ -837,6 +842,10 @@ export class SimulationManager {
         if (this.timeline) {
             this.timeline.setScrubbingEnabled(true);
             this.timeline.setReplayAvailable(true);
+        }
+
+        if (this.phaseInfo) {
+            this.phaseInfo.setReplayMode(true);
         }
 
         if (this.options.onSimulationComplete) {
