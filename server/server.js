@@ -52,10 +52,10 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://www.googletagmanager.com", "https://esm.sh"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://www.googletagmanager.com", "https://esm.sh", "https://cdn.jsdelivr.net"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", "data:", "blob:", "https:"],
-            connectSrc: ["'self'", "https://unpkg.com", "https://www.google-analytics.com", "https://esm.sh"],
+            connectSrc: ["'self'", "https://unpkg.com", "https://www.google-analytics.com", "https://esm.sh", "https://cdn.jsdelivr.net"],
             fontSrc: ["'self'", "data:"],
             objectSrc: ["'none'"],
             mediaSrc: ["'self'"],
