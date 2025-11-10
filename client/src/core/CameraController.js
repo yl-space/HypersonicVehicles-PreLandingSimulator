@@ -447,7 +447,7 @@ export class CameraController {
     handleResize() {
         // Camera aspect ratio is handled by the renderer
     }
-    
+
     reset() {
         // Reset camera to J2000-aware position
         // This ensures the camera looks toward the correct hemisphere where the trajectory is

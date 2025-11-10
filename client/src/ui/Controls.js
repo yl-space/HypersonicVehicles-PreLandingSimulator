@@ -71,6 +71,7 @@ export class Controls {
                     <input type="range" min="-90" max="90" value="0" step="1" class="bank-slider" id="bank-angle-slider">
                     <span class="bank-angle-value" id="bank-angle-value">0°</span>
                 </div>
+                <p class="bank-angle-status" id="bank-angle-status" aria-live="polite"></p>
             </div>
         `;
         
@@ -96,6 +97,7 @@ export class Controls {
         this.elements.bankAngleControls = container;
         this.elements.bankAngleSlider = slider;
         this.elements.bankAngleValue = valueLabel;
+        this.elements.bankAngleStatus = container.querySelector('#bank-angle-status');
     }
 
     updateBankAngleRelative(adjustment) {
@@ -144,7 +146,27 @@ export class Controls {
         this.elements.zoomControls = container;
         this.elements.zoomLevel = container.querySelector('#zoom-level');
     }
-    
+
+    getCameraControlsElement() {
+        return this.elements.cameraControls;
+    }
+
+    setBankAngleEnabled(enabled, message = '') {
+        const slider = this.elements.bankAngleSlider;
+        const status = this.elements.bankAngleStatus;
+        if (!slider) return;
+
+        slider.disabled = !enabled;
+        if (this.elements.bankAngleControls) {
+            this.elements.bankAngleControls.classList.toggle('disabled', !enabled);
+        }
+
+        if (status) {
+            status.textContent = message;
+            status.style.display = message ? 'block' : 'none';
+        }
+    }
+
     createSettingsPanel() {
         const container = document.createElement('div');
         container.className = 'settings-panel';
@@ -265,7 +287,6 @@ export class Controls {
                     <dt>↑/↓</dt><dd>Zoom In/Out</dd>
                     <dt>A/D</dt><dd>Adjust Bank Angle</dd>
                     <dt>V</dt><dd>Toggle Vectors</dd>
-                    <dt>R</dt><dd>Restart Simulation</dd>
                     <dt>F</dt><dd>Fullscreen</dd>
                     <dt>S</dt><dd>Toggle Settings</dd>
                     <dt>?</dt><dd>Toggle Help</dd>
