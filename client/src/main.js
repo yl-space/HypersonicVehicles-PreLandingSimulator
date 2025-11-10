@@ -43,7 +43,7 @@ async function init() {
             
             onSimulationComplete: () => {
                 console.log('Simulation complete!');
-                showCompletionDialog();
+                showCompletionToast();
             }
         });
         
@@ -222,61 +222,34 @@ function hasSeenWelcome() {
 /**
  * Show completion dialog
  */
-function showCompletionDialog() {
-    const dialog = document.createElement('div');
-    dialog.className = 'completion-dialog';
+function showCompletionToast() {
+    if (document.querySelector('.completion-toast')) {
+        return;
+    }
 
-    // Get customization data from the simulation
-    const hasCustomBanking = window.MarsEDL.simulation?.state?.bankingHistory?.length > 0;
-    const rerunButtonText = hasCustomBanking ? 'Rerun with Your Adjustments' : 'Rerun Simulation';
-
-    dialog.innerHTML = `
-        <div class="dialog-overlay"></div>
-        <div class="dialog-content">
-            <h2>🎉 Landing Successful!</h2>
-            <p>The spacecraft has successfully completed its entry, descent, and landing sequence.</p>
-
-            <div class="completion-stats">
-                <div class="stat">
-                    <span class="stat-label">Total Time</span>
-                    <span class="stat-value">4:20</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Max Velocity</span>
-                    <span class="stat-value">19,300 km/h</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Peak G-Force</span>
-                    <span class="stat-value">8.2g</span>
-                </div>
-                ${hasCustomBanking ? `
-                <div class="stat">
-                    <span class="stat-label">Banking Adjustments</span>
-                    <span class="stat-value">${window.MarsEDL.simulation.state.bankingHistory.length}</span>
-                </div>
-                ` : ''}
-            </div>
-
-            <div class="dialog-actions">
-                <button class="btn-primary" id="rerun-btn">${rerunButtonText}</button>
-                <button class="btn-secondary" id="export-btn">Export Data</button>
-            </div>
-
-            ${hasCustomBanking ? `
-            <div class="rerun-info">
-                <small>Your banking angle adjustments will be replayed in the rerun</small>
-            </div>
-            ` : ''}
-        </div>
+    const toast = document.createElement('div');
+    toast.className = 'completion-toast';
+    toast.innerHTML = `
+        <span>Trajectory complete. Use Reset to replay with full controls.</span>
+        <button type="button" aria-label="Dismiss completion message">Dismiss</button>
     `;
+    const dismissBtn = toast.querySelector('button');
+    dismissBtn.addEventListener('click', () => toast.remove());
 
-    document.body.appendChild(dialog);
-    // CSP-safe event handlers
-    setTimeout(() => dialog.classList.add('visible'), 100);
-    const rerunBtn = document.getElementById('rerun-btn');
-    if (rerunBtn) rerunBtn.addEventListener('click', () => window.rerunSimulationWithHistory());
-    const exportBtn = document.getElementById('export-btn');
-    if (exportBtn) exportBtn.addEventListener('click', () => window.exportTelemetry());
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+        });
+    }, 0);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 6000);
 }
 
 /**
@@ -378,26 +351,6 @@ function setupPerformanceMonitor() {
 /**
  * Rerun simulation with banking history
  */
-window.rerunSimulationWithHistory = function() {
-    if (window.MarsEDL.simulation) {
-        // Store the banking history before resetting
-        const bankingHistory = window.MarsEDL.simulation.state.bankingHistory || [];
-
-        // Reset simulation to beginning
-        window.MarsEDL.simulation.resetToStart(bankingHistory);
-
-        // Start playing
-        window.MarsEDL.simulation.play();
-
-        // Close dialog
-        const dialog = document.querySelector('.completion-dialog');
-        if (dialog) {
-            dialog.classList.remove('visible');
-            setTimeout(() => dialog.remove(), 300);
-        }
-    }
-};
-
 /**
  * Export telemetry data
  */

@@ -862,12 +862,20 @@ export class EntryVehicle {
         // Load new model based on selection
         switch (modelName) {
             case 'primary':
-                const primaryModel = ModelSelector.getPrimaryModel();
-                await this.loadGLTFModel(primaryModel.filename);
+                {
+                    const primaryModel = ModelSelector.getPrimaryModel();
+                    this.useGLTF = true;
+                    this.modelMetadata = primaryModel;
+                    await this.loadGLTFModel(primaryModel.filename);
+                }
                 break;
             case 'backup':
-                const backupModel = ModelSelector.getBackupModel();
-                await this.loadGLTFModel(backupModel.filename);
+                {
+                    const backupModel = ModelSelector.getBackupModel();
+                    this.useGLTF = true;
+                    this.modelMetadata = backupModel;
+                    await this.loadGLTFModel(backupModel.filename);
+                }
                 break;
             case 'cone':
             default:

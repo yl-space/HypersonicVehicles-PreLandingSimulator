@@ -193,9 +193,6 @@
         // Import main application
         import("./src/main.js").then((module) => {
             console.log('Main module loaded successfully:', module);
-<<<<<<< HEAD
-            // Main.js will handle hiding the loading screen and initializing zoom controls
-=======
             // Main.js will handle hiding the loading screen
             
             // Add zoom control functionality
@@ -266,7 +263,6 @@
                     console.error('MarsEDL simulation not found');
                 }
             }, 3000); // Wait for simulation to initialize
->>>>>>> 66f9e5aa3b6dca54446c9e750d7818dddd7168d6
         }).catch(error => {
             console.error('Failed to load application:', error);
             document.getElementById('loading-screen').innerHTML = `

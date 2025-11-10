@@ -197,6 +197,16 @@ export class TrajectoryManager {
             this.trajectoryLine = null;
         }
 
+        // CRITICAL: Hide past/future lines to prevent multiple trajectory display
+        // When trajectory is modified (e.g., bank angle change), we show the full new trajectory
+        // and hide the old past/future line system to avoid overlapping visualizations
+        if (this.pastLine) {
+            this.pastLine.visible = false;
+        }
+        if (this.futureLine) {
+            this.futureLine.visible = false;
+        }
+
         // Create Float32Array for positions (more efficient)
         const positions = new Float32Array(this.trajectoryData.length * 3);
 
@@ -269,6 +279,18 @@ export class TrajectoryManager {
     
     updateTrajectoryDisplay(currentTime) {
         if (this.trajectoryData.length < 2) return;
+
+        // CRITICAL: Switch to past/future line visualization during normal playback
+        // Hide the white optimized trajectory line and show the dynamic past/future lines
+        if (this.trajectoryLine) {
+            this.trajectoryLine.visible = false;
+        }
+        if (this.pastLine) {
+            this.pastLine.visible = true;
+        }
+        if (this.futureLine) {
+            this.futureLine.visible = true;
+        }
 
         // Find current position in trajectory
         let currentIndex = 0;

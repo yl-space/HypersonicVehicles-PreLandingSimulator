@@ -5,34 +5,44 @@ export class Timeline {
             totalTime: 260.65,
             onTimeUpdate: () => {},
             onPlayPause: () => {},
+            onSpeedChange: null,
+            onReset: () => {},
             ...options
         };
-        
+
         this.elements = {};
         this.state = {
             currentTime: 0,
             isPlaying: false,
             isScrubbing: false,
-            playbackSpeed: 1
+            playbackSpeed: 1,
+            scrubbingEnabled: false
         };
-        
+
+        this.activePointerId = null;
+        this.phaseData = null;
+
         this.init();
     }
-    
+
     init() {
         this.createDOM();
         this.setupEventListeners();
+        this.setScrubbingEnabled(false);
     }
-    
+
     createDOM() {
         const html = `
             <div class="timeline-controls">
+                <button class="timeline-reset-button" id="timeline-reset" disabled>
+                    Reset
+                </button>
                 <button class="play-button" id="play-button">
                     <svg width="24" height="24" viewBox="0 0 24 24">
-                        <path class="play-icon" d="M8 5v14l11-7z" fill="currentColor"/>
+                        <path class="play-icon" d="M8 5v14l11-7z" fill="currentColor"></path>
                         <g class="pause-icon" style="display: none;">
-                            <rect x="6" y="4" width="4" height="16" fill="currentColor"/>
-                            <rect x="14" y="4" width="4" height="16" fill="currentColor"/>
+                            <rect x="6" y="4" width="4" height="16" fill="currentColor"></rect>
+                            <rect x="14" y="4" width="4" height="16" fill="currentColor"></rect>
                         </g>
                     </svg>
                 </button>
@@ -54,104 +64,211 @@ export class Timeline {
                 </div>
             </div>
 
-            <div class="timeline-progress-bar" id="timeline-progress-bar">
+            <div class="timeline-progress-bar is-disabled" id="timeline-progress-bar" aria-disabled="true">
                 <div class="timeline-track">
                     <div class="timeline-progress" id="timeline-progress"></div>
+                    <div class="timeline-handle" id="timeline-handle"></div>
                     <div class="timeline-markers" id="timeline-markers"></div>
+                </div>
+                <div class="timeline-tooltip" id="timeline-tooltip">
+                    <span class="tooltip-time">00:00</span>
+                    <span class="tooltip-phase"></span>
                 </div>
             </div>
         `;
-        
+
         this.options.container.innerHTML = html;
-        
-        // Cache elements
+
         this.elements = {
-            playButton: document.getElementById('play-button'),
+            playButton: this.options.container.querySelector('#play-button'),
             playIcon: this.options.container.querySelector('.play-icon'),
             pauseIcon: this.options.container.querySelector('.pause-icon'),
-            currentTime: document.getElementById('current-time'),
-            rateButtons: document.getElementById('rate-buttons'),
-            progressBar: document.getElementById('timeline-progress-bar'),
-            progress: document.getElementById('timeline-progress'),
-            markers: document.getElementById('timeline-markers')
+            currentTime: this.options.container.querySelector('#current-time'),
+            rateButtons: this.options.container.querySelector('#rate-buttons'),
+            progressBar: this.options.container.querySelector('#timeline-progress-bar'),
+            progress: this.options.container.querySelector('#timeline-progress'),
+            handle: this.options.container.querySelector('#timeline-handle'),
+            markers: this.options.container.querySelector('#timeline-markers'),
+            tooltip: this.options.container.querySelector('#timeline-tooltip'),
+            tooltipTime: this.options.container.querySelector('.tooltip-time'),
+            tooltipPhase: this.options.container.querySelector('.tooltip-phase'),
+            scrubber: this.options.container.querySelector('.timeline-track'),
+            resetButton: this.options.container.querySelector('#timeline-reset')
         };
-        
+
+        if (this.elements.handle) {
+            this.elements.handle.setAttribute('role', 'slider');
+            this.elements.handle.setAttribute('aria-label', 'Playback position');
+            this.elements.handle.setAttribute('aria-valuemin', '0');
+            this.elements.handle.setAttribute('aria-valuemax', String(this.options.totalTime));
+            this.elements.handle.setAttribute('aria-valuenow', '0');
+            this.elements.handle.setAttribute('tabindex', '-1');
+            this.elements.handle.setAttribute('aria-disabled', 'true');
+        }
     }
-    
+
     setupEventListeners() {
-        // Play/pause button
         this.elements.playButton.addEventListener('click', () => {
             this.options.onPlayPause();
         });
 
-        // Playback speed buttons
-        this.elements.rateButtons.addEventListener('click', (e) => {
-            if (e.target.classList.contains('rate-button')) {
-                // Remove active class from all buttons
-                this.elements.rateButtons.querySelectorAll('.rate-button').forEach(btn => {
-                    btn.classList.remove('active');
-                });
+        if (this.elements.resetButton) {
+            this.elements.resetButton.addEventListener('click', () => {
+                if (this.elements.resetButton.disabled) return;
+                if (typeof this.options.onReset === 'function') {
+                    this.options.onReset();
+                }
+            });
+        }
 
-                // Add active class to clicked button
-                e.target.classList.add('active');
-
-                // Update playback speed
-                this.state.playbackSpeed = parseFloat(e.target.dataset.rate);
-                if (this.options.onSpeedChange) {
+        this.elements.rateButtons.addEventListener('click', (event) => {
+            if (event.target.classList.contains('rate-button')) {
+                this.elements.rateButtons.querySelectorAll('.rate-button')
+                    .forEach(btn => btn.classList.remove('active'));
+                event.target.classList.add('active');
+                this.state.playbackSpeed = parseFloat(event.target.dataset.rate);
+                if (typeof this.options.onSpeedChange === 'function') {
                     this.options.onSpeedChange(this.state.playbackSpeed);
                 }
             }
         });
 
-        // No scrubbing or replay allowed - user can only watch the simulation progress
+        const progressBar = this.elements.progressBar;
+        progressBar.addEventListener('pointerdown', (event) => this.handlePointerDown(event));
+        progressBar.addEventListener('pointermove', (event) => this.handlePointerMove(event));
+        progressBar.addEventListener('pointerup', (event) => this.handlePointerUp(event));
+        progressBar.addEventListener('pointercancel', (event) => this.handlePointerUp(event));
+        progressBar.addEventListener('pointerleave', () => this.handlePointerLeave());
 
-        // Keyboard shortcuts (only space for play/pause)
-        document.addEventListener('keydown', (e) => {
-            if (e.key === ' ') {
-                e.preventDefault();
+        if (this.elements.handle) {
+            this.elements.handle.addEventListener('keydown', (event) => this.handleHandleKeydown(event));
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === ' ') {
+                event.preventDefault();
                 this.options.onPlayPause();
             }
         });
     }
-    
-    updateTimeFromEvent(e) {
-        const rect = this.elements.scrubber.getBoundingClientRect();
-        const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-        const percentage = x / rect.width;
-        const time = percentage * this.options.totalTime;
-        
-        this.options.onTimeUpdate(time);
+
+    handlePointerDown(event) {
+        if (!this.state.scrubbingEnabled) return;
+
+        this.state.isScrubbing = true;
+        this.activePointerId = event.pointerId;
+        this.elements.progressBar.classList.add('scrubbing');
+        this.elements.progressBar.setPointerCapture?.(event.pointerId);
+        this.scrubToEvent(event);
     }
-    
-    updateTooltip(e) {
-        const rect = this.elements.scrubber.getBoundingClientRect();
-        const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-        const percentage = x / rect.width;
-        const time = percentage * this.options.totalTime;
-        
-        // Position tooltip
-        this.elements.tooltip.style.left = `${x}px`;
-        
-        // Update tooltip content
-        const minutes = Math.floor(time / 60);
-        const seconds = Math.floor(time % 60);
-        const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        this.elements.tooltip.querySelector('.tooltip-time').textContent = timeStr;
-        
-        // Add phase info if available
-        if (this.phaseData) {
-            const phase = this.getPhaseAtTime(time);
-            if (phase) {
-                this.elements.tooltip.querySelector('.tooltip-phase').textContent = phase.name;
-            }
+
+    handlePointerMove(event) {
+        if (!this.state.scrubbingEnabled) return;
+
+        if (this.state.isScrubbing && event.pointerId === this.activePointerId) {
+            event.preventDefault();
+            this.scrubToEvent(event);
+        } else {
+            this.updateHoverTooltip(event.clientX);
         }
     }
-    
+
+    handlePointerUp(event) {
+        if (!this.state.isScrubbing || event.pointerId !== this.activePointerId) return;
+
+        this.scrubToEvent(event);
+        this.state.isScrubbing = false;
+        this.activePointerId = null;
+        this.elements.progressBar.classList.remove('scrubbing');
+        this.elements.progressBar.releasePointerCapture?.(event.pointerId);
+        this.hideTooltip();
+    }
+
+    handlePointerLeave() {
+        if (!this.state.isScrubbing) {
+            this.hideTooltip();
+        }
+    }
+
+    handleHandleKeydown(event) {
+        if (!this.state.scrubbingEnabled) return;
+
+        let delta = 0;
+        const fineStep = event.shiftKey ? 5 : 1;
+
+        if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+            delta = fineStep;
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+            delta = -fineStep;
+        } else if (event.key === 'Home') {
+            this.scrubToTime(0);
+            event.preventDefault();
+            return;
+        } else if (event.key === 'End') {
+            this.scrubToTime(this.options.totalTime);
+            event.preventDefault();
+            return;
+        } else {
+            return;
+        }
+
+        event.preventDefault();
+        this.scrubToTime(this.state.currentTime + delta);
+    }
+
+    scrubToEvent(event) {
+        const { offset, time } = this.getRelativePosition(event.clientX);
+        this.showTooltip(offset, time);
+        this.scrubToTime(time);
+    }
+
+    scrubToTime(time) {
+        const clamped = Math.max(0, Math.min(time, this.options.totalTime));
+        this.state.currentTime = clamped;
+        this.renderScrubPosition(clamped);
+        if (typeof this.options.onTimeUpdate === 'function') {
+            this.options.onTimeUpdate(clamped);
+        }
+    }
+
+    getRelativePosition(clientX) {
+        const rect = this.elements.scrubber.getBoundingClientRect();
+        const offset = Math.max(0, Math.min(clientX - rect.left, rect.width));
+        const fraction = rect.width ? offset / rect.width : 0;
+        return {
+            offset,
+            time: fraction * this.options.totalTime
+        };
+    }
+
+    updateHoverTooltip(clientX) {
+        if (!this.elements.tooltip || !this.state.scrubbingEnabled) return;
+        const { offset, time } = this.getRelativePosition(clientX);
+        this.showTooltip(offset, time);
+    }
+
+    showTooltip(offset, time) {
+        if (!this.elements.tooltip) return;
+        this.elements.tooltip.style.left = `${offset}px`;
+        this.elements.tooltip.classList.add('visible');
+        this.elements.tooltipTime.textContent = this.formatRelativeTime(time);
+
+        if (this.phaseData) {
+            const phase = this.getPhaseAtTime(time);
+            this.elements.tooltipPhase.textContent = phase ? phase.name : '';
+        }
+    }
+
+    hideTooltip() {
+        if (this.elements.tooltip) {
+            this.elements.tooltip.classList.remove('visible');
+        }
+    }
+
     update(currentTime, isPlaying) {
         this.state.currentTime = currentTime;
         this.state.isPlaying = isPlaying;
-        
-        // Update play button
+
         if (isPlaying) {
             this.elements.playIcon.style.display = 'none';
             this.elements.pauseIcon.style.display = 'block';
@@ -161,19 +278,29 @@ export class Timeline {
             this.elements.pauseIcon.style.display = 'none';
             this.elements.playButton.classList.remove('playing');
         }
-        
-        // Update progress bar (non-interactive, display only)
-        const progress = (currentTime / this.options.totalTime) * 100;
-        this.elements.progress.style.width = `${progress}%`;
-        
-        // Update time display
-        this.updateTimeDisplay(currentTime);
+
+        this.renderScrubPosition(currentTime);
     }
-    
+
+    renderScrubPosition(time) {
+        const clamped = Math.max(0, Math.min(time, this.options.totalTime));
+        const percentage = this.options.totalTime
+            ? (clamped / this.options.totalTime) * 100
+            : 0;
+
+        this.elements.progress.style.width = `${percentage}%`;
+        if (this.elements.handle) {
+            this.elements.handle.style.left = `${percentage}%`;
+            this.elements.handle.setAttribute('aria-valuenow', clamped.toFixed(2));
+        }
+
+        this.updateTimeDisplay(clamped);
+    }
+
     updateTimeDisplay(time) {
         const date = new Date('2021-02-18T15:48:41');
         date.setSeconds(date.getSeconds() + time);
-        
+
         const timeStr = date.toLocaleString('en-US', {
             month: 'short',
             day: 'numeric',
@@ -183,20 +310,31 @@ export class Timeline {
             second: '2-digit',
             hour12: true
         });
-        
+
         this.elements.currentTime.textContent = timeStr;
     }
-    
+
+    formatRelativeTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
     setPhases(phases) {
         this.phaseData = phases;
         this.addPhaseMarkers();
     }
-    
+
     addPhaseMarkers() {
+        if (!this.elements.markers) return;
         this.elements.markers.innerHTML = '';
-        
+
+        if (!this.phaseData) return;
+
         this.phaseData.forEach(phase => {
-            const percentage = (phase.time / this.options.totalTime) * 100;
+            const percentage = this.options.totalTime
+                ? (phase.time / this.options.totalTime) * 100
+                : 0;
             const marker = document.createElement('div');
             marker.className = 'timeline-marker';
             marker.style.left = `${percentage}%`;
@@ -204,37 +342,71 @@ export class Timeline {
             this.elements.markers.appendChild(marker);
         });
     }
-    
+
     getPhaseAtTime(time) {
-        if (!this.phaseData) return null;
-        
+        if (!this.phaseData || this.phaseData.length === 0) return null;
+
         for (let i = this.phaseData.length - 1; i >= 0; i--) {
             if (time >= this.phaseData[i].time) {
                 return this.phaseData[i];
             }
         }
-        
         return this.phaseData[0];
     }
-    
+
     setPlaying(playing) {
         this.state.isPlaying = playing;
     }
-    
+
     setTime(time) {
-        this.state.currentTime = time;
-        this.update(time, this.state.isPlaying);
+        this.state.currentTime = Math.max(0, Math.min(time, this.options.totalTime));
+        this.renderScrubPosition(this.state.currentTime);
     }
-    
+
     setPlaybackSpeed(speed) {
         this.state.playbackSpeed = speed;
-        
-        // Update active button
         this.elements.rateButtons.querySelectorAll('.rate-button').forEach(btn => {
-            btn.classList.remove('active');
-            if (parseFloat(btn.dataset.rate) === speed) {
-                btn.classList.add('active');
-            }
+            btn.classList.toggle('active', parseFloat(btn.dataset.rate) === speed);
         });
+    }
+
+    setScrubbingEnabled(enabled) {
+        this.state.scrubbingEnabled = enabled;
+
+        if (this.elements.progressBar) {
+            this.elements.progressBar.classList.toggle('is-disabled', !enabled);
+            this.elements.progressBar.setAttribute('aria-disabled', String(!enabled));
+        }
+
+        if (this.elements.handle) {
+            this.elements.handle.setAttribute('tabindex', enabled ? '0' : '-1');
+            this.elements.handle.setAttribute('aria-disabled', String(!enabled));
+        }
+
+        if (!enabled) {
+            this.state.isScrubbing = false;
+            this.activePointerId = null;
+            if (this.elements.progressBar) {
+                this.elements.progressBar.classList.remove('scrubbing');
+            }
+            this.hideTooltip();
+        }
+    }
+
+    setTotalTime(totalTime) {
+        this.options.totalTime = totalTime;
+        if (this.elements.handle) {
+            this.elements.handle.setAttribute('aria-valuemax', String(totalTime));
+        }
+        if (this.phaseData) {
+            this.addPhaseMarkers();
+        }
+        this.state.currentTime = Math.min(this.state.currentTime, totalTime);
+        this.renderScrubPosition(this.state.currentTime);
+    }
+
+    setReplayAvailable(isAvailable) {
+        if (!this.elements.resetButton) return;
+        this.elements.resetButton.disabled = !isAvailable;
     }
 }
