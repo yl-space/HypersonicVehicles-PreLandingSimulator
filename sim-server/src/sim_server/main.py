@@ -7,11 +7,13 @@ import os
 from pathlib import Path
 
 from src.sim_server.server_helpers import log_timing, parse_simulation_params, serialize_simulation_results
-from src.sim_server.constants.schemas import PlanetParams, InitParams, VehicleParams, ControlParams
+from src.sim_server.constants.schemas import PlanetParams, InitParams, SphericalInitParams, CartesianInitParams, VehicleParams, ControlParams
+from src.sim_server.constants.defaults import DEFAULT_INIT
 from src.sim_server.OP.main import high_fidelity_simulation
+from src.sim_server.OP.coordinates import Cartesian_to_Spherical
 
 DEFAULT_HOST = "0.0.0.0"
-DEFAULT_PORT = 3010
+DEFAULT_PORT = 8000
 
 LOG_CONFIG = Path(__file__).parent / "log.ini"
 
@@ -40,7 +42,7 @@ async def health_check():
 @log_timing
 async def simulate_high_fidelity(
     planet: PlanetParams = PlanetParams(),
-    init: InitParams = InitParams(),
+    init: InitParams = SphericalInitParams(**DEFAULT_INIT),
     vehicle: VehicleParams = VehicleParams(),
     control: ControlParams = ControlParams(),
     serialize_arrow: bool = False

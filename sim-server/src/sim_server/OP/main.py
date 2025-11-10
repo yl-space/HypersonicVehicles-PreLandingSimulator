@@ -4,6 +4,7 @@ from scipy.integrate import solve_ivp
 import time as _time
 
 from src.sim_server.OP.entryeoms import entryeoms
+from src.sim_server.OP.coordinates import Cartesian_to_Spherical
 
 #secondary functions: I need to move them to seprate files and import for calrity probably
 
@@ -35,9 +36,6 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
     Returns:
         Dictionary with simulation results including time, position, and velocity arrays.
     """
-
-    # conver the input into Spherical coordinates
-    #if input_type == "Cartesian":
 
     t0 = _time.time()
     
@@ -154,7 +152,7 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
 
     if return_states:
         return {
-            'time_s': time_array,
+            'time_s': time_array + init.get("start_time_s", 0.0),
             'states': states,
             'pos_inertial': pos_inertial,
             'vel_inertial': vel_inertial,
@@ -162,7 +160,7 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
 
     # Return the results
     return {
-        'time_s': time_array,
+        'time_s': time_array + init.get("start_time_s", 0.0),
         'x_m': pos_inertial[:, 0],
         'y_m': pos_inertial[:, 1], 
         'z_m': pos_inertial[:, 2],
@@ -216,61 +214,20 @@ if __name__ == "__main__":
     # "psi0": np.deg2rad(0),
     # }
     bank_angle_input = {
-    "bank_angle": np.deg2rad(30.0), # [rad] Bank Angle 
+        "bank_angle": np.deg2rad(30.0), # [rad] Bank Angle 
     }
 
     # I will use the example point along the trajectory which is approximatelly number 10000 out of 16157
     # if the bank angle input remains the same, the final error should remain the same, as documented in pptx
 
     point_of_input_Cartesian = {
-    "x": 1.205532181396078e+06,
-    "y": -2.796002637077214e+06,
-    "z": 1.558152803402915e+06,
-    "vx": 7.762841024785303e+02,
-    "vy": 4.340321796247736e+02,
-    "vz": 0.882049683132209e+02,
+        "x": 1.205532181396078e+06,
+        "y": -2.796002637077214e+06,
+        "z": 1.558152803402915e+06,
+        "vx": 7.762841024785303e+02,
+        "vy": 4.340321796247736e+02,
+        "vz": 0.882049683132209e+02,
     }
-
-    def DCM_ENU_2_ECEF(theta: float, phi: float) -> np.ndarray:
-        """Calculate the Direction Cosine Matrix from ENU to ECEF.
-        
-        Args:
-            theta: Longitude [rad]
-            phi: Latitude [rad]
-        Returns:
-            Direction Cosine Matrix from ENU to ECEF
-        """
-        return np.array([[-np.sin(theta), -np.cos(theta)*np.sin(phi), np.cos(theta)*np.cos(phi)],
-                         [np.cos(theta), -np.sin(theta)*np.sin(phi), np.cos(phi)*np.sin(theta)],
-                         [0, np.cos(phi), np.sin(phi)]])
-
-    def Cartesian_to_Spherical(Cartesian_point: dict) -> dict:
-        """Convert Cartesian coordinates to spherical coordinates with the velocity direction components.
-        
-        Args:
-            Cartesian_point: Dictionary containing Cartesian coordinates [x, y, z] and velocity components [vx, vy, vz]
-        Returns:
-            Dictionary containing spherical coordinates [r, theta, phi] and velocity components [V, psi, gamma]
-        """
-        r = np.sqrt(Cartesian_point["x"]**2 + Cartesian_point["y"]**2 + Cartesian_point["z"]**2)
-        theta = np.arctan2(Cartesian_point["y"], Cartesian_point["x"])
-        phi = np.pi/2 - np.acos(Cartesian_point["z"] / r)
-        V_mag = np.sqrt(Cartesian_point["vx"]**2 + Cartesian_point["vy"]**2 + Cartesian_point["vz"]**2)
-        r_hat = np.array([Cartesian_point["x"], Cartesian_point["y"], Cartesian_point["z"]]) / r
-        V_r = np.dot(np.array([Cartesian_point["vx"], Cartesian_point["vy"], Cartesian_point["vz"]]), r_hat)
-        V_theta = np.sqrt(V_mag**2 - V_r**2)
-        gamma = np.arctan2(V_r, V_theta)
-        DCM_ENU_2_ECEF_value = DCM_ENU_2_ECEF(theta, phi)
-        V_ENU = DCM_ENU_2_ECEF_value.T @ np.array([Cartesian_point["vx"], Cartesian_point["vy"], Cartesian_point["vz"]])
-        psi = np.arctan2(V_ENU[1], V_ENU[0])
-        return {
-            "r": r,
-            "theta": theta,
-            "phi": phi,
-            "V": V_mag,
-            "psi": psi,
-            "gamma": gamma,
-        }
 
     point_of_input_Spherical = Cartesian_to_Spherical(point_of_input_Cartesian)
     new_init = {

@@ -98,7 +98,7 @@ export class SimulationManager {
 
         // Initialize backend-only trajectory service
         this.trajectoryService = new TrajectoryService({
-            backendUrl: config.get('dataSource.backendUrl') || 'http://localhost:3010',
+            backendUrl: config.get('dataSource.backendUrl') || 'http://localhost:3001',
             timeout: 30000
         });
         
@@ -307,7 +307,7 @@ export class SimulationManager {
             console.log('[SimulationManager] Backend status:', backendStatus);
 
             if (!backendStatus.available) {
-                throw new Error(`Backend server not available at ${backendStatus.backendUrl}. Please start the sim-server on port 3010.`);
+                throw new Error(`Backend server not available at ${backendStatus.backendUrl}. Please start the sim-server on port 3001 (proxied through Express server).`);
             }
 
             // Load initial trajectory with default parameters (bank angle = 0)
@@ -352,7 +352,7 @@ export class SimulationManager {
 
         } catch (error) {
             console.error('[SimulationManager] Error loading data:', error);
-            alert(`Failed to load trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3010.`);
+            alert(`Failed to load trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3001 (proxied through Express server).`);
             throw error;  // Re-throw to prevent app from running without data
         }
     }
@@ -750,7 +750,7 @@ export class SimulationManager {
             }
         } catch (error) {
             console.error('[SimulationManager] Error applying bank angle physics:', error);
-            alert(`Failed to recalculate trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3010.`);
+            alert(`Failed to recalculate trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3001 (proxied through Express server).`);
         } finally {
             this._bankAngleUpdateInProgress = false;
         }
