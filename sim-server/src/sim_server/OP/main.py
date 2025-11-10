@@ -52,7 +52,7 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         "ind": ODE_terminal_index, # ODE terminal index (0=radius, 1=longitude, 2=latitude, 3=velocity, 4=FPA, 5=heading, 6=downrange, 7=heat load) ref: Sarag Saikia (c) 2014
         "term": terminal_condition,
         "time_limit": 1000.0, # [s] Simulation time limit 
-        "dt": 0.02, # [sec] time step for the simulation
+        "dt": 0.1, # [sec] time step for the simulation
     }
 
     # initial conditions for ODE integration in a form: [radius, longitude, latitude, velocity, FPA, heading]

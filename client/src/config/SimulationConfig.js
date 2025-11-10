@@ -24,6 +24,7 @@ export class SimulationConfig {
             dataSource: {
                 mode: SimulationModes.BACKEND,
                 backendUrl: this.baseURL = window.location.origin || 'http://localhost:3001',
+                useArrow: true,
                 fallbackToFrontend: false,
                 cacheResults: true,
                 timeout: 30000 // 30 seconds
