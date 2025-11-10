@@ -17,17 +17,35 @@ export class PhaseInfo {
         this.showingPlots = false;
         
         // Data arrays for plots
+        this.dataLimit = null; // No limit by default, can be set to a number to limit data points
         this.timeData = [];
         this.distanceData = [];
         this.altitudeData = [];
         this.velocityData = [];
         this.bankAngleData = [];
+
+        this.isReplayMode = false;
+        this.currentTime = 0;
         
         this.init();
     }
     
     init() {
         this.createDOM();
+    }
+
+    reset() {
+        this.isReplayMode = false;
+        this.timeData = [];
+        this.distanceData = [];
+        this.altitudeData = [];
+        this.velocityData = [];
+        this.bankAngleData = [];
+        this.currentTime = 0;
+    }
+
+    setReplayMode(isReplay) {
+        this.isReplayMode = isReplay;
     }
     
     createDOM() {
@@ -182,9 +200,10 @@ export class PhaseInfo {
         
         // Clear previous plots
         this.elements.plotsContainer.innerHTML = '';
-        
+
         // Prepare data for plots
-        const plotData = this.timeData.map((time, i) => ({
+        const timeData = this.isReplayMode ? this.timeData.filter(time => time <= this.currentTime) : this.timeData;
+        const plotData = timeData.map((time, i) => ({
             time: time,
             distance: this.distanceData[i],
             altitude: this.altitudeData[i],
@@ -402,22 +421,27 @@ export class PhaseInfo {
                 if ((isNaN(distanceMiles) || isNaN(altitudeMiles) || isNaN(velocityMph)) || (distanceMiles === 0 && altitudeMiles === 0 && velocityMph === 0)) {
                     return;
                 }
-                
-                this.timeData.push(currentTime);
-                this.distanceData.push(distanceMiles);
-                this.altitudeData.push(altitudeMiles);
-                this.velocityData.push(Math.round(velocityMph));
-                this.bankAngleData.push(isNaN(bankAngle) ? 0 : bankAngle);
-                
-                // Limit data arrays to last 500 points to avoid memory issues
-                if (this.timeData.length > 500) {
-                    this.timeData.shift();
-                    this.distanceData.shift();
-                    this.altitudeData.shift();
-                    this.velocityData.shift();
-                    this.bankAngleData.shift();
+
+                if (!this.isReplayMode) {
+                    this.timeData.push(currentTime);
+                    this.distanceData.push(distanceMiles);
+                    this.altitudeData.push(altitudeMiles);
+                    this.velocityData.push(Math.round(velocityMph));
+                    this.bankAngleData.push(isNaN(bankAngle) ? 0 : bankAngle);
+                    
+                    if (this.dataLimit && this.timeData.length > this.dataLimit) {
+                        this.timeData.shift();
+                        this.distanceData.shift();
+                        this.altitudeData.shift();
+                        this.velocityData.shift();
+                        this.bankAngleData.shift();
+                    }
                 }
             }
+        }
+
+        if (this.isReplayMode) {
+            this.currentTime = currentTime;
         }
         
         // Update plots if showing
