@@ -184,7 +184,10 @@ def main(init=None, control=None):
 
     # Define simulation parameters
     planet = get_planet_params(DEFAULT_PLANET["planet_name"])
+    vehicle = get_vehicle_params(DEFAULT_VEHICLE["vehicle_name"])
 
+
+# for bebug: need to comment out this init to make re-calc work again
     # init = {
     # "h0": 124999, # [m] Critical altitude (i.e. altitude to start entry) [m] ref - 125e3 - Li ,Jiang 2014  MSL; Note- Girija 2022 is 120e3. I made I lower for the dataset
     # "vel0": 6.0836e3, # [m/s] MSL SPICE data
