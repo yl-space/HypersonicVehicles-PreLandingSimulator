@@ -178,10 +178,10 @@ export class SimulationManager {
         this.controls = new Controls({
             onCameraMode: (mode) => this.setCameraMode(mode),
             onZoom: (direction) => this.handleZoom(direction),
-            onBankAngle: (lastAngle, angle) => this.handleBankAngle(lastAngle, angle),
+            onControlChange: (change) => this.handleControlChange(change),
             onSettings: (setting) => this.handleSettings(setting)
         });
-        this.controls.setBankAngleEnabled(true, '');
+        this.controls.setControlsEnabled(true, '');
 
         // Model selector for spacecraft
         const selectorContainer = this.controls.getCameraControlsElement
@@ -412,10 +412,17 @@ export class SimulationManager {
                 this.setCameraMode('orbit');
                 break;
             case 'a':
-                this.controls.updateBankAngleRelative(-5);
-                break;
+            case 'A':
             case 'd':
-                this.controls.updateBankAngleRelative(5);
+            case 'D':
+            case 'w':
+            case 'W':
+            case 's':
+            case 'S':
+                // Let controls handle keyboard shortcuts for controls
+                if (this.controls.handleControlKeyPress(event.key.toLowerCase())) {
+                    event.preventDefault();
+                }
                 break;
             case 'v':
             case 'V':
@@ -601,7 +608,7 @@ export class SimulationManager {
         this.state.bankControlsLocked = false;
         this.state.playbackInitialized = false;
         if (this.controls) {
-            this.controls.setBankAngleEnabled(true, '');
+            this.controls.setControlsEnabled(true);
         }
 
         // Store banking history for rerun
@@ -650,7 +657,39 @@ export class SimulationManager {
         this.cameraController.handleResize();
     }
 
-    handleBankAngle(lastAngle, angle) {
+    /**
+     * Handle changes to interactive controls
+     * @param {Object} change - Control change information
+     * @param {string} change.controlId - ID of the control that changed
+     * @param {*} change.oldValue - Previous value
+     * @param {*} change.newValue - New value
+     * @param {Object} change.config - Control configuration
+     */
+    handleControlChange(change) {
+        const { controlId, oldValue, newValue, config } = change;
+        
+        console.log(`Control ${controlId} changed from ${oldValue} to ${newValue}`);
+        
+        // Route to specific handlers based on control ID
+        switch (controlId) {
+            case 'bankAngle':
+                this.handleBankAngleChange(oldValue, newValue);
+                break;
+            
+            // Future control handlers can be added here
+            // case 'angleOfAttack':
+            //     this.handleAngleOfAttackChange(oldValue, newValue);
+            //     break;
+            
+            default:
+                console.warn(`No handler for control: ${controlId}`);
+        }
+    }
+    
+    /**
+     * Handle bank angle changes
+     */
+    handleBankAngleChange(lastAngle, angle) {
         if (this.state.bankControlsLocked) {
             console.log('Banking control disabled after initial run');
             return;
@@ -678,6 +717,14 @@ export class SimulationManager {
         if (this.entryVehicle) {
             this.entryVehicle.setVectorsVisible(true, true); // true for auto-fade
         }
+    }
+    
+    /**
+     * Legacy method for backward compatibility
+     * @deprecated Use handleControlChange instead
+     */
+    handleBankAngle(lastAngle, angle) {
+        this.handleBankAngleChange(lastAngle, angle);
     }
     
     handleSettings(setting) {
@@ -834,9 +881,10 @@ export class SimulationManager {
 
         this.state.playbackInitialized = true;
         this.state.bankControlsLocked = true;
+        // this.state.angleOfAttackControlsLocked = true;
 
         if (this.controls) {
-            this.controls.setBankAngleEnabled(false, 'Playback mode active');
+            this.controls.setControlsEnabled(false, 'Playback mode active');
         }
 
         if (this.timeline) {
