@@ -68,7 +68,7 @@ export class Controls {
             <div class="control-group">
                 <h3 class="control-label">BANK ANGLE</h3>
                 <div class="bank-slider-row bank-slider-relative">
-                    <input type="range" min="-90" max="90" value="0" step="1" class="bank-slider" id="bank-angle-slider">
+                    <input type="range" min="-180" max="180" value="0" step="1" class="bank-slider" id="bank-angle-slider">
                     <span class="bank-angle-value" id="bank-angle-value">0°</span>
                 </div>
                 <p class="bank-angle-status" id="bank-angle-status" aria-live="polite"></p>
@@ -102,7 +102,13 @@ export class Controls {
 
     updateBankAngleRelative(adjustment) {
         const currentValue = Number(this.elements.bankAngleSlider.value);
-        this.elements.bankAngleSlider.value = currentValue + adjustment;
+
+        // Wrap from -180 to 180
+        let newValue = currentValue + adjustment;
+        if (newValue > 180) newValue -= 360;
+        if (newValue < -180) newValue += 360;
+
+        this.elements.bankAngleSlider.value = newValue;
         this.elements.bankAngleValue.textContent = `${this.elements.bankAngleSlider.value}°`;
         if (this.options.onBankAngle) {
             const newValue = Number(this.elements.bankAngleSlider.value);
