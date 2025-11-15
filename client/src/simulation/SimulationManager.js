@@ -20,6 +20,7 @@ import { ModelSelector } from '../ui/ModelSelector.js';
 import { DataManager } from '../data/DataManager.js';
 import { TrajectoryService } from '../services/TrajectoryService.js';
 import { config } from '../config/SimulationConfig.js';
+import { CONTROLS_CONFIG, getDefaultControlValues } from '../config/ControlsConfig.js';
 
 export class SimulationManager {
     constructor(options = {}) {
@@ -63,11 +64,14 @@ export class SimulationManager {
             currentPhase: 0,
             vehicleData: null,
             currentPlanet: 'mars',
-            bankAngle: 0,
-            bankingHistory: [],  // Store banking angle adjustments: [{time, angle}]
+            
+            // Dynamic control values (initialized from ControlsConfig)
+            controls: {},           // Current values for all controls
+            controlsHistory: {},    // History for each control: { controlId: [{time, value}] }
+            
             isRerunnning: false,  // Flag to indicate if we're replaying with history
             simulationCompleted: false,  // Track if simulation has completed once
-            bankControlsLocked: false,
+            controlsLocked: false,
             playbackInitialized: false
         };
         
@@ -75,9 +79,27 @@ export class SimulationManager {
         this.clock = new THREE.Clock();
         this.animationId = null;
 
-        // Removed trajectory clicking functionality
+        // Initialize control values and history from configuration
+        this.initializeControls();
         
         this.init();
+    }
+    
+    /**
+     * Initialize control values and history from ControlsConfig
+     */
+    initializeControls() {
+        // Set initial values from config
+        this.state.controls = getDefaultControlValues();
+        
+        // Initialize history for each control
+        this.state.controlsHistory = {};
+        Object.keys(CONTROLS_CONFIG).forEach(controlId => {
+            const config = CONTROLS_CONFIG[controlId];
+            if (config.historyKey) {
+                this.state.controlsHistory[controlId] = [];
+            }
+        });
     }
     
     async init() {
@@ -450,12 +472,15 @@ export class SimulationManager {
         // Update simulation time
         this.state.currentTime += deltaTime * this.state.playbackSpeed;
 
-        // Check if we're replaying and need to apply banking history
-        if (this.state.isRerunnning && this.state.bankingHistory.length > 0) {
-            const playbackAngle = this.getBankAngleForTime(this.state.currentTime);
-            if (playbackAngle !== null && playbackAngle !== undefined) {
-                this.state.bankAngle = playbackAngle;
-            }
+        // Check if we're replaying and need to apply controls history
+        if (this.state.isRerunnning) {
+            // Update all controls from history
+            Object.keys(this.state.controlsHistory).forEach(controlId => {
+                if (this.state.controlsHistory[controlId].length > 0) {
+                    const value = this.getControlValueForTime(controlId, this.state.currentTime);
+                    this.state.controls[controlId] = value;
+                }
+            });
         }
 
         if (this.state.currentTime >= this.state.totalTime) {
@@ -481,11 +506,11 @@ export class SimulationManager {
                 // This maintains trim angle of attack and bank angle per MSL EDL standards
                 const velocityVector = this.trajectoryManager.getVelocityVector(this.state.currentTime);
                 if (velocityVector && velocityVector.length() > 0.001) {
-                    // Use scientific attitude calculation (trim AoA + bank angle)
+                    // Use scientific attitude calculation (trim AoA + bank angle from controls)
                     this.entryVehicle.setScientificAttitude(
                         velocityVector,
                         this.state.vehicleData.position,
-                        this.state.bankAngle
+                        this.state.controls.bankAngle || 0
                     );
                 }
             }
@@ -506,7 +531,7 @@ export class SimulationManager {
         this.cameraController.update(deltaTime, this.state.vehicleData);
         
         // Update entry vehicle effects
-        this.entryVehicle.update(this.state.currentTime, this.state.vehicleData, this.state.bankAngle);
+        this.entryVehicle.update(this.state.currentTime, this.state.vehicleData, this.state.controls.bankAngle || 0);
         
         // Update current planet
         if (this.currentPlanet) {
@@ -538,7 +563,7 @@ export class SimulationManager {
         const enhancedVehicleData = {
             ...this.state.vehicleData,
             angleOfAttack: this.entryVehicle ? this.entryVehicle.attitude.angleOfAttack : -16,
-            bankAngle: this.state.bankAngle
+            bankAngle: this.state.controls.bankAngle || 0
         };
 
         this.phaseInfo.update(
@@ -546,7 +571,7 @@ export class SimulationManager {
             enhancedVehicleData,
             this.state.currentTime,
             this.state.totalTime,
-            this.state.bankAngle
+            this.state.controls.bankAngle || 0
         );
     }
     
@@ -594,30 +619,44 @@ export class SimulationManager {
         this.updateSimulation(0);
     }
 
-    resetToStart(bankingHistory = []) {
+    resetToStart(controlsHistory = {}) {
         // Reset simulation to beginning for rerun
         this.state.currentTime = 0;
         this.state.currentPhase = 0;
         this.state.isPlaying = false;
-        this.state.bankAngle = 0;
+        
+        // Reset all controls to default values
+        this.state.controls = getDefaultControlValues();
+        
         this.state.simulationCompleted = false;
         if (this.timeline) {
             this.timeline.setScrubbingEnabled(false);
             this.timeline.setReplayAvailable(false);
         }
-        this.state.bankControlsLocked = false;
+        this.state.controlsLocked = false;
         this.state.playbackInitialized = false;
         if (this.controls) {
             this.controls.setControlsEnabled(true);
         }
 
-        // Store banking history for rerun
-        if (bankingHistory.length > 0) {
-            this.state.bankingHistory = bankingHistory;
+        // Store controls history for rerun (support both old and new format)
+        const hasHistory = Object.keys(controlsHistory).length > 0 || 
+                          (Array.isArray(controlsHistory) && controlsHistory.length > 0);
+        
+        if (hasHistory) {
+            // Support legacy bankingHistory array format
+            if (Array.isArray(controlsHistory)) {
+                this.state.controlsHistory = { bankAngle: controlsHistory };
+            } else {
+                this.state.controlsHistory = controlsHistory;
+            }
             this.state.isRerunnning = true;
-            console.log(`Rerunning with ${bankingHistory.length} banking adjustments`);
+            console.log(`Rerunning with controls history:`, this.state.controlsHistory);
         } else {
-            this.state.bankingHistory = [];
+            this.state.controlsHistory = {};
+            Object.keys(CONTROLS_CONFIG).forEach(controlId => {
+                this.state.controlsHistory[controlId] = [];
+            });
             this.state.isRerunnning = false;
         }
 
@@ -670,61 +709,36 @@ export class SimulationManager {
         
         console.log(`Control ${controlId} changed from ${oldValue} to ${newValue}`);
         
-        // Route to specific handlers based on control ID
-        switch (controlId) {
-            case 'bankAngle':
-                this.handleBankAngleChange(oldValue, newValue);
-                break;
-            
-            // Future control handlers can be added here
-            // case 'angleOfAttack':
-            //     this.handleAngleOfAttackChange(oldValue, newValue);
-            //     break;
-            
-            default:
-                console.warn(`No handler for control: ${controlId}`);
-        }
-    }
-    
-    /**
-     * Handle bank angle changes
-     */
-    handleBankAngleChange(lastAngle, angle) {
-        if (this.state.bankControlsLocked) {
-            console.log('Banking control disabled after initial run');
+        // Check if controls are locked
+        if (this.state.controlsLocked) {
+            console.log(`Control ${controlId} disabled - controls locked`);
             return;
         }
-        // During rerun, ignore manual banking inputs
+        
+        // During rerun, ignore manual control inputs
         if (this.state.isRerunnning) {
-            console.log('Banking control disabled during rerun');
+            console.log(`Control ${controlId} disabled during rerun`);
             return;
         }
 
-        this.state.bankAngle = angle;
+        // Update current control value
+        this.state.controls[controlId] = newValue;
 
-        // Store banking adjustment in history for replay
-        if (!this.state.simulationCompleted) {
-            this.state.bankingHistory.push({
+        // Store control adjustment in history for replay
+        if (!this.state.simulationCompleted && this.state.controlsHistory[controlId]) {
+            this.state.controlsHistory[controlId].push({
                 time: this.state.currentTime,
-                angle: angle
+                value: newValue
             });
         }
 
-        // Apply realistic bank angle physics - immediate trajectory modification
-        this.applyBankAnglePhysicsRealTime(angle);
+        // Apply physics update with all current control values
+        this.applyControlPhysicsRealTime();
 
-        // Show vectors automatically when bank angle changes
+        // Show vectors automatically when controls change
         if (this.entryVehicle) {
             this.entryVehicle.setVectorsVisible(true, true); // true for auto-fade
         }
-    }
-    
-    /**
-     * Legacy method for backward compatibility
-     * @deprecated Use handleControlChange instead
-     */
-    handleBankAngle(lastAngle, angle) {
-        this.handleBankAngleChange(lastAngle, angle);
     }
     
     handleSettings(setting) {
@@ -738,12 +752,16 @@ export class SimulationManager {
     // All physics calculations now done by backend - no local physics methods needed
 
     // Throttle async calls to avoid performance issues in real-time loop
-    _lastBankAngleUpdate = 0;
-    _bankAngleCache = null;
-    _bankAngleCacheAngle = null;
-    _bankAngleUpdateInProgress = false;
+    _lastControlUpdate = 0;
+    _controlCache = null;
+    _controlCacheState = null;
+    _controlUpdateInProgress = false;
 
-    async applyBankAnglePhysicsRealTime(bankAngle) {
+    /**
+     * Apply physics update with current control values
+     * Generic method that works with any control configuration
+     */
+    async applyControlPhysicsRealTime() {
         const now = performance.now();
         const THROTTLE_INTERVAL = 500; // ms - increased for backend calls
 
@@ -759,26 +777,29 @@ export class SimulationManager {
         }
 
         // Prevent concurrent backend calls
-        if (this._bankAngleUpdateInProgress) {
-            console.log('[SimulationManager] Bank angle update already in progress, skipping');
+        if (this._controlUpdateInProgress) {
+            console.log('[SimulationManager] Control update already in progress, skipping');
             return;
         }
 
-        // Use cached result if within throttle interval and angle hasn't changed
+        // Create cache key from current control values
+        const controlStateKey = JSON.stringify(this.state.controls);
+
+        // Use cached result if within throttle interval and controls haven't changed
         if (
-            this._bankAngleCache &&
-            this._bankAngleCacheAngle === bankAngle &&
-            now - this._lastBankAngleUpdate < THROTTLE_INTERVAL
+            this._controlCache &&
+            this._controlCacheState === controlStateKey &&
+            now - this._lastControlUpdate < THROTTLE_INTERVAL
         ) {
-            console.log(`[SimulationManager] Using cached trajectory for bank angle ${bankAngle}°`);
+            console.log(`[SimulationManager] Using cached trajectory for controls:`, this.state.controls);
             return;
         }
 
-        this._lastBankAngleUpdate = now;
-        this._bankAngleCacheAngle = bankAngle;
-        this._bankAngleUpdateInProgress = true;
+        this._lastControlUpdate = now;
+        this._controlCacheState = controlStateKey;
+        this._controlUpdateInProgress = true;
 
-        console.log(`[SimulationManager] Recalculating trajectory FROM CURRENT TIME with bank angle ${bankAngle}°`);
+        console.log(`[SimulationManager] Recalculating trajectory FROM CURRENT TIME with controls:`, this.state.controls);
 
         try {
             // Get current state in meters (unscaled) for backend
@@ -797,12 +818,13 @@ export class SimulationManager {
             console.log('[SimulationManager] Sending current state to backend:', {
                 time: this.state.currentTime,
                 position: currentState.positionMeters,
-                velocity: currentState.velocityMetersPerSec
+                velocity: currentState.velocityMetersPerSec,
+                controls: this.state.controls
             });
 
             // Call backend to recalculate trajectory FROM CURRENT INSTANT ONWARDS
             const futureTrajectory = await this.trajectoryService.modifyTrajectoryFromCurrentState(
-                bankAngle,
+                this.state.controls,
                 this.state.currentTime,
                 currentState
             );
@@ -812,7 +834,7 @@ export class SimulationManager {
                 this.trajectoryManager.spliceTrajectoryFromTime(this.state.currentTime, futureTrajectory);
 
                 // Cache result
-                this._bankAngleCache = futureTrajectory;
+                this._controlCache = futureTrajectory;
 
                 // Update total time if changed
                 if (this.trajectoryManager.trajectoryData.length > 0) {
@@ -822,34 +844,59 @@ export class SimulationManager {
                     }
                 }
 
-                console.log(`[SimulationManager] Applied bank angle ${bankAngle}° - future trajectory recalculated with ${futureTrajectory.length} points`);
+                console.log(`[SimulationManager] Applied controls - future trajectory recalculated with ${futureTrajectory.length} points`);
             } else {
                 console.error('[SimulationManager] Backend returned empty trajectory');
             }
         } catch (error) {
-            console.error('[SimulationManager] Error applying bank angle physics:', error);
+            console.error('[SimulationManager] Error applying control physics:', error);
             alert(`Failed to recalculate trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3001 (proxied through Express server).`);
         } finally {
-            this._bankAngleUpdateInProgress = false;
+            this._controlUpdateInProgress = false;
         }
+    }
+    
+    /**
+     * Legacy method for backward compatibility
+     * @deprecated Use applyControlPhysicsRealTime instead
+     */
+    async applyBankAnglePhysicsRealTime(bankAngle) {
+        this.state.controls.bankAngle = bankAngle;
+        await this.applyControlPhysicsRealTime();
     }
 
     // Removed legacy physics methods - all calculations now done by backend
-    getBankAngleForTime(time) {
-        if (!this.state.bankingHistory || this.state.bankingHistory.length === 0) {
-            return 0;
+    
+    /**
+     * Get control value at specific time from history
+     * @param {string} controlId - Control identifier
+     * @param {number} time - Time to get value for
+     * @returns {*} Control value at that time
+     */
+    getControlValueForTime(controlId, time) {
+        const history = this.state.controlsHistory[controlId];
+        if (!history || history.length === 0) {
+            return CONTROLS_CONFIG[controlId]?.defaultValue || 0;
         }
 
-        let angle = 0;
-        for (let i = 0; i < this.state.bankingHistory.length; i++) {
-            const adjustment = this.state.bankingHistory[i];
+        let value = CONTROLS_CONFIG[controlId]?.defaultValue || 0;
+        for (let i = 0; i < history.length; i++) {
+            const adjustment = history[i];
             if (adjustment.time <= time) {
-                angle = adjustment.angle;
+                value = adjustment.value;
             } else {
                 break;
             }
         }
-        return angle;
+        return value;
+    }
+    
+    /**
+     * Legacy method for backward compatibility
+     * @deprecated Use getControlValueForTime('bankAngle', time) instead
+     */
+    getBankAngleForTime(time) {
+        return this.getControlValueForTime('bankAngle', time);
     }
 
     startPlaybackReplay(autoPlay = true) {
@@ -860,7 +907,9 @@ export class SimulationManager {
         this.pause();
         this.state.isRerunnning = true;
         this.state.currentTime = 0;
-        this.state.bankAngle = 0;
+        
+        // Reset all controls to default values
+        this.state.controls = getDefaultControlValues();
 
         if (this.timeline) {
             this.timeline.setTime(0);
@@ -880,8 +929,7 @@ export class SimulationManager {
         }
 
         this.state.playbackInitialized = true;
-        this.state.bankControlsLocked = true;
-        // this.state.angleOfAttackControlsLocked = true;
+        this.state.controlsLocked = true;
 
         if (this.controls) {
             this.controls.setControlsEnabled(false, 'Playback mode active');
