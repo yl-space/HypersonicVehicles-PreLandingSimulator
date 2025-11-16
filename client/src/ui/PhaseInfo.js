@@ -11,8 +11,11 @@ export class PhaseInfo {
     constructor(options) {
         this.options = {
             container: document.getElementById('phase-info'),
+            onControlAdjust: null, // Callback for control adjustments
             ...options
         };
+        
+        this.onControlAdjust = this.options.onControlAdjust;
         
         this.elements = {};
         this.currentPhase = null;
@@ -33,6 +36,10 @@ export class PhaseInfo {
 
         this.isReplayMode = false;
         this.currentTime = 0;
+        
+        // Track active hold intervals for continuous button press
+        this.activeHoldInterval = null;
+        this.activeHoldTimeout = null;
         
         this.init();
     }
@@ -58,6 +65,11 @@ export class PhaseInfo {
 
     setReplayMode(isReplay) {
         this.isReplayMode = isReplay;
+        
+        // Enable/disable control buttons based on replay mode
+        if (this.controlButtons) {
+            this.setControlButtonsEnabled(!isReplay);
+        }
     }
     
     createDOM() {
@@ -180,18 +192,69 @@ export class PhaseInfo {
         
         // Store references to dynamically created elements
         this.telemetryElements = {};
+        this.controlButtons = {}; // Store button references for enabling/disabling
         
         // Add dynamic control cells
         Object.keys(CONTROLS_CONFIG).forEach(controlId => {
             const config = CONTROLS_CONFIG[controlId];
             const cell = document.createElement('div');
             cell.className = 'telemetry-cell';
-            cell.innerHTML = `
-                <span class="cell-label">${config.label}</span>
-                <span class="cell-value" id="${controlId}-value">0.0${config.unit}</span>
-            `;
-            telemetryGrid.appendChild(cell);
-            this.telemetryElements[controlId] = document.getElementById(`${controlId}-value`);
+            
+            // Check if this is a slider-type control (NUMBER or ANGLE)
+            const isSliderControl = config.type === 'number' || config.type === 'angle';
+            
+            if (isSliderControl) {
+                // Use left/right arrows for angles, up/down for numbers
+                const isAngle = config.type === 'angle';
+                
+                // Arrow SVGs based on control type
+                const decreaseArrow = isAngle 
+                    ? '<path d="M15 19l-7-7 7-7"/>'  // Left arrow
+                    : '<path d="M7 10l5 5 5-5z"/>';  // Down arrow
+                    
+                const increaseArrow = isAngle
+                    ? '<path d="M9 5l7 7-7 7"/>'     // Right arrow
+                    : '<path d="M7 14l5-5 5 5z"/>';  // Up arrow
+                
+                // Create cell with arrow buttons for slider controls
+                cell.innerHTML = `
+                    <span class="cell-label">${config.label}</span>
+                    <div class="cell-value-controls">
+                        <button class="cell-arrow-btn ${isAngle ? 'cell-arrow-left' : 'cell-arrow-down'}" data-control-id="${controlId}" data-direction="decrease" title="Decrease ${config.label}">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                ${decreaseArrow}
+                            </svg>
+                        </button>
+                        <span class="cell-value" id="${controlId}-value">0.0${config.unit}</span>
+                        <button class="cell-arrow-btn ${isAngle ? 'cell-arrow-right' : 'cell-arrow-up'}" data-control-id="${controlId}" data-direction="increase" title="Increase ${config.label}">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                ${increaseArrow}
+                            </svg>
+                        </button>
+                    </div>
+                `;
+                telemetryGrid.appendChild(cell);
+                
+                // Store element references
+                this.telemetryElements[controlId] = document.getElementById(`${controlId}-value`);
+                
+                // Store button references
+                const decreaseBtn = cell.querySelector('[data-direction="decrease"]');
+                const increaseBtn = cell.querySelector('[data-direction="increase"]');
+                this.controlButtons[controlId] = { decreaseBtn, increaseBtn };
+                
+                // Add event listeners for continuous hold
+                this.setupContinuousButton(decreaseBtn, controlId, 'decrease', config);
+                this.setupContinuousButton(increaseBtn, controlId, 'increase', config);
+            } else {
+                // Regular cell without buttons for non-slider controls
+                cell.innerHTML = `
+                    <span class="cell-label">${config.label}</span>
+                    <span class="cell-value" id="${controlId}-value">0.0${config.unit}</span>
+                `;
+                telemetryGrid.appendChild(cell);
+                this.telemetryElements[controlId] = document.getElementById(`${controlId}-value`);
+            }
         });
         
         // Add Mach cell
@@ -213,6 +276,99 @@ export class PhaseInfo {
         `;
         telemetryGrid.appendChild(gforceCell);
         this.telemetryElements.gforce = document.getElementById('gforce-value');
+    }
+    
+    /**
+     * Setup continuous button press behavior
+     * @param {HTMLElement} button - Button element
+     * @param {string} controlId - Control identifier
+     * @param {string} direction - 'increase' or 'decrease'
+     * @param {Object} config - Control configuration
+     */
+    setupContinuousButton(button, controlId, direction, config) {
+        let isHolding = false;
+        
+        const startHold = () => {
+            if (this.isReplayMode) return;
+            
+            // Immediate first action
+            this.handleControlButtonClick(controlId, direction, config);
+            
+            // Delay before continuous firing starts (300ms)
+            this.activeHoldTimeout = setTimeout(() => {
+                isHolding = true;
+                
+                // Continuous firing while held (every 100ms)
+                this.activeHoldInterval = setInterval(() => {
+                    if (isHolding) {
+                        this.handleControlButtonClick(controlId, direction, config);
+                    }
+                }, 100);
+            }, 300);
+        };
+        
+        const stopHold = () => {
+            isHolding = false;
+            if (this.activeHoldTimeout) {
+                clearTimeout(this.activeHoldTimeout);
+                this.activeHoldTimeout = null;
+            }
+            if (this.activeHoldInterval) {
+                clearInterval(this.activeHoldInterval);
+                this.activeHoldInterval = null;
+            }
+        };
+        
+        // Mouse events
+        button.addEventListener('mousedown', startHold);
+        button.addEventListener('mouseup', stopHold);
+        button.addEventListener('mouseleave', stopHold);
+        
+        // Touch events for mobile
+        button.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent mouse events from also firing
+            startHold();
+        });
+        button.addEventListener('touchend', stopHold);
+        button.addEventListener('touchcancel', stopHold);
+    }
+    
+    /**
+     * Handle control button clicks from telemetry grid
+     * @param {string} controlId - Control identifier
+     * @param {string} direction - 'increase' or 'decrease'
+     * @param {Object} config - Control configuration
+     */
+    handleControlButtonClick(controlId, direction, config) {
+        // Don't allow control changes during replay
+        if (this.isReplayMode) {
+            console.log('Control adjustments disabled during replay');
+            return;
+        }
+        
+        // Get current value from telemetry display
+        const currentValueText = this.telemetryElements[controlId]?.textContent || '0';
+        const currentValue = parseFloat(currentValueText);
+        
+        // Calculate adjustment based on keyboard step
+        const step = config.keyboardStep || config.step || 1;
+        const adjustment = direction === 'increase' ? step : -step;
+        
+        // Notify parent component (SimulationManager) of the control change
+        if (this.onControlAdjust) {
+            this.onControlAdjust(controlId, adjustment);
+        }
+    }
+    
+    /**
+     * Enable or disable control buttons
+     * @param {boolean} enabled - Whether buttons should be enabled
+     */
+    setControlButtonsEnabled(enabled) {
+        Object.values(this.controlButtons).forEach(({ decreaseBtn, increaseBtn }) => {
+            decreaseBtn.disabled = !enabled;
+            increaseBtn.disabled = !enabled;
+        });
     }
     
     
@@ -683,6 +839,16 @@ export class PhaseInfo {
     }
     
     dispose() {
+        // Clean up any active hold intervals
+        if (this.activeHoldTimeout) {
+            clearTimeout(this.activeHoldTimeout);
+            this.activeHoldTimeout = null;
+        }
+        if (this.activeHoldInterval) {
+            clearInterval(this.activeHoldInterval);
+            this.activeHoldInterval = null;
+        }
+        
         // Clean up event listeners and DOM
         if (this.options.container) {
             this.options.container.innerHTML = '';

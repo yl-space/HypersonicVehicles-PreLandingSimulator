@@ -1211,6 +1211,51 @@ body {
     color: #FFFFFF;
 }
 
+.cell-value-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cell-arrow-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    color: #FFFFFF;
+    min-width: 20px;
+    min-height: 20px;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.cell-arrow-btn:hover:not(:disabled) {
+    background: rgba(255, 102, 0, 0.3);
+    border-color: rgba(255, 102, 0, 0.6);
+    transform: scale(1.1);
+}
+
+.cell-arrow-btn:active:not(:disabled) {
+    transform: scale(0.95);
+    background: rgba(255, 102, 0, 0.5);
+}
+
+.cell-arrow-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.cell-arrow-btn svg {
+    display: block;
+}
+
 .scroll-indicator {
     position: absolute;
     bottom: 20px;

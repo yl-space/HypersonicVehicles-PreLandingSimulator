@@ -193,7 +193,8 @@ export class SimulationManager {
         
         // Phase info panel
         this.phaseInfo = new PhaseInfo({
-            container: document.getElementById('phase-info')
+            container: document.getElementById('phase-info'),
+            onControlAdjust: (controlId, adjustment) => this.handlePhaseInfoControlAdjust(controlId, adjustment)
         });
         
         // Camera and zoom controls
@@ -741,6 +742,22 @@ export class SimulationManager {
                 this.entryVehicle.setVectorsVisible(setting.value);
             }
         }
+    }
+    
+    /**
+     * Handle control adjustments from PhaseInfo telemetry buttons
+     * @param {string} controlId - Control identifier
+     * @param {number} adjustment - Amount to adjust (+/- value)
+     */
+    handlePhaseInfoControlAdjust(controlId, adjustment) {
+        // Only allow adjustments if controls are available
+        if (!this.controls) {
+            console.warn('Controls not initialized');
+            return;
+        }
+        
+        // Use the Controls class method to update the control
+        this.controls.updateControlRelative(controlId, adjustment);
     }
 
     // All physics calculations now done by backend - no local physics methods needed
