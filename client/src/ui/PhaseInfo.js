@@ -1,5 +1,7 @@
 import * as Plot from "https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6.7/+esm";
 
+import { CONTROLS_CONFIG } from '../config/ControlsConfig.js';
+
 /**
  * PhaseInfo.js
  * Displays current phase information and telemetry
@@ -22,7 +24,12 @@ export class PhaseInfo {
         this.distanceData = [];
         this.altitudeData = [];
         this.velocityData = [];
-        this.bankAngleData = [];
+        
+        // Dynamic control data storage - one array per control
+        this.controlsData = {};
+        Object.keys(CONTROLS_CONFIG).forEach(controlId => {
+            this.controlsData[controlId] = [];
+        });
 
         this.isReplayMode = false;
         this.currentTime = 0;
@@ -40,7 +47,12 @@ export class PhaseInfo {
         this.distanceData = [];
         this.altitudeData = [];
         this.velocityData = [];
-        this.bankAngleData = [];
+        
+        // Reset all control data arrays
+        Object.keys(this.controlsData).forEach(controlId => {
+            this.controlsData[controlId] = [];
+        });
+        
         this.currentTime = 0;
     }
 
@@ -107,23 +119,8 @@ export class PhaseInfo {
                     </div>
                     
                     <div class="additional-telemetry">
-                        <div class="telemetry-grid">
-                            <div class="telemetry-cell">
-                                <span class="cell-label">Angle of Attack</span>
-                                <span class="cell-value" id="aoa-value">-16.0°</span>
-                            </div>
-                            <div class="telemetry-cell">
-                                <span class="cell-label">Bank Angle</span>
-                                <span class="cell-value" id="bank-value">0.0°</span>
-                            </div>
-                            <div class="telemetry-cell">
-                                <span class="cell-label">Mach</span>
-                                <span class="cell-value" id="mach-value">0.0</span>
-                            </div>
-                            <div class="telemetry-cell">
-                                <span class="cell-label">G-Force</span>
-                                <span class="cell-value" id="gforce-value">0.0g</span>
-                            </div>
+                        <div class="telemetry-grid" id="telemetry-grid">
+                            <!-- Dynamic telemetry cells will be inserted here -->
                         </div>
                     </div>
                     
@@ -156,10 +153,7 @@ export class PhaseInfo {
             nextPhaseTime: document.getElementById('next-phase-time'),
             progressBar: document.getElementById('phase-progress-bar'),
             progressLabel: document.getElementById('phase-progress-label'),
-            gforce: document.getElementById('gforce-value'),
-            aoa: document.getElementById('aoa-value'),
-            bank: document.getElementById('bank-value'),
-            mach: document.getElementById('mach-value'),
+            telemetryGrid: document.getElementById('telemetry-grid'),
             scrollIndicator: document.getElementById('scroll-indicator'),
             swapIcon: document.getElementById('swap-icon'),
             telemetryView: document.getElementById('telemetry-view'),
@@ -171,6 +165,54 @@ export class PhaseInfo {
         
         // Add swap icon event listener
         this.elements.swapIcon.addEventListener('click', () => this.toggleView());
+        
+        // Create dynamic telemetry cells
+        this.createTelemetryGrid();
+    }
+    
+    /**
+     * Create telemetry grid cells dynamically based on controls config
+     * Always includes Mach and G-Force, plus all dynamic controls
+     */
+    createTelemetryGrid() {
+        const telemetryGrid = this.elements.telemetryGrid;
+        if (!telemetryGrid) return;
+        
+        // Store references to dynamically created elements
+        this.telemetryElements = {};
+        
+        // Add dynamic control cells
+        Object.keys(CONTROLS_CONFIG).forEach(controlId => {
+            const config = CONTROLS_CONFIG[controlId];
+            const cell = document.createElement('div');
+            cell.className = 'telemetry-cell';
+            cell.innerHTML = `
+                <span class="cell-label">${config.label}</span>
+                <span class="cell-value" id="${controlId}-value">0.0${config.unit}</span>
+            `;
+            telemetryGrid.appendChild(cell);
+            this.telemetryElements[controlId] = document.getElementById(`${controlId}-value`);
+        });
+        
+        // Add Mach cell
+        const machCell = document.createElement('div');
+        machCell.className = 'telemetry-cell';
+        machCell.innerHTML = `
+            <span class="cell-label">Mach</span>
+            <span class="cell-value" id="mach-value">0.0</span>
+        `;
+        telemetryGrid.appendChild(machCell);
+        this.telemetryElements.mach = document.getElementById('mach-value');
+        
+        // Add G-Force cell
+        const gforceCell = document.createElement('div');
+        gforceCell.className = 'telemetry-cell';
+        gforceCell.innerHTML = `
+            <span class="cell-label">G-Force</span>
+            <span class="cell-value" id="gforce-value">0.0g</span>
+        `;
+        telemetryGrid.appendChild(gforceCell);
+        this.telemetryElements.gforce = document.getElementById('gforce-value');
     }
     
     
@@ -203,13 +245,21 @@ export class PhaseInfo {
 
         // Prepare data for plots
         const timeData = this.isReplayMode ? this.timeData.filter(time => time <= this.currentTime) : this.timeData;
-        const plotData = timeData.map((time, i) => ({
-            time: time,
-            distance: this.distanceData[i],
-            altitude: this.altitudeData[i],
-            velocity: this.velocityData[i],
-            bankAngle: this.bankAngleData[i]
-        }));
+        const plotData = timeData.map((time, i) => {
+            const dataPoint = {
+                time: time,
+                distance: this.distanceData[i],
+                altitude: this.altitudeData[i],
+                velocity: this.velocityData[i]
+            };
+            
+            // Add all control values to plot data
+            Object.keys(CONTROLS_CONFIG).forEach(controlId => {
+                dataPoint[controlId] = this.controlsData[controlId][i];
+            });
+            
+            return dataPoint;
+        });
 
         const totalHeight = 500; 
         const plotHeight = totalHeight / 4;
@@ -325,50 +375,67 @@ export class PhaseInfo {
             ]
         });
 
-        const bankAnglePlot = Plot.plot({
-            width: 400,
-            height: plotHeight,
-            marginLeft: 50,
-            marginBottom: 30,
-            style: {
-                background: 'transparent',
-                color: '#fff'
-            },
-            x: {
-                label: 'Time (s)',
-                grid: true,
-                tickFormat: d => d.toFixed(0)
-            },
-            y: {
-                label: 'Bank Angle (degrees)',
-                grid: true,
-                tickFormat: d => d.toFixed(1)
-            },
-            marks: [
-                Plot.line(plotData, {
-                    x: 'time',
-                    y: 'bankAngle',
-                    stroke: '#ffaa00',
-                    strokeWidth: 2
-                }),
-                Plot.dot(plotData.slice(-1), {
-                    x: 'time',
-                    y: 'bankAngle',
-                    fill: '#ffaa00',
-                    r: 4
-                }),
-                Plot.text(plotData.slice(-1), { x: "time", y: "bankAngle", text: (d) => `${d.bankAngle.toFixed(1)}`, dy: -6, lineAnchor: "bottom" })
-            ]
-        });
-        
-        // Append plots
+        // Append base plots
         this.elements.plotsContainer.appendChild(distancePlot);
         this.elements.plotsContainer.appendChild(altitudePlot);
         this.elements.plotsContainer.appendChild(velocityPlot);
-        this.elements.plotsContainer.appendChild(bankAnglePlot);
+        
+        // Create plots for all dynamic controls
+        const controlColors = ['#ffaa00', '#ff66ff', '#66ffff', '#ffff66']; // Color palette for controls
+        let colorIndex = 0;
+        
+        Object.keys(CONTROLS_CONFIG).forEach(controlId => {
+            const config = CONTROLS_CONFIG[controlId];
+            const color = controlColors[colorIndex % controlColors.length];
+            colorIndex++;
+            
+            const controlPlot = Plot.plot({
+                width: 400,
+                height: plotHeight,
+                marginLeft: 50,
+                marginBottom: 30,
+                style: {
+                    background: 'transparent',
+                    color: '#fff'
+                },
+                x: {
+                    label: 'Time (s)',
+                    grid: true,
+                    tickFormat: d => d.toFixed(0)
+                },
+                y: {
+                    label: `${config.label} (${config.unit})`,
+                    grid: true,
+                    tickFormat: d => d.toFixed(1)
+                },
+                marks: [
+                    Plot.line(plotData, {
+                        x: 'time',
+                        y: controlId,
+                        stroke: color,
+                        strokeWidth: 2
+                    }),
+                    Plot.dot(plotData.slice(-1), {
+                        x: 'time',
+                        y: controlId,
+                        fill: color,
+                        r: 4
+                    }),
+                    Plot.text(plotData.slice(-1), { 
+                        x: "time", 
+                        y: controlId, 
+                        text: (d) => `${d[controlId].toFixed(1)}`, 
+                        dy: -6, 
+                        lineAnchor: "bottom" 
+                    })
+                ]
+            });
+            
+            this.elements.plotsContainer.appendChild(controlPlot);
+        });
     }
     
-    update(phase, vehicleData, currentTime, totalTime, bankAngle) {
+    update(phase, vehicleData, currentTime, totalTime, controls = {}) {
         if (!phase) return;
         
         // Update phase title with animation if changed
@@ -412,8 +479,8 @@ export class PhaseInfo {
             const velocityMph = velocityValue * 0.621371;
             this.elements.velocity.textContent = isNaN(velocityMph) ? '0 mph' : `${Math.round(velocityMph).toLocaleString()} mph`;
             
-            // Additional telemetry
-            this.updateAdditionalTelemetry(vehicleData, phase);
+            // Additional telemetry (including dynamic controls)
+            this.updateAdditionalTelemetry(vehicleData, phase, controls);
 
             // Store data for plots (sample every ~0.25 seconds to avoid too many points)
             if (this.timeData.length === 0 || currentTime - this.timeData[this.timeData.length - 1] >= 0.25) {
@@ -427,14 +494,23 @@ export class PhaseInfo {
                     this.distanceData.push(distanceMiles);
                     this.altitudeData.push(altitudeMiles);
                     this.velocityData.push(Math.round(velocityMph));
-                    this.bankAngleData.push(isNaN(bankAngle) ? 0 : bankAngle);
+                    
+                    // Store all control values
+                    Object.keys(CONTROLS_CONFIG).forEach(controlId => {
+                        const value = controls[controlId] !== undefined ? controls[controlId] : CONTROLS_CONFIG[controlId].defaultValue;
+                        this.controlsData[controlId].push(isNaN(value) ? 0 : value);
+                    });
                     
                     if (this.dataLimit && this.timeData.length > this.dataLimit) {
                         this.timeData.shift();
                         this.distanceData.shift();
                         this.altitudeData.shift();
                         this.velocityData.shift();
-                        this.bankAngleData.shift();
+                        
+                        // Shift all control data arrays
+                        Object.keys(this.controlsData).forEach(controlId => {
+                            this.controlsData[controlId].shift();
+                        });
                     }
                 }
             }
@@ -494,7 +570,7 @@ export class PhaseInfo {
         }, 50);
     }
     
-    updateAdditionalTelemetry(vehicleData, phase) {
+    updateAdditionalTelemetry(vehicleData, phase, controls = {}) {
         // Extract velocity magnitude properly
         let velocity = 0;
 
@@ -508,13 +584,40 @@ export class PhaseInfo {
             }
         }
 
-        // Angle of Attack - get from vehicle attitude state if available
-        const aoa = vehicleData.angleOfAttack !== undefined ? vehicleData.angleOfAttack : -16;
-        this.elements.aoa.textContent = `${aoa.toFixed(1)}°`;
-
-        // Bank Angle - get from vehicle attitude state if available
-        const bankAngle = vehicleData.bankAngle !== undefined ? vehicleData.bankAngle : 0;
-        this.elements.bank.textContent = `${bankAngle.toFixed(1)}°`;
+        // Update all dynamic control values from controls object
+        Object.keys(CONTROLS_CONFIG).forEach(controlId => {
+            const config = CONTROLS_CONFIG[controlId];
+            const element = this.telemetryElements[controlId];
+            if (element) {
+                // Get value from controls object, fallback to vehicleData, then config default
+                let value = controls[controlId];
+                if (value === undefined && vehicleData[controlId] !== undefined) {
+                    value = vehicleData[controlId];
+                }
+                if (value === undefined) {
+                    value = config.defaultValue;
+                }
+                
+                element.textContent = `${value.toFixed(1)}${config.unit}`;
+                
+                // Apply special styling for certain controls
+                if (controlId === 'angleOfAttack') {
+                    // Highlight AoA when it changes (SUFR maneuver)
+                    if (Math.abs(value) < 1) {
+                        element.style.color = '#00ff00'; // Green for zero AoA
+                    } else {
+                        element.style.color = '#ffffff'; // White for trim AoA
+                    }
+                } else if (controlId === 'bankAngle') {
+                    // Highlight bank angle when non-zero
+                    if (Math.abs(value) > 5) {
+                        element.style.color = '#ffaa00'; // Orange for active banking
+                    } else {
+                        element.style.color = '#ffffff'; // White for wings level
+                    }
+                }
+            }
+        });
 
         // Mach number - use actual calculation if available, otherwise simplified
         let mach = 0;
@@ -526,29 +629,15 @@ export class PhaseInfo {
             const soundSpeed = 240 - (altitude * 0.5); // Rough approximation
             mach = velocity / Math.max(soundSpeed, 150);
         }
-        this.elements.mach.textContent = isNaN(mach) ? '0.0' : mach.toFixed(1);
+        this.telemetryElements.mach.textContent = isNaN(mach) ? '0.0' : mach.toFixed(1);
 
         // G-Force calculation (simplified based on deceleration)
         const gForce = Math.min(velocity / 5000, 8);
-        this.elements.gforce.textContent = isNaN(gForce) ? '0.0g' : `${gForce.toFixed(1)}g`;
+        this.telemetryElements.gforce.textContent = isNaN(gForce) ? '0.0g' : `${gForce.toFixed(1)}g`;
 
         // Color code values based on severity
-        this.colorCodeValue(this.elements.gforce, gForce, 4, 6);
-        this.colorCodeValue(this.elements.mach, mach, 10, 20);
-
-        // Highlight AoA when it changes (SUFR maneuver)
-        if (Math.abs(aoa) < 1) {
-            this.elements.aoa.style.color = '#00ff00'; // Green for zero AoA
-        } else {
-            this.elements.aoa.style.color = '#ffffff'; // White for trim AoA
-        }
-
-        // Highlight bank angle when non-zero
-        if (Math.abs(bankAngle) > 5) {
-            this.elements.bank.style.color = '#ffaa00'; // Orange for active banking
-        } else {
-            this.elements.bank.style.color = '#ffffff'; // White for wings level
-        }
+        this.colorCodeValue(this.telemetryElements.gforce, gForce, 4, 6);
+        this.colorCodeValue(this.telemetryElements.mach, mach, 10, 20);
     }
     
     colorCodeValue(element, value, warningThreshold, dangerThreshold) {

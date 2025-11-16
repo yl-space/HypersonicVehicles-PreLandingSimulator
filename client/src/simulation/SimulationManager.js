@@ -406,11 +406,18 @@ export class SimulationManager {
     }
     
     handleKeyPress(event) {
+        // First, check if this key is a control shortcut
+        if (this.controls && this.controls.handleControlKeyPress(event.key)) {
+            event.preventDefault();
+            return;
+        }
+        
         // Prevent default for navigation keys
         if (event.key === ' ' || event.key.startsWith('Arrow')) {
             event.preventDefault();
         }
         
+        // Handle non-control keys
         switch(event.key) {
             case ' ':
                 this.togglePlayPause();
@@ -432,19 +439,6 @@ export class SimulationManager {
                 break;
             case '2':
                 this.setCameraMode('orbit');
-                break;
-            case 'a':
-            case 'A':
-            case 'd':
-            case 'D':
-            case 'w':
-            case 'W':
-            case 's':
-            case 'S':
-                // Let controls handle keyboard shortcuts for controls
-                if (this.controls.handleControlKeyPress(event.key.toLowerCase())) {
-                    event.preventDefault();
-                }
                 break;
             case 'v':
             case 'V':
@@ -571,7 +565,7 @@ export class SimulationManager {
             enhancedVehicleData,
             this.state.currentTime,
             this.state.totalTime,
-            this.state.controls.bankAngle || 0
+            this.state.controls  // Pass entire controls object instead of just bankAngle
         );
     }
     
@@ -891,14 +885,6 @@ export class SimulationManager {
         return value;
     }
     
-    /**
-     * Legacy method for backward compatibility
-     * @deprecated Use getControlValueForTime('bankAngle', time) instead
-     */
-    getBankAngleForTime(time) {
-        return this.getControlValueForTime('bankAngle', time);
-    }
-
     startPlaybackReplay(autoPlay = true) {
         if (!this.state.simulationCompleted) {
             return;

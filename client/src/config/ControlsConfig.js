@@ -77,48 +77,28 @@ export const CONTROLS_CONFIG = {
         keyboardStep: 5, // degrees per keypress
         stateKey: 'bankAngle', // Key in simulation state
         historyKey: 'bankingHistory' // Key for storing adjustment history
+    },
+    
+    angleOfAttack: {
+        id: 'angleOfAttack',
+        label: 'ANGLE OF ATTACK',
+        type: ControlTypes.ANGLE,
+        defaultValue: -16,
+        min: -30,
+        max: 30,
+        step: 0.5,
+        unit: '°',
+        canBeDisabled: true,
+        normalize: normalizeAngle,
+        adjust: adjustAngle,
+        keyboardShortcuts: {
+            increase: ['w', 'W'],
+            decrease: ['s', 'S']
+        },
+        keyboardStep: 1,
+        stateKey: 'angleOfAttack',
+        historyKey: 'angleOfAttackHistory'
     }
-    
-    // Future controls can be added here, for example:
-    // angleOfAttack: {
-    //     id: 'angleOfAttack',
-    //     label: 'ANGLE OF ATTACK',
-    //     type: ControlTypes.ANGLE,
-    //     defaultValue: -16,
-    //     min: -30,
-    //     max: 30,
-    //     step: 0.5,
-    //     unit: '°',
-    //     canBeDisabled: true,
-    //     normalize: normalizeAngle,
-    //     adjust: adjustAngle,
-    //     keyboardShortcuts: {
-    //         increase: ['w', 'W'],
-    //         decrease: ['s', 'S']
-    //     },
-    //     keyboardStep: 1,
-    //     stateKey: 'angleOfAttack',
-    //     historyKey: 'angleOfAttackHistory'
-    // },
-    
-    // throttle: {
-    //     id: 'throttle',
-    //     label: 'THROTTLE',
-    //     type: ControlTypes.NUMBER,
-    //     defaultValue: 0,
-    //     min: 0,
-    //     max: 100,
-    //     step: 1,
-    //     unit: '%',
-    //     canBeDisabled: true,
-    //     keyboardShortcuts: {
-    //         increase: ['=', '+'],
-    //         decrease: ['-', '_']
-    //     },
-    //     keyboardStep: 5,
-    //     stateKey: 'throttle',
-    //     historyKey: 'throttleHistory'
-    // }
 };
 
 /**
