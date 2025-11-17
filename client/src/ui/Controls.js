@@ -31,6 +31,10 @@ export class Controls {
         const container = document.createElement('div');
         container.className = 'camera-controls';
         container.innerHTML = `
+            <div class="camera-controls-header">
+                <h3 class="control-label">CAMERA</h3>
+                <button class="panel-collapse-toggle" type="button" title="Collapse camera controls">▾</button>
+            </div>
             <div class="control-group">
                 <h3 class="control-label">CAMERA</h3>
                 <button class="camera-mode active" data-mode="FOLLOW">
@@ -51,6 +55,13 @@ export class Controls {
         document.body.appendChild(container);
         
         // Event listeners
+        const toggle = container.querySelector('.panel-collapse-toggle');
+        if (toggle) {
+            toggle.addEventListener('click', () => {
+                container.classList.toggle('collapsed');
+            });
+        }
+
         container.querySelectorAll('.camera-mode').forEach(button => {
             button.addEventListener('click', () => {
                 this.setActiveCamera(button.dataset.mode);
@@ -65,7 +76,7 @@ export class Controls {
         const container = document.createElement('div');
         container.className = 'bank-angle-controls';
         container.innerHTML = `
-            <div class="control-group">
+            <div class="control-group bank-angle-group">
                 <h3 class="control-label">BANK ANGLE</h3>
                 <div class="bank-slider-row bank-slider-relative">
                     <input type="range" min="-90" max="90" value="0" step="1" class="bank-slider" id="bank-angle-slider">
@@ -75,7 +86,13 @@ export class Controls {
             </div>
         `;
         
-        document.body.appendChild(container);
+        const parent = this.elements.cameraControls || document.body;
+        // Insert bank angle controls at the top of the camera panel
+        if (parent.firstChild) {
+            parent.insertBefore(container, parent.firstChild);
+        } else {
+            parent.appendChild(container);
+        }
 
         // Event listener for slider
         const slider = container.querySelector('#bank-angle-slider');

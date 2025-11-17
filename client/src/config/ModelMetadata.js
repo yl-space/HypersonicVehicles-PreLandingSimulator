@@ -84,10 +84,10 @@ export const ModelMetadata = {
         },
         transformations: {
             rotation: {
-                x: 0,    // May need adjustment after testing
-                y: 90,   // Rotate to align forward axes
+                x: -90,
+                y: 0,
                 z: 0,
-                order: 'YXZ'
+                order: 'XYZ'
             },
             scale: 0.01,  // Increased scale for better visibility
             position: { x: 0, y: 0, z: 0 }

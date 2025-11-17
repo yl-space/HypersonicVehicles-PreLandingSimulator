@@ -29,7 +29,8 @@ export class Mars {
             colorUltra: loader.load('/assets/textures/Mars/Mars_color_16k.jpg'),
             colorHigh: loader.load('/assets/textures/Mars/Mars_color_8k.jpg'),
             colorMedium: loader.load('/assets/textures/Mars/Mars_color_4k.jpg'),
-            colorLow: loader.load('/assets/textures/Mars/Mars_color_2k.jpg')
+            colorLow: loader.load('/assets/textures/Mars/Mars_color_2k.jpg'),
+            normal: loader.load('/assets/textures/Mars/Mars_normal_4k.png')
         };
 
         this.surfaceLOD = new THREE.LOD();
@@ -88,6 +89,11 @@ export class Mars {
             shininess: detail === 'ultra' ? 16 : detail === 'high' ? 12 : 6,
             side: THREE.DoubleSide
         });
+
+        if (this.textures.normal && (detail === 'ultra' || detail === 'high' || detail === 'medium')) {
+            mat.normalMap = this.textures.normal;
+            mat.normalScale = new THREE.Vector2(0.7, 0.7);
+        }
 
         return mat;
     }

@@ -320,19 +320,17 @@ body {
 .timeline-reset-button {
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.25);
     color: #fff;
-    padding: 6px 12px;
-    border-radius: 20px;
+    padding: 6px 8px;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 11px;
-    letter-spacing: 0.6px;
-    text-transform: uppercase;
-    order: 0;
+    font-size: 0;
+    order: 3;
     transition: all 0.2s ease;
-    min-width: 78px;
+    min-width: 32px;
 }
 
 .timeline-reset-button:disabled {
@@ -588,6 +586,41 @@ body {
     display: flex;
     flex-direction: column;
     gap: 18px;
+}
+
+.camera-controls-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.panel-collapse-toggle {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(0, 0, 0, 0.4);
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.camera-controls.collapsed .control-group:not(.bank-angle-group),
+.camera-controls.collapsed .bank-angle-controls {
+    display: none;
+}
+
+.camera-controls.collapsed {
+    padding: 8px 10px;
+    gap: 0;
+}
+
+.camera-controls.collapsed .panel-collapse-toggle {
+    transform: rotate(180deg);
 }
 
 .control-group {

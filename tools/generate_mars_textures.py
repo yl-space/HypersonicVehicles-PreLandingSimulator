@@ -19,8 +19,14 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import math
 
 from PIL import Image
+
+try:
+    import numpy as np  # type: ignore[import]
+except ImportError:  # pragma: no cover - optional dependency
+    np = None
 
 
 def generate_levels(
@@ -43,10 +49,10 @@ def generate_levels(
         if img.mode not in ("RGB", "RGBA"):
             img = img.convert("RGB")
 
-        # Compute the largest requested width and pick an integer reduction
-        # factor to get us near that scale in a single pass.
+        # Compute the largest requested width and pick a reduction factor
+        # using ceil so we always shrink enough to stay within memory.
         max_target_width = max(w for w, _ in sizes)
-        reduce_factor = max(1, img.width // (max_target_width * 2))
+        reduce_factor = max(1, math.ceil(img.width / (max_target_width * 2)))
         if reduce_factor > 1:
             print(f"[mars-textures] Applying pre-reduction factor {reduce_factor} to save memory...")
             img = img.reduce(reduce_factor)
@@ -67,6 +73,8 @@ def generate_levels(
                 img = img.crop((left, 0, right, img.height))
                 print(f"[mars-textures] Cropped to {img.width} x {img.height}.")
 
+        normal_source = None
+
         for width, height in sizes:
             print(f"[mars-textures] Generating {width}x{height} ...")
             resized = img.resize((width, height), resample=Image.LANCZOS)
@@ -83,6 +91,41 @@ def generate_levels(
             out_path = out_dir / name
             resized.save(out_path, format="JPEG", quality=95, subsampling=0)
             print(f"[mars-textures] Wrote {out_path}")
+
+            # Keep a 4K version around as the base for a normal map
+            if width == 4096 and height == 2048:
+                normal_source = resized.copy()
+
+        # Optional: derive a simple normal map from the 4K color map
+        if normal_source is not None and np is not None:
+            print("[mars-textures] Generating approximate normal map from 4K color map...")
+            gray = normal_source.convert("L")
+            arr = np.asarray(gray, dtype="float32") / 255.0
+
+            # Sobel-like gradients
+            gx = np.zeros_like(arr)
+            gy = np.zeros_like(arr)
+
+            gx[:, 1:-1] = (arr[:, 2:] - arr[:, :-2]) * 0.5
+            gy[1:-1, :] = (arr[2:, :] - arr[:-2, :]) * 0.5
+
+            # Build normal components; z is "up"
+            nz = np.ones_like(arr)
+            length = np.sqrt(gx * gx + gy * gy + nz * nz) + 1e-8
+            nx = -gx / length
+            ny = -gy / length
+            nz = nz / length
+
+            normal_rgb = (np.stack([(nx + 1) * 127.5, (ny + 1) * 127.5, (nz + 1) * 127.5], axis=-1)
+                          .clip(0, 255)
+                          .astype("uint8"))
+
+            normal_img = Image.fromarray(normal_rgb, mode="RGB")
+            normal_path = out_dir / "Mars_normal_4k.png"
+            normal_img.save(normal_path, format="PNG", compress_level=3)
+            print(f"[mars-textures] Wrote normal map {normal_path}")
+        elif normal_source is not None and np is None:
+            print("[mars-textures] NumPy not available; skipping normal map generation.")
 
 
 def main() -> None:
