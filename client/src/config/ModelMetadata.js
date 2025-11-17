@@ -22,7 +22,7 @@ export const ModelMetadata = {
     // Primary spacecraft model
     dragonConverted: {
         name: 'Dragon Spacecraft (Primary)',
-        filename: 'dragon_converted/dragon/dragon.gltf',
+        filename: 'dragon_converted_zip/dragon/dragon.gltf',
         originalAxes: {
             forward: '+X',  // Direction the spacecraft points
             up: '+Z',       // Top of the spacecraft

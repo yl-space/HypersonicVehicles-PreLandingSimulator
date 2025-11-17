@@ -112,25 +112,61 @@ export class EntryVehicle {
     }
 
     createGLTFLOD(model) {
-        // Create LOD system with GLTF model
         this.vehicleLOD = new THREE.LOD();
 
-        // Clone the model for different LOD levels
-        const highDetail = model.clone();
-        const mediumDetail = model.clone();
-        const lowDetail = model.clone();
+        const highDetail = model.clone(true);
+        const mediumDetail = model.clone(true);
+        const lowDetail = model.clone(true);
 
-        // Apply different scales or simplifications for LOD
-        // High detail - full model
+        this.applyMediumDetailTweaks(mediumDetail);
+        this.applyLowDetailTweaks(lowDetail);
+
         this.vehicleLOD.addLevel(highDetail, 0);
-
-        // Medium detail - could reduce texture quality or polygon count
-        this.vehicleLOD.addLevel(mediumDetail, 50);
-
-        // Low detail - simplified version
-        this.vehicleLOD.addLevel(lowDetail, 200);
+        this.vehicleLOD.addLevel(mediumDetail, 60);
+        this.vehicleLOD.addLevel(lowDetail, 140);
 
         this.group.add(this.vehicleLOD);
+    }
+
+    applyMediumDetailTweaks(object) {
+        object.traverse((child) => {
+            if (child.isMesh) {
+                if (Array.isArray(child.material)) {
+                    child.material = child.material.map(mat => {
+                        const clone = mat.clone();
+                        clone.flatShading = true;
+                        clone.shininess = Math.min(clone.shininess || 20, 10);
+                        clone.needsUpdate = true;
+                        return clone;
+                    });
+                } else if (child.material) {
+                    const clone = child.material.clone();
+                    clone.flatShading = true;
+                    clone.shininess = Math.min(clone.shininess || 20, 10);
+                    clone.needsUpdate = true;
+                    child.material = clone;
+                }
+                child.castShadow = false;
+            }
+        });
+    }
+
+    applyLowDetailTweaks(object) {
+        object.traverse((child) => {
+            if (child.isMesh) {
+                let baseColor = new THREE.Color(0xffffff);
+                const sourceMaterial = Array.isArray(child.material) ? child.material[0] : child.material;
+                if (sourceMaterial && sourceMaterial.color) {
+                    baseColor = sourceMaterial.color.clone();
+                }
+                child.material = new THREE.MeshBasicMaterial({
+                    color: baseColor,
+                    wireframe: false
+                });
+                child.castShadow = false;
+                child.receiveShadow = false;
+            }
+        });
     }
 
     createVehicleWithLOD() {
@@ -143,11 +179,11 @@ export class EntryVehicle {
 
         // Medium detail
         const mediumDetail = this.createMediumDetailVehicle();
-        this.vehicleLOD.addLevel(mediumDetail, 50);
+        this.vehicleLOD.addLevel(mediumDetail, 70);
 
         // Low detail (far)
         const lowDetail = this.createLowDetailVehicle();
-        this.vehicleLOD.addLevel(lowDetail, 200);
+        this.vehicleLOD.addLevel(lowDetail, 150);
 
         this.group.add(this.vehicleLOD);
     }
@@ -598,7 +634,7 @@ export class EntryVehicle {
         this.setVectorsVisible(!this.vectorsVisible);
     }
 
-    update(time, vehicleData, bankAngle = 0) {
+    update(time, vehicleData, bankAngle = 0, camera = null) {
         if (!vehicleData) return;
 
         // Update orientation vectors if visible
@@ -633,8 +669,9 @@ export class EntryVehicle {
             this.thrusterMesh.material.opacity = this.state.thrustersActive ? 0.8 : 0;
         }
         
-        // LOD updates handled automatically by Three.js
-        this.vehicleLOD.update(this.group);
+        if (camera && this.vehicleLOD) {
+            this.vehicleLOD.update(camera);
+        }
     }
     
     updatePlasmaTail(intensity) {

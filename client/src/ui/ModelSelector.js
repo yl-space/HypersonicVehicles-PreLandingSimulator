@@ -41,7 +41,7 @@ export class ModelSelector {
 
         this.element = null;
         this.statusEl = null;
-        this.buttons = [];
+        this.selectEl = null;
 
         this.init();
     }
@@ -50,7 +50,7 @@ export class ModelSelector {
         this.createElement();
         this.setupEventListeners();
         this.refreshAvailability();
-        this.updateActiveButton(this.currentModel);
+        this.updateSelection(this.currentModel);
         this.setStatus(`${this.getModelLabel(this.currentModel)} ready`, 'ready');
     }
 
@@ -62,62 +62,54 @@ export class ModelSelector {
                 <span class="control-label">SPACECRAFT</span>
                 <span class="model-status" aria-live="polite">Select vehicle</span>
             </div>
-            <div class="model-toggle" role="group" aria-label="Spacecraft model">
-                ${this.models.map(model => `
-                    <button 
-                        type="button" 
-                        class="model-chip" 
-                        data-model="${model.id}"
-                        aria-pressed="${model.id === this.currentModel}"
-                        title="${model.description}">
-                        <span class="chip-label">${model.label}</span>
-                        <span class="chip-badge">${model.badge}</span>
-                    </button>
-                `).join('')}
+            <label class="sr-only" for="spacecraft-dropdown">Choose spacecraft</label>
+            <div class="model-dropdown">
+                <select id="spacecraft-dropdown">
+                    ${this.models.map(model => `
+                        <option value="${model.id}">
+                            ${model.label} • ${model.badge}
+                        </option>
+                    `).join('')}
+                </select>
             </div>
         `;
 
         this.container.appendChild(wrapper);
         this.element = wrapper;
         this.statusEl = wrapper.querySelector('.model-status');
-
-        this.buttons = Array.from(wrapper.querySelectorAll('.model-chip'));
+        this.selectEl = wrapper.querySelector('#spacecraft-dropdown');
+        if (this.selectEl) {
+            this.selectEl.value = this.currentModel;
+        }
     }
 
     setupEventListeners() {
-        this.buttons.forEach(button => {
-            button.addEventListener('click', () => {
-                if (this.isSwitching || button.disabled) return;
-                this.selectModel(button.dataset.model);
-            });
+        if (!this.selectEl) return;
 
-            button.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    button.click();
-                }
-            });
+        this.selectEl.addEventListener('change', (event) => {
+            const value = event.target.value;
+            if (this.isSwitching) {
+                event.target.value = this.currentModel;
+                return;
+            }
+            this.selectModel(value);
         });
     }
 
     refreshAvailability() {
         this.hasAssetLoader = !!(this.entryVehicle && this.entryVehicle.assetLoader);
-        this.buttons.forEach(button => {
-            const config = this.modelLookup.get(button.dataset.model);
+        if (!this.selectEl) return;
+
+        Array.from(this.selectEl.options).forEach(option => {
+            const config = this.modelLookup.get(option.value);
             const unavailable = config.requiresAssetLoader && !this.hasAssetLoader;
-            button.disabled = unavailable;
-            button.setAttribute('aria-disabled', unavailable ? 'true' : 'false');
-            button.classList.toggle('is-disabled', unavailable);
-            if (unavailable) {
-                button.setAttribute('title', `${config.description} (requires GLTF support)`);
-            } else {
-                button.setAttribute('title', config.description);
-            }
+            option.disabled = unavailable;
+            option.dataset.disabled = unavailable ? 'true' : 'false';
         });
 
         if (!this.hasAssetLoader && this.currentModel !== 'cone') {
             this.currentModel = 'cone';
-            this.updateActiveButton(this.currentModel);
+            this.selectEl.value = 'cone';
             this.setStatus(`${this.getModelLabel(this.currentModel)} ready`, 'ready');
         }
     }
@@ -134,7 +126,7 @@ export class ModelSelector {
         }
 
         this.isSwitching = true;
-        this.updateActiveButton(modelId);
+        this.updateSelection(modelId);
         this.setStatus(`Loading ${selected.label}...`, 'loading');
 
         try {
@@ -143,6 +135,9 @@ export class ModelSelector {
             }
 
             this.currentModel = modelId;
+            if (this.selectEl) {
+                this.selectEl.value = modelId;
+            }
             this.setStatus(`${selected.label} ready`, 'ready');
 
             if (this.onModelChange) {
@@ -151,18 +146,16 @@ export class ModelSelector {
         } catch (error) {
             console.error('Error switching model:', error);
             this.setStatus(`Failed to load ${selected.label}`, 'error');
-            this.updateActiveButton(this.currentModel);
+            this.updateSelection(this.currentModel);
         } finally {
             this.isSwitching = false;
         }
     }
 
-    updateActiveButton(modelId) {
-        this.buttons.forEach(button => {
-            const isActive = button.dataset.model === modelId;
-            button.classList.toggle('active', isActive);
-            button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-        });
+    updateSelection(modelId) {
+        if (this.selectEl) {
+            this.selectEl.value = modelId;
+        }
     }
 
     setStatus(message, state = 'ready') {

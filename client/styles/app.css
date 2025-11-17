@@ -679,54 +679,27 @@ body {
     color: #8ffe9c;
 }
 
-.model-toggle {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.model-chip {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+.model-dropdown select {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 6px;
-    padding: 10px 12px;
-    color: #ddd;
-    cursor: pointer;
-    text-align: left;
-    transition: all 0.2s ease;
-    font-size: 11px;
-}
-
-.model-chip:hover:not(.is-disabled) {
-    border-color: rgba(255, 255, 255, 0.25);
+    padding: 8px 12px;
     color: #fff;
-}
-
-.model-chip.active {
-    background: rgba(255, 102, 0, 0.25);
-    border-color: rgba(255, 102, 0, 0.8);
-    box-shadow: 0 6px 18px rgba(255, 102, 0, 0.25);
-    color: #fff;
-}
-
-.model-chip.is-disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-}
-
-.chip-label {
-    display: block;
     font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.3px;
+    font-family: inherit;
+    appearance: none;
+    outline: none;
+    transition: border-color 0.2s ease;
 }
 
-.chip-badge {
-    display: block;
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.7px;
-    color: #bbb;
+.model-dropdown select:focus {
+    border-color: rgba(255, 102, 0, 0.9);
+    box-shadow: 0 0 0 2px rgba(255, 102, 0, 0.2);
+}
+
+.model-dropdown select option[disabled] {
+    color: #777;
 }
 
 /* Settings Panel */

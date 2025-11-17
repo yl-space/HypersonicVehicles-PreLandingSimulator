@@ -10,9 +10,11 @@ export class Earth {
         // NASA Data: Earth radius = 6,378 km
         // Scale: 1 unit = 100 km for visualization
         this.radius = 63.78; // 6,378 km / 100
-        this.surface = null;
+        this.surfaceLOD = null;
+        this.lodMeshes = [];
         this.clouds = null;
         this.atmosphere = null;
+        this.textures = null;
         
         this.init();
     }
@@ -24,33 +26,64 @@ export class Earth {
     }
     
     createSurface() {
-        // Create Earth sphere with high detail
-        const geometry = new THREE.SphereGeometry(this.radius, 128, 64);
-        
-        // Load textures from assets
-        const textureLoader = new THREE.TextureLoader();
-        const earthTexture = textureLoader.load('/assets/textures/Earth/earthmap_color.jpg');
-        const earthBump = textureLoader.load('/assets/textures/Earth/earthmap_bump.jpg');
-        const earthSpecular = textureLoader.load('/assets/textures/Earth/earthmap_specular.jpg');
-        const earthLights = textureLoader.load('/assets/textures/Earth/earthamp_lights.jpg');
-        
-        const material = new THREE.MeshPhongMaterial({
-            map: earthTexture,
-            bumpMap: earthBump,
-            bumpScale: 0.5,
-            specularMap: earthSpecular,
-            specular: new THREE.Color(0x333333),
-            shininess: 25,
-            emissiveMap: earthLights,
-            emissive: new THREE.Color(0xffff88),
-            emissiveIntensity: 0.1
+        const loader = new THREE.TextureLoader();
+        this.textures = {
+            color: loader.load('/assets/textures/Earth/earthmap_color.jpg'),
+            bump: loader.load('/assets/textures/Earth/earthmap_bump.jpg'),
+            specular: loader.load('/assets/textures/Earth/earthmap_specular.jpg'),
+            lights: loader.load('/assets/textures/Earth/earthamp_lights.jpg')
+        };
+
+        this.surfaceLOD = new THREE.LOD();
+        const levels = [
+            { segments: 128, distance: 0, detail: 'high' },
+            { segments: 72, distance: 100, detail: 'medium' },
+            { segments: 36, distance: 180, detail: 'low' }
+        ];
+
+        levels.forEach(level => {
+            const mesh = this.createSurfaceMesh(level);
+            this.surfaceLOD.addLevel(mesh, level.distance);
+            this.lodMeshes.push(mesh);
         });
-        
-        this.surface = new THREE.Mesh(geometry, material);
-        this.surface.receiveShadow = true;
-        this.surface.castShadow = true;
-        
-        this.group.add(this.surface);
+
+        this.group.add(this.surfaceLOD);
+    }
+
+    createSurfaceMesh({ segments, detail }) {
+        const geometry = new THREE.SphereGeometry(this.radius, segments, Math.max(segments / 2, 16));
+        const material = this.buildSurfaceMaterial(detail);
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.castShadow = detail !== 'low';
+        mesh.receiveShadow = true;
+        return mesh;
+    }
+
+    buildSurfaceMaterial(detail) {
+        const base = {
+            map: this.textures.color,
+            shininess: detail === 'high' ? 30 : 10
+        };
+
+        if (detail === 'low') {
+            return new THREE.MeshBasicMaterial({
+                map: this.textures.color,
+                color: 0xffffff
+            });
+        }
+
+        const material = new THREE.MeshPhongMaterial({
+            ...base,
+            bumpMap: this.textures.bump,
+            bumpScale: detail === 'high' ? 0.5 : 0.2,
+            specularMap: this.textures.specular,
+            specular: new THREE.Color(detail === 'high' ? 0x333333 : 0x222222),
+            emissiveMap: this.textures.lights,
+            emissive: new THREE.Color(0xffffaa),
+            emissiveIntensity: detail === 'high' ? 0.1 : 0.05
+        });
+
+        return material;
     }
     
     createClouds() {
@@ -128,7 +161,11 @@ export class Earth {
             this.atmosphere.material.uniforms.viewVector.value = 
                 new THREE.Vector3().subVectors(camera.position, this.group.position);
         }
-        
+
+        if (this.surfaceLOD) {
+            this.surfaceLOD.update(camera);
+        }
+
         // No rotation - Earth remains stationary in J2000 reference frame
     }
     
@@ -141,10 +178,10 @@ export class Earth {
     }
     
     dispose() {
-        if (this.surface) {
-            this.surface.geometry.dispose();
-            this.surface.material.dispose();
-        }
+        this.lodMeshes.forEach(mesh => {
+            mesh.geometry.dispose();
+            mesh.material.dispose();
+        });
         
         if (this.clouds) {
             this.clouds.geometry.dispose();

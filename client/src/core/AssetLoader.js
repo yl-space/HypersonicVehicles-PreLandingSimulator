@@ -446,13 +446,13 @@ export class AssetLoader {
     /**
      * Load spacecraft model with proper configuration
      */
-    async loadSpacecraftModel(modelName = 'dragon_converted/dragon/dragon.gltf', config = {}) {
+    async loadSpacecraftModel(modelName = 'dragon_converted_zip/dragon/dragon.gltf', config = {}) {
         try {
             const gltf = await this.loadGLTFModel(modelName);
 
             // Default spacecraft model configurations
             const modelConfigs = {
-                'dragon_converted/dragon/dragon.gltf': {
+                'dragon_converted_zip/dragon/dragon.gltf': {
                     name: 'Dragon Spacecraft',
                     originalAxes: {
                         forward: '+X',  // Adjust based on actual model

@@ -499,7 +499,7 @@ export class SimulationManager {
         this.cameraController.update(deltaTime, this.state.vehicleData);
         
         // Update entry vehicle effects
-        this.entryVehicle.update(this.state.currentTime, this.state.vehicleData, this.state.bankAngle);
+        this.entryVehicle.update(this.state.currentTime, this.state.vehicleData, this.state.bankAngle, this.cameraController.camera);
         
         // Update current planet
         if (this.currentPlanet) {
@@ -812,6 +812,7 @@ export class SimulationManager {
         if (this.timeline) {
             this.timeline.setTime(0);
             this.timeline.setScrubbingEnabled(true);
+            this.timeline.setReplayAvailable(true);
         }
 
         this.seekTo(0);
