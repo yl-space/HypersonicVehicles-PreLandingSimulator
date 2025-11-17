@@ -113,3 +113,4 @@ pids
 .env.production.local
 .env.local
 nul
+client/assets/textures/Mars/Mars_Viking_MDIM21_ClrMosaic_global_232m.tif

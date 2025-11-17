@@ -58,8 +58,7 @@ export class SceneManager {
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.0;
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.BasicShadowMap; // Changed from PCFSoftShadowMap for better performance
+        this.renderer.shadowMap.enabled = false;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         
         // Enable modern features
@@ -115,31 +114,19 @@ export class SceneManager {
         const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
         pmremGenerator.compileEquirectangularShader();
         
-        // Add lighting with modern shadow settings
-        const sunLight = new THREE.DirectionalLight(0xffffff, 3.0);
+        // Add lighting (no shadow maps to avoid harsh planet shadows)
+        const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
         sunLight.position.set(100, 50, 75);
-        sunLight.castShadow = true;
-
-        // Reduced shadow settings for better performance
-        sunLight.shadow.mapSize.width = 1024;  // Reduced from 2048
-        sunLight.shadow.mapSize.height = 1024;  // Reduced from 2048
-        sunLight.shadow.camera.near = 0.5;
-        sunLight.shadow.camera.far = 500;
-        sunLight.shadow.camera.left = -100;
-        sunLight.shadow.camera.right = 100;
-        sunLight.shadow.camera.top = 100;
-        sunLight.shadow.camera.bottom = -100;
-        sunLight.shadow.bias = -0.0005;
-        sunLight.shadow.normalBias = 0.02;
+        sunLight.castShadow = false;
         
         marsScene.add(sunLight);
         
         // Ambient lighting for fill
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
         marsScene.add(ambientLight);
         
         // Hemisphere light for sky/ground color
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d6e63, 0.5);
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d6e63, 0.7);
         marsScene.add(hemiLight);
         
         // Create earth and jupiter scenes as placeholders
@@ -211,13 +198,8 @@ export class SceneManager {
         if (!sunLight) return;
         
         // Dynamic lighting based on altitude
-        const atmosphericAttenuation = Math.max(0.3, 1 - altitude / 200);
-        sunLight.intensity = 3.0 * atmosphericAttenuation;
-        
-        // Update shadows only when needed
-        if (phase === 0 || phase === 3) { // Entry or landing phases
-            this.renderer.shadowMap.needsUpdate = true;
-        }
+        const atmosphericAttenuation = Math.max(0.5, 1 - altitude / 300);
+        sunLight.intensity = 2.0 * atmosphericAttenuation;
     }
     
     render(camera) {

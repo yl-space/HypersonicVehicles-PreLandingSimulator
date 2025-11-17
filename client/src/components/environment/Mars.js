@@ -26,18 +26,20 @@ export class Mars {
     createSurface() {
         const loader = new THREE.TextureLoader();
         this.textures = {
-            color: loader.load('/assets/textures/Mars/Mars.jpg'),
-            normal: loader.load('/assets/textures/Mars/Mars_normal.jpg'),
-            specular: loader.load('/assets/textures/Mars/Mars_specular.jpg')
+            colorUltra: loader.load('/assets/textures/Mars/Mars_color_16k.jpg'),
+            colorHigh: loader.load('/assets/textures/Mars/Mars_color_8k.jpg'),
+            colorMedium: loader.load('/assets/textures/Mars/Mars_color_4k.jpg'),
+            colorLow: loader.load('/assets/textures/Mars/Mars_color_2k.jpg')
         };
 
         this.surfaceLOD = new THREE.LOD();
         this.group.add(this.surfaceLOD);
 
         const levels = [
-            { segments: 96, distance: 0, detail: 'high' },
-            { segments: 48, distance: 80, detail: 'medium' },
-            { segments: 24, distance: 140, detail: 'low' }
+            { segments: 128, distance: 0, detail: 'ultra' },
+            { segments: 96, distance: 60, detail: 'high' },
+            { segments: 48, distance: 120, detail: 'medium' },
+            { segments: 24, distance: 180, detail: 'low' }
         ];
 
         levels.forEach(level => {
@@ -51,8 +53,8 @@ export class Mars {
         const geometry = new THREE.SphereGeometry(this.radius, segments, Math.max(segments / 2, 12));
         const material = this.buildMaterial(detail);
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.castShadow = detail !== 'low';
-        mesh.receiveShadow = true;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
         mesh.position.set(0, 0, 0);
         return mesh;
     }
@@ -61,32 +63,31 @@ export class Mars {
         if (!this.textures) {
             const loader = new THREE.TextureLoader();
             this.textures = {
-                color: loader.load('/assets/textures/Mars/Mars.jpg')
+                colorHigh: loader.load('/assets/textures/Mars/Mars.jpg')
             };
         }
 
+        const colorMap =
+            detail === 'ultra'
+                ? (this.textures.colorUltra || this.textures.colorHigh)
+                : detail === 'high'
+                    ? (this.textures.colorHigh || this.textures.colorMedium)
+                    : detail === 'medium'
+                        ? (this.textures.colorMedium || this.textures.colorLow || this.textures.colorHigh)
+                        : (this.textures.colorLow || this.textures.colorMedium || this.textures.colorHigh);
+
         if (detail === 'low') {
             return new THREE.MeshBasicMaterial({
-                map: this.textures.color,
+                map: colorMap,
                 color: 0xffffff
             });
         }
 
         const mat = new THREE.MeshPhongMaterial({
-            map: this.textures.color,
-            shininess: detail === 'high' ? 12 : 6,
+            map: colorMap,
+            shininess: detail === 'ultra' ? 16 : detail === 'high' ? 12 : 6,
             side: THREE.DoubleSide
         });
-
-        if (this.textures.normal && detail === 'high') {
-            mat.normalMap = this.textures.normal;
-            mat.normalScale = new THREE.Vector2(1, 1);
-        }
-
-        if (this.textures.specular && detail !== 'low') {
-            mat.specularMap = this.textures.specular;
-            mat.specular = new THREE.Color(0x222222);
-        }
 
         return mat;
     }

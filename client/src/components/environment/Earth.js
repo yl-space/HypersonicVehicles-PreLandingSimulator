@@ -54,8 +54,8 @@ export class Earth {
         const geometry = new THREE.SphereGeometry(this.radius, segments, Math.max(segments / 2, 16));
         const material = this.buildSurfaceMaterial(detail);
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.castShadow = detail !== 'low';
-        mesh.receiveShadow = true;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
         return mesh;
     }
 

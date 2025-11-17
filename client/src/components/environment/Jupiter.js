@@ -46,8 +46,8 @@ export class Jupiter {
         const geometry = new THREE.SphereGeometry(this.radius, segments, Math.max(segments / 2, 16));
         const material = this.buildMaterial(detail);
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.castShadow = detail !== 'low';
-        mesh.receiveShadow = true;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
         return mesh;
     }
 
