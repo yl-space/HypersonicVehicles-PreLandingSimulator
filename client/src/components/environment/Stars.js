@@ -8,66 +8,66 @@ import * as THREE from 'three';
 export class Stars {
     constructor() {
         this.group = new THREE.Group();
-        
         this.init();
     }
-    
+
     init() {
-        // Only use texture-based starfield with tiling
         this.createStarfieldSkybox();
     }
-    
+
     createStarfieldSkybox() {
-        // Load and configure starfield texture with tiling
-        const textureLoader = new THREE.TextureLoader();
-        const starfieldTexture = textureLoader.load('/assets/textures/starfield.png');
-        
-        // Configure texture to repeat/tile for better coverage
-        starfieldTexture.wrapS = THREE.RepeatWrapping;
-        starfieldTexture.wrapT = THREE.RepeatWrapping;
-        starfieldTexture.repeat.set(10, 10); // Tile 10x10 for dense star coverage
-        starfieldTexture.minFilter = THREE.LinearMipmapLinearFilter;
-        starfieldTexture.magFilter = THREE.LinearFilter;
-        
-        // Create a box skybox for better texture distribution
-        const skyboxSize = 100000;
-        const skyboxGeometry = new THREE.BoxGeometry(skyboxSize, skyboxSize, skyboxSize);
-        
-        // Create material array for each face of the cube
+        const loader = new THREE.TextureLoader();
+        const texture = loader.load('/assets/textures/starfield.png');
+
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = true;
+
+        const size = 100000;
+        const geometry = new THREE.BoxGeometry(size, size, size);
         const materials = [];
+
         for (let i = 0; i < 6; i++) {
+            const faceTexture = texture.clone();
+            faceTexture.repeat.set(8 + i, 8 + i);
             materials.push(new THREE.MeshBasicMaterial({
-                map: starfieldTexture.clone(),
+                map: faceTexture,
                 side: THREE.BackSide,
                 depthWrite: false,
                 depthTest: true,
                 fog: false
             }));
-            // Vary the tiling for each face to create variety
-            materials[i].map.repeat.set(8 + i, 8 + i);
         }
-        
-        const skybox = new THREE.Mesh(skyboxGeometry, materials);
-        skybox.renderOrder = -1; // Render skybox first
+
+        const skybox = new THREE.Mesh(geometry, materials);
+        skybox.renderOrder = -1;
         this.group.add(skybox);
     }
-    
+
     update(deltaTime) {
-        // Slowly rotate the entire starfield for subtle movement
-        this.group.rotation.y += deltaTime * 0.00001;
+        this.group.rotation.y += deltaTime * 0.00002;
     }
-    
+
     getObject3D() {
         return this.group;
     }
-    
+
     dispose() {
-        // Clean up skybox resources
-        this.group.traverse((child) => {
+        this.group.traverse(child => {
             if (child.geometry) child.geometry.dispose();
             if (child.material) {
-                if (child.material.map) child.material.map.dispose();
-                child.material.dispose();
+                if (Array.isArray(child.material)) {
+                    child.material.forEach(mat => {
+                        if (mat.map) mat.map.dispose();
+                        mat.dispose();
+                    });
+                } else {
+                    if (child.material.map) child.material.map.dispose();
+                    child.material.dispose();
+                }
             }
         });
     }

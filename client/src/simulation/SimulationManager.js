@@ -126,12 +126,14 @@ export class SimulationManager {
     }
     
     async createSceneObjects() {
+        const maxAnisotropy = this.sceneManager.renderer?.capabilities?.getMaxAnisotropy?.() || 1;
+
         // Create stars background
         this.stars = new Stars();
         this.sceneManager.addToAllScenes(this.stars.getObject3D());
 
         // Create all planets
-        this.mars = new Mars();
+        this.mars = new Mars({ maxAnisotropy });
         this.earth = new Earth();
         this.jupiter = new Jupiter();
 

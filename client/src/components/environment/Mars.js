@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 
 export class Mars {
-    constructor() {
+    constructor(options = {}) {
         this.group = new THREE.Group();
         // NASA Data: Mars radius = 3,390 km (about half of Earth)
         // Scale: 1 unit = 100 km for visualization
@@ -14,6 +14,7 @@ export class Mars {
         this.surfaceLOD = null;
         this.lodMeshes = [];
         this.textures = null;
+        this.maxAnisotropy = options.maxAnisotropy || 1;
         
         this.init();
     }
@@ -32,6 +33,15 @@ export class Mars {
             colorLow: loader.load('/assets/textures/Mars/Mars_color_2k.jpg'),
             normal: loader.load('/assets/textures/Mars/Mars_normal_4k.png')
         };
+
+        Object.values(this.textures).forEach(tex => {
+            if (!tex) return;
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.minFilter = THREE.LinearMipmapLinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.anisotropy = this.maxAnisotropy;
+            tex.generateMipmaps = true;
+        });
 
         this.surfaceLOD = new THREE.LOD();
         this.group.add(this.surfaceLOD);
