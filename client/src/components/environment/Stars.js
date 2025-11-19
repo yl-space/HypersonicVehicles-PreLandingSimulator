@@ -32,13 +32,16 @@ export class Stars {
 
         for (let i = 0; i < 6; i++) {
             const faceTexture = texture.clone();
-            faceTexture.repeat.set(8 + i, 8 + i);
+            faceTexture.repeat.set(10 + i * 2, 10 + i * 2);
             materials.push(new THREE.MeshBasicMaterial({
                 map: faceTexture,
                 side: THREE.BackSide,
                 depthWrite: false,
-                depthTest: true,
-                fog: false
+                depthTest: false,
+                fog: false,
+                toneMapped: false,
+                transparent: true,
+                opacity: 0.95
             }));
         }
 

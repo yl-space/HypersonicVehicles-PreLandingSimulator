@@ -106,27 +106,19 @@ export class SceneManager {
     }
     
     createScenes() {
-        // Mars Scene with optimizations
+        // Mars Scene with bright, even lighting
         const marsScene = new THREE.Scene();
-        marsScene.background = new THREE.Color(0x000000); // Ensure black background
+        marsScene.background = null; // Allow starfield skybox to define the background
         
         // Use environment map for better lighting
         const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
         pmremGenerator.compileEquirectangularShader();
         
-        // Add lighting (no shadow maps to avoid harsh planet shadows)
-        const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
-        sunLight.position.set(100, 50, 75);
-        sunLight.castShadow = false;
-        
-        marsScene.add(sunLight);
-        
-        // Ambient lighting for fill
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
+        // Uniform ambient/hemisphere lighting (no directional shadows)
+        const ambientLight = new THREE.AmbientLight(0xfff8e6, 1.4);
         marsScene.add(ambientLight);
-        
-        // Hemisphere light for sky/ground color
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d6e63, 0.7);
+
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffc592, 1.1);
         marsScene.add(hemiLight);
         
         // Create earth and jupiter scenes as placeholders
@@ -194,12 +186,8 @@ export class SceneManager {
     }
     
     updateLighting(altitude, phase) {
-        const sunLight = this.currentScene?.getObjectByProperty('type', 'DirectionalLight');
-        if (!sunLight) return;
-        
-        // Dynamic lighting based on altitude
-        const atmosphericAttenuation = Math.max(0.5, 1 - altitude / 300);
-        sunLight.intensity = 2.0 * atmosphericAttenuation;
+        // Lighting is static and uniform (no day/night cycle)
+        return;
     }
     
     render(camera) {
