@@ -202,7 +202,15 @@ export class SimulationManager {
             onCameraMode: (mode) => this.setCameraMode(mode),
             onZoom: (direction) => this.handleZoom(direction),
             onControlChange: (change) => this.handleControlChange(change),
-            onSettings: (setting) => this.handleSettings(setting)
+            onSettings: (setting) => this.handleSettings(setting),
+            onToggleReference: (visible) => {
+                console.log(`[SimulationManager] onToggleReference callback triggered: ${visible}`);
+                if (this.trajectoryManager) {
+                    this.trajectoryManager.toggleReferenceTrajectory(visible);
+                } else {
+                    console.error('[SimulationManager] TrajectoryManager not initialized');
+                }
+            }
         });
         this.controls.setControlsEnabled(true, '');
 
@@ -354,6 +362,18 @@ export class SimulationManager {
 
             // Set trajectory data in TrajectoryManager
             this.trajectoryManager.setTrajectoryData(trajectoryData);
+
+            // Load reference trajectory from CSV (MSL position)
+            try {
+                const referenceData = await this.dataManager.loadTrajectoryCSV("MSL_position_J2000.csv");
+
+                if (referenceData && referenceData.rows) {
+                    this.trajectoryManager.setReferenceTrajectoryFromCSV(referenceData.rows);
+                }
+                this.trajectoryManager.setReferenceTrajectory(trajectoryData);
+            } catch (refError) {
+                console.warn('[SimulationManager] Failed to load reference trajectory:', refError);
+            }
 
             // Update total time from trajectory
             if (trajectoryData.length > 0) {

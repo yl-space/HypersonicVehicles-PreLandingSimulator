@@ -17,6 +17,7 @@ export class Controls {
             onZoom: () => {},
             onSettings: () => {},
             onControlChange: () => {}, // Unified callback for all control changes
+            onToggleReference: () => {},
             ...options
         };
         
@@ -59,17 +60,37 @@ export class Controls {
                     ORBIT
                 </button>
             </div>
+            <div class="control-group">
+                <h3 class="control-label">REFERENCE TRAJECTORY</h3>
+                <button class="camera-mode" id="toggle-reference-traj" style="width: 100%; justify-content: center;">
+                    SHOW REFERENCE
+                </button>
+            </div>
         `;
         
         document.body.appendChild(container);
         
         // Event listeners
-        container.querySelectorAll('.camera-mode').forEach(button => {
+        container.querySelectorAll('.camera-mode:not(#toggle-reference-traj)').forEach(button => {
             button.addEventListener('click', () => {
                 this.setActiveCamera(button.dataset.mode);
                 this.options.onCameraMode(button.dataset.mode);
             });
         });
+
+        const refBtn = container.querySelector('#toggle-reference-traj');
+        if (refBtn) {
+            refBtn.addEventListener('click', () => {
+                refBtn.classList.toggle('active');
+                const isActive = refBtn.classList.contains('active');
+                refBtn.textContent = isActive ? 'HIDE REFERENCE' : 'SHOW REFERENCE';
+                if (this.options.onToggleReference) {
+                    this.options.onToggleReference(isActive);
+                } else {
+                    console.warn('[Controls] No onToggleReference callback provided');
+                }
+            });
+        }
         
         this.elements.cameraControls = container;
     }
