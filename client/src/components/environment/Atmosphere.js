@@ -34,6 +34,7 @@ export class Atmosphere {
                 atmosphereColor: { value: new THREE.Color(0.8, 0.5, 0.3) }
             },
             vertexShader: `
+                precision mediump float;
                 varying vec3 vNormal;
                 varying vec3 vWorldPosition;
                 
@@ -45,6 +46,7 @@ export class Atmosphere {
                 }
             `,
             fragmentShader: `
+                precision mediump float;
                 uniform float time;
                 uniform float planetRadius;
                 uniform float atmosphereRadius;

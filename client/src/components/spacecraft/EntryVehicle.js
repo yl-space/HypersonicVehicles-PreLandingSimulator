@@ -54,7 +54,7 @@ export class EntryVehicle {
         // Derived visual scales (meters mapped to scene units)
         this.visualScales = {
             velocityVector: 3 / METERS_PER_UNIT,   // ~3 m
-            bankVector: 2 / METERS_PER_UNIT,       // ~2 m, keep bank arrow tighter to craft
+            bankVector: 1.5 / METERS_PER_UNIT,     // ~1.5 m, keep bank arrow tight to craft
             positionVector: 3 / METERS_PER_UNIT,   // ~3 m
             label: 1.5 / METERS_PER_UNIT,          // ~1.5 m sprite width
             glowRadius: 1.5 / METERS_PER_UNIT,       // ~1.5 m heat glow radius
@@ -77,13 +77,9 @@ export class EntryVehicle {
                 await this.loadGLTFModel();
             } catch (error) {
                 console.error('Failed to load GLTF model during init:', error);
-                // Fall back to cone geometry
+                // If GLTF fails, keep no spacecraft rather than procedural cone
                 this.useGLTF = false;
-                this.createVehicleWithLOD();
             }
-        } else {
-            // Fallback to cone geometry
-            this.createVehicleWithLOD();
         }
 
         this.createHeatEffects();
@@ -126,9 +122,8 @@ export class EntryVehicle {
             });
 
         } catch (error) {
-            console.error('Failed to load GLTF model, falling back to cone geometry:', error);
+            console.error('Failed to load GLTF model; spacecraft will remain hidden until a valid model is available:', error);
             this.useGLTF = false;
-            this.createVehicleWithLOD();
         }
     }
 
@@ -288,7 +283,7 @@ export class EntryVehicle {
                 time: { value: 0 }
             },
             vertexShader: `
-                precision highp float;
+                precision mediump float;
 
                 varying vec3 vNormal;
                 varying vec3 vWorldPosition;
@@ -301,7 +296,7 @@ export class EntryVehicle {
                 }
             `,
             fragmentShader: `
-                precision highp float;
+                precision mediump float;
 
                 uniform float intensity;
                 uniform vec3 glowColor;
@@ -609,7 +604,8 @@ export class EntryVehicle {
             // Transform from world to local space
             const localLiftDir = liftDirection.clone().applyQuaternion(spacecraftQuaternionInverse);
 
-            const bankLength = 0.025;
+            // Keep lift/bank vector at meter-scale (matches visualScales.bankVector)
+            const bankLength = this.visualScales.bankVector;
             this.bankAngleArrow.setDirection(localLiftDir);
             this.bankAngleArrow.setLength(bankLength, bankLength * 0.2, bankLength * 0.15);
             if (this.vectorLabels.lift) {
@@ -918,17 +914,13 @@ export class EntryVehicle {
                 }
                 break;
             case 'backup':
+            default:
                 {
                     const backupModel = ModelSelector.getBackupModel();
                     this.useGLTF = true;
                     this.modelMetadata = backupModel;
                     await this.loadGLTFModel(backupModel.filename);
                 }
-                break;
-            case 'cone':
-            default:
-                this.useGLTF = false;
-                this.createVehicleWithLOD();
                 break;
         }
 
@@ -941,8 +933,7 @@ export class EntryVehicle {
     static getAvailableModels() {
         return [
             { id: 'primary', name: 'Dragon Spacecraft (GLTF)', requiresAssetLoader: true },
-            { id: 'backup', name: 'Generic RV Dragon-like (GLTF)', requiresAssetLoader: true },
-            { id: 'cone', name: 'Simple Cone (Procedural)', requiresAssetLoader: false }
+            { id: 'backup', name: 'Buran Spacecraft (GLTF)', requiresAssetLoader: true }
         ];
     }
 

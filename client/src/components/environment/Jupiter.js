@@ -72,6 +72,7 @@ export class Jupiter {
         
         const atmosphereMaterial = new THREE.ShaderMaterial({
             vertexShader: `
+                precision mediump float;
                 varying vec3 vNormal;
                 varying vec3 vPosition;
                 
@@ -82,6 +83,7 @@ export class Jupiter {
                 }
             `,
             fragmentShader: `
+                precision mediump float;
                 uniform vec3 viewVector;
                 uniform float c;
                 uniform float p;

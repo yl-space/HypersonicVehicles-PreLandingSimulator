@@ -13,17 +13,10 @@ const MODEL_OPTIONS = [
     },
     {
         id: 'backup',
-        label: 'Generic RV',
+        label: 'Buran',
         badge: 'Backup',
-        description: 'Alternative GLTF model',
+        description: 'Buran GLTF model',
         requiresAssetLoader: true
-    },
-    {
-        id: 'cone',
-        label: 'Simple Cone',
-        badge: 'Fallback',
-        description: 'Procedural geometry',
-        requiresAssetLoader: false
     }
 ];
 
@@ -36,7 +29,7 @@ export class ModelSelector {
 
         this.models = MODEL_OPTIONS;
         this.modelLookup = new Map(this.models.map(model => [model.id, model]));
-        this.currentModel = options.defaultModel || (this.hasAssetLoader ? 'primary' : 'cone');
+        this.currentModel = options.defaultModel || 'primary';
         this.isSwitching = false;
 
         this.element = null;
@@ -107,10 +100,9 @@ export class ModelSelector {
             option.dataset.disabled = unavailable ? 'true' : 'false';
         });
 
-        if (!this.hasAssetLoader && this.currentModel !== 'cone') {
-            this.currentModel = 'cone';
-            this.selectEl.value = 'cone';
-            this.setStatus(`${this.getModelLabel(this.currentModel)} ready`, 'ready');
+        // If no asset loader, disable all (we require GLTF for both models)
+        if (!this.hasAssetLoader) {
+            this.setStatus('GLTF loader unavailable', 'error');
         }
     }
 

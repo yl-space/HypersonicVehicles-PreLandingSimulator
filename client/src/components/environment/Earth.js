@@ -113,6 +113,7 @@ export class Earth {
         
         const atmosphereMaterial = new THREE.ShaderMaterial({
             vertexShader: `
+                precision mediump float;
                 varying vec3 vNormal;
                 varying vec3 vPosition;
                 
@@ -123,6 +124,7 @@ export class Earth {
                 }
             `,
             fragmentShader: `
+                precision mediump float;
                 uniform vec3 viewVector;
                 uniform float c;
                 uniform float p;

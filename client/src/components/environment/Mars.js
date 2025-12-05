@@ -87,25 +87,12 @@ export class Mars {
                         ? (this.textures.colorMedium || this.textures.colorLow || this.textures.colorHigh)
                         : (this.textures.colorLow || this.textures.colorMedium || this.textures.colorHigh);
 
-        if (detail === 'low') {
-            return new THREE.MeshBasicMaterial({
-                map: colorMap,
-                color: 0xffffff
-            });
-        }
-
-        const mat = new THREE.MeshPhongMaterial({
+        // Fully lit surface: use unshaded material at all LODs (no day/night or shadows)
+        return new THREE.MeshBasicMaterial({
             map: colorMap,
-            shininess: detail === 'ultra' ? 16 : detail === 'high' ? 12 : 6,
+            color: 0xffffff,
             side: THREE.DoubleSide
         });
-
-        if (this.textures.normal && (detail === 'ultra' || detail === 'high' || detail === 'medium')) {
-            mat.normalMap = this.textures.normal;
-            mat.normalScale = new THREE.Vector2(0.7, 0.7);
-        }
-
-        return mat;
     }
     
     update(camera, deltaTime) {
