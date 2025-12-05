@@ -198,8 +198,8 @@ export class TrajectoryManager {
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
             const time = parseFloat(row.Time || row.time || 0);
-            const x = parseFloat(row.x || 0);
-            const y = parseFloat(row.y || 0);
+            const x = convertMSL ? -parseFloat(row.x || 0) : parseFloat(row.x || 0);
+            const y = convertMSL ? -parseFloat(row.y || 0) : parseFloat(row.y || 0);
             const z = parseFloat(row.z || 0);
             
             if (!isNaN(time) && !isNaN(x) && !isNaN(y) && !isNaN(z)) {

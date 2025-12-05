@@ -369,8 +369,9 @@ export class SimulationManager {
 
                 if (referenceData && referenceData.rows) {
                     this.trajectoryManager.setReferenceTrajectoryFromCSV(referenceData.rows);
+                } else {
+                    this.trajectoryManager.setReferenceTrajectory(trajectoryData);
                 }
-                this.trajectoryManager.setReferenceTrajectory(trajectoryData);
             } catch (refError) {
                 console.warn('[SimulationManager] Failed to load reference trajectory:', refError);
             }
