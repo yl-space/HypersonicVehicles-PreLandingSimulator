@@ -1,3 +1,5 @@
+import * as Plot from "https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6.7/+esm";
+
 /**
  * PhaseInfo.js
  * Displays current phase information and telemetry
@@ -12,6 +14,18 @@ export class PhaseInfo {
         
         this.elements = {};
         this.currentPhase = null;
+        this.showingPlots = false;
+        
+        // Data arrays for plots
+        this.dataLimit = null; // No limit by default, can be set to a number to limit data points
+        this.timeData = [];
+        this.distanceData = [];
+        this.altitudeData = [];
+        this.velocityData = [];
+        this.bankAngleData = [];
+
+        this.isReplayMode = false;
+        this.currentTime = 0;
         
         this.init();
     }
@@ -19,76 +33,112 @@ export class PhaseInfo {
     init() {
         this.createDOM();
     }
+
+    reset() {
+        this.isReplayMode = false;
+        this.timeData = [];
+        this.distanceData = [];
+        this.altitudeData = [];
+        this.velocityData = [];
+        this.bankAngleData = [];
+        this.currentTime = 0;
+    }
+
+    setReplayMode(isReplay) {
+        this.isReplayMode = isReplay;
+    }
     
     createDOM() {
         const html = `
-            <h1 class="phase-title" id="phase-title">Entry Interface Point</h1>
-            
-            <div class="telemetry">
-                <div class="telemetry-item">
-                    <span class="telemetry-value" id="distance-value">307.92</span>
-                    <span class="telemetry-label">miles from landing site.</span>
-                </div>
-                <div class="telemetry-item">
-                    <span class="telemetry-label">Altitude:</span>
-                    <span class="telemetry-value" id="altitude-value">58.10 miles</span>
-                </div>
-                <div class="telemetry-item">
-                    <span class="telemetry-label">Velocity:</span>
-                    <span class="telemetry-value" id="velocity-value">11,984.75 mph</span>
-                </div>
-            </div>
-            
-            <div class="phase-description" id="phase-description">
-                The spacecraft enters the Martian atmosphere, drastically slowing it down while also heating it up.
-            </div>
-            
-            <div class="countdown">
-                <span class="countdown-label">Touchdown in</span>
-                <span class="countdown-value" id="countdown-value">0:06:22</span>
-            </div>
-            
-            <div class="next-phase">
-                <div class="next-phase-label">Next phase:</div>
-                <div class="next-phase-info">
-                    <span id="next-phase-name">Guidance Start</span> in 
-                    <span id="next-phase-time">0:26</span>
-                </div>
-            </div>
-            
-            <div class="phase-progress">
-                <div class="progress-bar">
-                    <div class="progress-fill" id="phase-progress-bar"></div>
-                </div>
-                <div class="progress-label" id="phase-progress-label">Phase Progress</div>
-            </div>
-            
-            <div class="additional-telemetry">
-                <div class="telemetry-grid">
-                    <div class="telemetry-cell">
-                        <span class="cell-label">Angle of Attack</span>
-                        <span class="cell-value" id="aoa-value">-16.0°</span>
-                    </div>
-                    <div class="telemetry-cell">
-                        <span class="cell-label">Bank Angle</span>
-                        <span class="cell-value" id="bank-value">0.0°</span>
-                    </div>
-                    <div class="telemetry-cell">
-                        <span class="cell-label">Mach</span>
-                        <span class="cell-value" id="mach-value">0.0</span>
-                    </div>
-                    <div class="telemetry-cell">
-                        <span class="cell-label">G-Force</span>
-                        <span class="cell-value" id="gforce-value">0.0g</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="scroll-indicator" id="scroll-indicator">
-                <span>Scroll for next phase</span>
-                <svg width="20" height="20" viewBox="0 0 24 24">
-                    <path d="M7 10l5 5 5-5z" fill="currentColor"/>
+            <div class="swap-icon" id="swap-icon" title="Show plots">
+                <svg class="icon-chart" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
                 </svg>
+                <svg class="icon-info" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="15" y2="12"></line>
+                    <line x1="3" y1="18" x2="18" y2="18"></line>
+                </svg>
+            </div>
+            
+            <div class="content-wrapper" id="content-wrapper">
+                <div class="telemetry-view" id="telemetry-view">
+                    <h1 class="phase-title" id="phase-title">Entry Interface Point</h1>
+                    
+                    <div class="telemetry">
+                        <div class="telemetry-item">
+                            <span class="telemetry-value" id="distance-value">307.92</span>
+                            <span class="telemetry-label">miles from landing site.</span>
+                        </div>
+                        <div class="telemetry-item">
+                            <span class="telemetry-label">Altitude:</span>
+                            <span class="telemetry-value" id="altitude-value">58.10 miles</span>
+                        </div>
+                        <div class="telemetry-item">
+                            <span class="telemetry-label">Velocity:</span>
+                            <span class="telemetry-value" id="velocity-value">11,984.75 mph</span>
+                        </div>
+                    </div>
+                    
+                    <div class="phase-description" id="phase-description">
+                        The spacecraft enters the Martian atmosphere, drastically slowing it down while also heating it up.
+                    </div>
+                    
+                    <div class="countdown">
+                        <span class="countdown-label">Touchdown in</span>
+                        <span class="countdown-value" id="countdown-value">0:06:22</span>
+                    </div>
+                    
+                    <div class="next-phase">
+                        <div class="next-phase-label">Next phase:</div>
+                        <div class="next-phase-info">
+                            <span id="next-phase-name">Guidance Start</span> in 
+                            <span id="next-phase-time">0:26</span>
+                        </div>
+                    </div>
+                    
+                    <div class="phase-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="phase-progress-bar"></div>
+                        </div>
+                        <div class="progress-label" id="phase-progress-label">Phase Progress</div>
+                    </div>
+                    
+                    <div class="additional-telemetry">
+                        <div class="telemetry-grid">
+                            <div class="telemetry-cell">
+                                <span class="cell-label">Angle of Attack</span>
+                                <span class="cell-value" id="aoa-value">-16.0°</span>
+                            </div>
+                            <div class="telemetry-cell">
+                                <span class="cell-label">Bank Angle</span>
+                                <span class="cell-value" id="bank-value">0.0°</span>
+                            </div>
+                            <div class="telemetry-cell">
+                                <span class="cell-label">Mach</span>
+                                <span class="cell-value" id="mach-value">0.0</span>
+                            </div>
+                            <div class="telemetry-cell">
+                                <span class="cell-label">G-Force</span>
+                                <span class="cell-value" id="gforce-value">0.0g</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="scroll-indicator" id="scroll-indicator">
+                        <span>Scroll for next phase</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24">
+                            <path d="M7 10l5 5 5-5z" fill="currentColor"/>
+                        </svg>
+                    </div>
+                </div>
+                
+                <div class="plots-view" id="plots-view" style="display: none;">
+                    <h1 class="phase-title">Trajectory Plots</h1>
+                    <div class="plots-container" id="plots-container"></div>
+                </div>
             </div>
         `;
         
@@ -110,12 +160,215 @@ export class PhaseInfo {
             aoa: document.getElementById('aoa-value'),
             bank: document.getElementById('bank-value'),
             mach: document.getElementById('mach-value'),
-            scrollIndicator: document.getElementById('scroll-indicator')
+            scrollIndicator: document.getElementById('scroll-indicator'),
+            swapIcon: document.getElementById('swap-icon'),
+            telemetryView: document.getElementById('telemetry-view'),
+            plotsView: document.getElementById('plots-view'),
+            plotsContainer: document.getElementById('plots-container'),
+            iconChart: this.options.container.querySelector('.icon-chart'),
+            iconInfo: this.options.container.querySelector('.icon-info')
         };
+        
+        // Add swap icon event listener
+        this.elements.swapIcon.addEventListener('click', () => this.toggleView());
     }
     
     
-    update(phase, vehicleData, currentTime, totalTime) {
+    toggleView() {
+        this.showingPlots = !this.showingPlots;
+        
+        if (this.showingPlots) {
+            // Showing plots - display info/text icon
+            this.elements.telemetryView.style.display = 'none';
+            this.elements.plotsView.style.display = 'block';
+            this.elements.iconChart.style.display = 'none';
+            this.elements.iconInfo.style.display = 'block';
+            this.elements.swapIcon.title = 'Show telemetry';
+            this.updatePlots();
+        } else {
+            // Showing telemetry - display chart/plot icon
+            this.elements.telemetryView.style.display = 'block';
+            this.elements.plotsView.style.display = 'none';
+            this.elements.iconChart.style.display = 'block';
+            this.elements.iconInfo.style.display = 'none';
+            this.elements.swapIcon.title = 'Show plots';
+        }
+    }
+    
+    updatePlots() {
+        if (!this.elements.plotsContainer || this.timeData.length === 0) return;
+        
+        // Clear previous plots
+        this.elements.plotsContainer.innerHTML = '';
+
+        // Prepare data for plots
+        const timeData = this.isReplayMode ? this.timeData.filter(time => time <= this.currentTime) : this.timeData;
+        const plotData = timeData.map((time, i) => ({
+            time: time,
+            distance: this.distanceData[i],
+            altitude: this.altitudeData[i],
+            velocity: this.velocityData[i],
+            bankAngle: this.bankAngleData[i]
+        }));
+
+        const totalHeight = 500; 
+        const plotHeight = totalHeight / 4;
+        
+        // Distance plot
+        const distancePlot = Plot.plot({
+            width: 400,
+            height: plotHeight,
+            marginLeft: 50,
+            marginBottom: 30,
+            style: {
+                background: 'transparent',
+                color: '#fff'
+            },
+            x: {
+                label: 'Time (s)',
+                grid: true,
+                tickFormat: d => d.toFixed(0)
+            },
+            y: {
+                label: 'Distance (miles)',
+                grid: true,
+                tickFormat: d => d.toFixed(0)
+            },
+            marks: [
+                Plot.line(plotData, {
+                    x: 'time',
+                    y: 'distance',
+                    stroke: '#ff6600',
+                    strokeWidth: 2
+                }),
+                Plot.dot(plotData.slice(-1), {
+                    x: 'time',
+                    y: 'distance',
+                    fill: '#ff6600',
+                    r: 4,
+                }),
+                Plot.text(plotData.slice(-1), { x: "time", y: "distance", text: (d) => `${d.distance.toFixed(0)}`, dy: -6, lineAnchor: "bottom"})
+            ]
+        });
+        
+        // Altitude plot
+        const altitudePlot = Plot.plot({
+            width: 400,
+            height: plotHeight,
+            marginLeft: 50,
+            marginBottom: 30,
+            style: {
+                background: 'transparent',
+                color: '#fff'
+            },
+            x: {
+                label: 'Time (s)',
+                grid: true,
+                tickFormat: d => d.toFixed(0)
+            },
+            y: {
+                label: 'Altitude (miles)',
+                grid: true,
+                tickFormat: d => d.toFixed(1)
+            },
+            marks: [
+                Plot.line(plotData, {
+                    x: 'time',
+                    y: 'altitude',
+                    stroke: '#00aaff',
+                    strokeWidth: 2
+                }),
+                Plot.dot(plotData.slice(-1), {
+                    x: 'time',
+                    y: 'altitude',
+                    fill: '#00aaff',
+                    r: 4
+                }),
+                Plot.text(plotData.slice(-1), { x: "time", y: "altitude", text: (d) => `${d.altitude.toFixed(1)}`, dy: -6, lineAnchor: "bottom" })
+            ]
+        });
+        
+        // Velocity plot
+        const velocityPlot = Plot.plot({
+            width: 400,
+            height: plotHeight,
+            marginLeft: 50,
+            marginBottom: 30,
+            style: {
+                background: 'transparent',
+                color: '#fff'
+            },
+            x: {
+                label: 'Time (s)',
+                grid: true,
+                tickFormat: d => d.toFixed(0)
+            },
+            y: {
+                label: 'Velocity (mph)',
+                grid: true,
+                tickFormat: d => d.toFixed(0)
+            },
+            marks: [
+                Plot.line(plotData, {
+                    x: 'time',
+                    y: 'velocity',
+                    stroke: '#00ff88',
+                    strokeWidth: 2,
+                }),
+                Plot.dot(plotData.slice(-1), {
+                    x: 'time',
+                    y: 'velocity',
+                    fill: '#00ff88',
+                    r: 4,
+                }),
+                Plot.text(plotData.slice(-1), { x: "time", y: "velocity", text: (d) => `${d.velocity.toFixed(0)}`, dy: -6, lineAnchor: "bottom" })
+            ]
+        });
+
+        const bankAnglePlot = Plot.plot({
+            width: 400,
+            height: plotHeight,
+            marginLeft: 50,
+            marginBottom: 30,
+            style: {
+                background: 'transparent',
+                color: '#fff'
+            },
+            x: {
+                label: 'Time (s)',
+                grid: true,
+                tickFormat: d => d.toFixed(0)
+            },
+            y: {
+                label: 'Bank Angle (degrees)',
+                grid: true,
+                tickFormat: d => d.toFixed(1)
+            },
+            marks: [
+                Plot.line(plotData, {
+                    x: 'time',
+                    y: 'bankAngle',
+                    stroke: '#ffaa00',
+                    strokeWidth: 2
+                }),
+                Plot.dot(plotData.slice(-1), {
+                    x: 'time',
+                    y: 'bankAngle',
+                    fill: '#ffaa00',
+                    r: 4
+                }),
+                Plot.text(plotData.slice(-1), { x: "time", y: "bankAngle", text: (d) => `${d.bankAngle.toFixed(1)}`, dy: -6, lineAnchor: "bottom" })
+            ]
+        });
+        
+        // Append plots
+        this.elements.plotsContainer.appendChild(distancePlot);
+        this.elements.plotsContainer.appendChild(altitudePlot);
+        this.elements.plotsContainer.appendChild(velocityPlot);
+        this.elements.plotsContainer.appendChild(bankAnglePlot);
+    }
+    
+    update(phase, vehicleData, currentTime, totalTime, bankAngle) {
         if (!phase) return;
         
         // Update phase title with animation if changed
@@ -161,6 +414,39 @@ export class PhaseInfo {
             
             // Additional telemetry
             this.updateAdditionalTelemetry(vehicleData, phase);
+
+            // Store data for plots (sample every ~0.25 seconds to avoid too many points)
+            if (this.timeData.length === 0 || currentTime - this.timeData[this.timeData.length - 1] >= 0.25) {
+                // Skip if any of the values are NaN or if all are zero
+                if ((isNaN(distanceMiles) || isNaN(altitudeMiles) || isNaN(velocityMph)) || (distanceMiles === 0 && altitudeMiles === 0 && velocityMph === 0)) {
+                    return;
+                }
+
+                if (!this.isReplayMode) {
+                    this.timeData.push(currentTime);
+                    this.distanceData.push(distanceMiles);
+                    this.altitudeData.push(altitudeMiles);
+                    this.velocityData.push(Math.round(velocityMph));
+                    this.bankAngleData.push(isNaN(bankAngle) ? 0 : bankAngle);
+                    
+                    if (this.dataLimit && this.timeData.length > this.dataLimit) {
+                        this.timeData.shift();
+                        this.distanceData.shift();
+                        this.altitudeData.shift();
+                        this.velocityData.shift();
+                        this.bankAngleData.shift();
+                    }
+                }
+            }
+        }
+
+        if (this.isReplayMode) {
+            this.currentTime = currentTime;
+        }
+        
+        // Update plots if showing
+        if (this.showingPlots) {
+            this.updatePlots();
         }
         
         // Update countdown

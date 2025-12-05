@@ -1224,6 +1224,72 @@ body {
     animation: fadeIn 0.6s ease-out 0.2s both;
 }
 
+/* ===========================
+   Swap Icon & Plots View
+   =========================== */
+
+.swap-icon {
+    position: absolute;
+    left: -40px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 101;
+}
+
+.swap-icon svg {
+    width: 24px;
+    height: 24px;
+    color: #ddd;
+    transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.swap-icon:hover svg {
+    color: #fff;
+    transform: scale(1.2);
+}
+
+.content-wrapper {
+    position: relative;
+}
+
+.plots-view {
+    width: 100%;
+}
+
+.plots-container {
+    margin-top: 20px;
+}
+
+.plots-container > div {
+    margin-bottom: 24px;
+}
+
+/* Style Observable Plot to match theme */
+.plots-container svg {
+    font-family: 'Helvetica Neue', 'Arial', sans-serif;
+}
+
+.plots-container text {
+    fill: #ccc !important;
+}
+
+.plots-container line,
+.plots-container path[stroke] {
+    stroke: rgba(255, 255, 255, 0.1) !important;
+}
+
+.plots-container path[stroke="#ff6600"],
+.plots-container path[stroke="#00aaff"],
+.plots-container path[stroke="#00ff88"] {
+    stroke-opacity: 1 !important;
+}
+
 .value-normal {
     color: #00ff66 !important;
 }

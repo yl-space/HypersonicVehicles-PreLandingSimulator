@@ -560,7 +560,8 @@ export class SimulationManager {
             this.phaseController.phases[this.state.currentPhase],
             enhancedVehicleData,
             this.state.currentTime,
-            this.state.totalTime
+            this.state.totalTime,
+            this.state.bankAngle
         );
     }
     
@@ -645,6 +646,11 @@ export class SimulationManager {
         // Reset trajectory to original
         if (this.trajectoryManager) {
             this.trajectoryManager.resetToOriginal();
+        }
+
+        // Reset phase info
+        if (this.phaseInfo) {
+            this.phaseInfo.reset();
         }
 
         // Reset vehicle position
@@ -866,6 +872,10 @@ export class SimulationManager {
         if (this.timeline) {
             this.timeline.setScrubbingEnabled(true);
             this.timeline.setReplayAvailable(true);
+        }
+
+        if (this.phaseInfo) {
+            this.phaseInfo.setReplayMode(true);
         }
 
         if (this.options.onSimulationComplete) {
