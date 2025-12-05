@@ -322,9 +322,9 @@ export class SimulationManager {
         
         // Adjust camera for different planet sizes with smaller spacecraft (now properly scaled)
         const cameraDistances = {
-            mars: 0.1,    // Very close spacecraft-centric view for Mars
-            earth: 0.2,   // Close view for Earth
-            jupiter: 0.5  // Close view for Jupiter
+            mars: 0.0004,    // Very close spacecraft-centric view for Mars (~40 m)
+            earth: 0.0006,    // Slightly farther for Earth scale (~60 m)
+            jupiter: 0.0015   // Farther for Jupiter scale (~150 m)
         };
         
         if (cameraDistances[planetName]) {
@@ -528,7 +528,12 @@ export class SimulationManager {
         this.cameraController.update(deltaTime, this.state.vehicleData);
         
         // Update entry vehicle effects
-        this.entryVehicle.update(this.state.currentTime, this.state.vehicleData, this.state.controls.bankAngle || 0);
+        this.entryVehicle.update(
+            this.state.currentTime,
+            this.state.vehicleData,
+            this.state.controls.bankAngle || 0,
+            this.cameraController.camera
+        );
         
         // Update current planet
         if (this.currentPlanet) {

@@ -43,17 +43,17 @@ export const ModelMetadata = {
                 z: 0,    // Degrees - rotate around Z axis
                 order: 'XYZ'
             },
-            // Scale factor (uniform or per-axis) - increased for visibility
-            scale: 0.01,  // Increased scale for better visibility
+            // Scale factor (uniform or per-axis) - true physical scale
+            scale: 0.00001,  // Convert meters to visualization units
             // Position offset after centering
             position: { x: 0, y: 0, z: 0 }
         },
         centerOffset: { x: 0, y: 0, z: 0 },  // Offset from geometric center
         visualScale: {
             // Different scales for different view distances
-            near: 0.001,   // Close-up view
-            medium: 0.0005, // Medium distance
-            far: 0.0002     // Far distance
+            near: 0.00003,   // Close-up view (~3 m)
+            medium: 0.00002, // Medium distance (~2 m)
+            far: 0.00001     // Far distance (~1 m)
         },
         materials: {
             heatShieldColor: '#cccccc',
@@ -89,14 +89,14 @@ export const ModelMetadata = {
                 z: 0,
                 order: 'XYZ'
             },
-            scale: 0.01,  // Increased scale for better visibility
+            scale: 0.00001,  // Convert meters to visualization units
             position: { x: 0, y: 0, z: 0 }
         },
         centerOffset: { x: 0, y: 0, z: 0 },
         visualScale: {
-            near: 0.001,
-            medium: 0.0005,
-            far: 0.0002
+            near: 0.00003,
+            medium: 0.00002,
+            far: 0.00001
         },
         materials: {
             heatShieldColor: '#bbbbbb',
@@ -132,14 +132,14 @@ export const ModelMetadata = {
                 z: -90,  // Rotate cone to point forward
                 order: 'XYZ'
             },
-            scale: 0.01,  // 10m diameter at 100km scale
+            scale: 0.00001,  // True scale for 4.5m diameter at 100km scale
             position: { x: 0, y: 0, z: 0 }
         },
         centerOffset: { x: 0, y: 0, z: 0 },
         visualScale: {
-            near: 0.01,
-            medium: 0.01,
-            far: 0.01
+            near: 0.00003,
+            medium: 0.00002,
+            far: 0.00001
         },
         materials: {
             heatShieldColor: '#ff6600',

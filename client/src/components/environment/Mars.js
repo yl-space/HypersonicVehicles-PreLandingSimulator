@@ -11,10 +11,22 @@ export class Mars {
         // NASA Data: Mars radius = 3,390 km (about half of Earth)
         // Scale: 1 unit = 100 km for visualization
         this.radius = 33.9; // 3,390 km / 100
-        this.surfaceLOD = null;
-        this.lodMeshes = [];
         this.textures = null;
         this.maxAnisotropy = options.maxAnisotropy || 1;
+        this.tiles = [];
+        this.tileGroup = null;
+        this.tileMaps = [];
+        this.tileMaterials = [];
+        this.tileConfig = {
+            rows: 4,
+            cols: 8,
+            lodLevels: [
+                { detail: 'ultra', segments: 64, maxDistance: 50 },
+                { detail: 'high', segments: 48, maxDistance: 150 },
+                { detail: 'medium', segments: 32, maxDistance: 300 },
+                { detail: 'low', segments: 16, maxDistance: Infinity }
+            ]
+        };
         
         this.init();
     }
@@ -43,34 +55,93 @@ export class Mars {
             tex.generateMipmaps = true;
         });
 
-        this.surfaceLOD = new THREE.LOD();
-        this.group.add(this.surfaceLOD);
-
-        const levels = [
-            { segments: 128, distance: 0, detail: 'ultra' },
-            { segments: 96, distance: 60, detail: 'high' },
-            { segments: 48, distance: 120, detail: 'medium' },
-            { segments: 24, distance: 180, detail: 'low' }
-        ];
-
-        levels.forEach(level => {
-            const mesh = this.createSurfaceMesh(level);
-            this.surfaceLOD.addLevel(mesh, level.distance);
-            this.lodMeshes.push(mesh);
-        });
+        this.buildTiledSurface();
     }
 
-    createSurfaceMesh({ segments, detail }) {
-        const geometry = new THREE.SphereGeometry(this.radius, segments, Math.max(segments / 2, 12));
-        const material = this.buildMaterial(detail);
+    buildTiledSurface() {
+        this.tileGroup = new THREE.Group();
+        const { rows, cols, lodLevels } = this.tileConfig;
+
+        const thetaLength = (Math.PI * 2) / cols;
+        const phiLength = Math.PI / rows;
+        const uvRepeat = new THREE.Vector2(1 / cols, 1 / rows);
+
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                const thetaStart = col * thetaLength;
+                const phiStart = row * phiLength;
+
+                const tile = this.createTile({
+                    row,
+                    col,
+                    thetaStart,
+                    thetaLength,
+                    phiStart,
+                    phiLength,
+                    uvRepeat,
+                    lodLevels
+                });
+
+                this.tileGroup.add(tile.group);
+                this.tiles.push(tile);
+            }
+        }
+
+        this.group.add(this.tileGroup);
+    }
+
+    createTile({ row, col, thetaStart, thetaLength, phiStart, phiLength, uvRepeat, lodLevels }) {
+        const tileGroup = new THREE.Group();
+        const uvOffset = new THREE.Vector2(col * uvRepeat.x, row * uvRepeat.y);
+
+        const levels = lodLevels.map((level, index) => {
+            const mesh = this.createTileMesh({
+                segments: level.segments,
+                detail: level.detail,
+                thetaStart,
+                thetaLength,
+                phiStart,
+                phiLength,
+                uvRepeat,
+                uvOffset
+            });
+            mesh.visible = index === 0;
+            tileGroup.add(mesh);
+            return {
+                mesh,
+                maxDistance: level.maxDistance
+            };
+        });
+
+        const center = new THREE.Vector3().setFromSpherical(
+            new THREE.Spherical(
+                this.radius,
+                phiStart + (phiLength / 2),
+                thetaStart + (thetaLength / 2)
+            )
+        );
+
+        return { group: tileGroup, levels, center };
+    }
+
+    createTileMesh({ segments, detail, thetaStart, thetaLength, phiStart, phiLength, uvRepeat, uvOffset }) {
+        const geometry = new THREE.SphereGeometry(
+            this.radius,
+            segments,
+            Math.max(segments / 2, 12),
+            thetaStart,
+            thetaLength,
+            phiStart,
+            phiLength
+        );
+        const material = this.buildMaterial(detail, { uvRepeat, uvOffset });
         const mesh = new THREE.Mesh(geometry, material);
         mesh.castShadow = false;
         mesh.receiveShadow = false;
-        mesh.position.set(0, 0, 0);
         return mesh;
     }
 
-    buildMaterial(detail) {
+    buildMaterial(detail, uvTransform = {}) {
         if (!this.textures) {
             const loader = new THREE.TextureLoader();
             this.textures = {
@@ -87,31 +158,67 @@ export class Mars {
                         ? (this.textures.colorMedium || this.textures.colorLow || this.textures.colorHigh)
                         : (this.textures.colorLow || this.textures.colorMedium || this.textures.colorHigh);
 
+        const tiledColorMap = this.createTiledMap(colorMap, uvTransform);
+        const tiledNormalMap = (this.textures.normal && (detail === 'ultra' || detail === 'high' || detail === 'medium'))
+            ? this.createTiledMap(this.textures.normal, uvTransform, true)
+            : null;
+
         if (detail === 'low') {
             return new THREE.MeshBasicMaterial({
-                map: colorMap,
+                map: tiledColorMap,
                 color: 0xffffff
             });
         }
 
         const mat = new THREE.MeshPhongMaterial({
-            map: colorMap,
+            map: tiledColorMap,
             shininess: detail === 'ultra' ? 16 : detail === 'high' ? 12 : 6,
             side: THREE.DoubleSide
         });
 
-        if (this.textures.normal && (detail === 'ultra' || detail === 'high' || detail === 'medium')) {
-            mat.normalMap = this.textures.normal;
+        if (tiledNormalMap) {
+            mat.normalMap = tiledNormalMap;
             mat.normalScale = new THREE.Vector2(0.7, 0.7);
         }
 
+        this.tileMaterials.push(mat);
         return mat;
+    }
+
+    createTiledMap(texture, uvTransform, isNormal = false) {
+        if (!texture) return null;
+
+        const map = texture.clone();
+        map.repeat.copy(uvTransform.uvRepeat || new THREE.Vector2(1, 1));
+        map.offset.copy(uvTransform.uvOffset || new THREE.Vector2(0, 0));
+        map.wrapS = THREE.ClampToEdgeWrapping;
+        map.wrapT = THREE.ClampToEdgeWrapping;
+        map.anisotropy = this.maxAnisotropy;
+        map.needsUpdate = true;
+
+        this.tileMaps.push(map);
+        return map;
     }
     
     update(camera, deltaTime) {
         // No rotation - Mars remains stationary in J2000 reference frame
-        if (this.surfaceLOD) {
-            this.surfaceLOD.update(camera);
+        if (camera && this.tiles.length) {
+            const cameraPosition = camera.position;
+            this.tiles.forEach(tile => {
+                const distance = cameraPosition.distanceTo(tile.center);
+                let selected = tile.levels.length - 1;
+
+                for (let i = 0; i < tile.levels.length; i++) {
+                    if (distance < tile.levels[i].maxDistance) {
+                        selected = i;
+                        break;
+                    }
+                }
+
+                tile.levels.forEach((level, idx) => {
+                    level.mesh.visible = idx === selected;
+                });
+            });
         }
     }
     
@@ -124,9 +231,16 @@ export class Mars {
     }
     
     dispose() {
-        this.lodMeshes.forEach(mesh => {
-            mesh.geometry.dispose();
-            mesh.material.dispose();
+        this.tiles.forEach(tile => {
+            tile.levels.forEach(level => {
+                level.mesh.geometry.dispose();
+                if (level.mesh.material && level.mesh.material.dispose) {
+                    level.mesh.material.dispose();
+                }
+            });
         });
+
+        this.tileMaps.forEach(map => map.dispose?.());
+        this.tileMaterials.forEach(mat => mat.dispose?.());
     }
 }

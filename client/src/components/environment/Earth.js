@@ -10,11 +10,22 @@ export class Earth {
         // NASA Data: Earth radius = 6,378 km
         // Scale: 1 unit = 100 km for visualization
         this.radius = 63.78; // 6,378 km / 100
-        this.surfaceLOD = null;
-        this.lodMeshes = [];
         this.clouds = null;
         this.atmosphere = null;
         this.textures = null;
+        this.tiles = [];
+        this.tileGroup = null;
+        this.tileMaps = [];
+        this.tileMaterials = [];
+        this.tileConfig = {
+            rows: 4,
+            cols: 8,
+            lodLevels: [
+                { detail: 'high', segments: 72, maxDistance: 160 },
+                { detail: 'medium', segments: 48, maxDistance: 320 },
+                { detail: 'low', segments: 28, maxDistance: Infinity }
+            ]
+        };
         
         this.init();
     }
@@ -34,56 +45,132 @@ export class Earth {
             lights: loader.load('/assets/textures/Earth/earthamp_lights.jpg')
         };
 
-        this.surfaceLOD = new THREE.LOD();
-        const levels = [
-            { segments: 128, distance: 0, detail: 'high' },
-            { segments: 72, distance: 100, detail: 'medium' },
-            { segments: 36, distance: 180, detail: 'low' }
-        ];
-
-        levels.forEach(level => {
-            const mesh = this.createSurfaceMesh(level);
-            this.surfaceLOD.addLevel(mesh, level.distance);
-            this.lodMeshes.push(mesh);
-        });
-
-        this.group.add(this.surfaceLOD);
+        this.buildTiledSurface();
     }
 
-    createSurfaceMesh({ segments, detail }) {
-        const geometry = new THREE.SphereGeometry(this.radius, segments, Math.max(segments / 2, 16));
-        const material = this.buildSurfaceMaterial(detail);
+    buildTiledSurface() {
+        this.tileGroup = new THREE.Group();
+        const { rows, cols, lodLevels } = this.tileConfig;
+
+        const thetaLength = (Math.PI * 2) / cols;
+        const phiLength = Math.PI / rows;
+        const uvRepeat = new THREE.Vector2(1 / cols, 1 / rows);
+
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                const thetaStart = col * thetaLength;
+                const phiStart = row * phiLength;
+
+                const tile = this.createTile({
+                    row,
+                    col,
+                    thetaStart,
+                    thetaLength,
+                    phiStart,
+                    phiLength,
+                    uvRepeat,
+                    lodLevels
+                });
+
+                this.tileGroup.add(tile.group);
+                this.tiles.push(tile);
+            }
+        }
+
+        this.group.add(this.tileGroup);
+    }
+
+    createTile({ row, col, thetaStart, thetaLength, phiStart, phiLength, uvRepeat, lodLevels }) {
+        const tileGroup = new THREE.Group();
+        const uvOffset = new THREE.Vector2(col * uvRepeat.x, row * uvRepeat.y);
+
+        const levels = lodLevels.map((level, index) => {
+            const mesh = this.createSurfaceMesh({
+                segments: level.segments,
+                detail: level.detail,
+                thetaStart,
+                thetaLength,
+                phiStart,
+                phiLength,
+                uvRepeat,
+                uvOffset
+            });
+            mesh.visible = index === 0;
+            tileGroup.add(mesh);
+            return {
+                mesh,
+                maxDistance: level.maxDistance
+            };
+        });
+
+        const center = new THREE.Vector3().setFromSpherical(
+            new THREE.Spherical(
+                this.radius,
+                phiStart + (phiLength / 2),
+                thetaStart + (thetaLength / 2)
+            )
+        );
+
+        return { group: tileGroup, levels, center };
+    }
+
+    createSurfaceMesh({ segments, detail, thetaStart, thetaLength, phiStart, phiLength, uvRepeat, uvOffset }) {
+        const geometry = new THREE.SphereGeometry(
+            this.radius,
+            segments,
+            Math.max(segments / 2, 16),
+            thetaStart,
+            thetaLength,
+            phiStart,
+            phiLength
+        );
+        const material = this.buildSurfaceMaterial(detail, { uvRepeat, uvOffset });
         const mesh = new THREE.Mesh(geometry, material);
         mesh.castShadow = false;
         mesh.receiveShadow = false;
         return mesh;
     }
 
-    buildSurfaceMaterial(detail) {
+    buildSurfaceMaterial(detail, uvTransform = {}) {
         const base = {
-            map: this.textures.color,
+            map: this.createTiledMap(this.textures.color, uvTransform),
             shininess: detail === 'high' ? 30 : 10
         };
 
         if (detail === 'low') {
             return new THREE.MeshBasicMaterial({
-                map: this.textures.color,
+                map: base.map,
                 color: 0xffffff
             });
         }
 
         const material = new THREE.MeshPhongMaterial({
             ...base,
-            bumpMap: this.textures.bump,
+            bumpMap: this.createTiledMap(this.textures.bump, uvTransform),
             bumpScale: detail === 'high' ? 0.5 : 0.2,
-            specularMap: this.textures.specular,
+            specularMap: this.createTiledMap(this.textures.specular, uvTransform),
             specular: new THREE.Color(detail === 'high' ? 0x333333 : 0x222222),
-            emissiveMap: this.textures.lights,
+            emissiveMap: this.createTiledMap(this.textures.lights, uvTransform),
             emissive: new THREE.Color(0xffffaa),
             emissiveIntensity: detail === 'high' ? 0.1 : 0.05
         });
 
+        this.tileMaterials.push(material);
         return material;
+    }
+
+    createTiledMap(texture, uvTransform) {
+        if (!texture) return null;
+
+        const map = texture.clone();
+        map.repeat.copy(uvTransform.uvRepeat || new THREE.Vector2(1, 1));
+        map.offset.copy(uvTransform.uvOffset || new THREE.Vector2(0, 0));
+        map.wrapS = THREE.ClampToEdgeWrapping;
+        map.wrapT = THREE.ClampToEdgeWrapping;
+        map.needsUpdate = true;
+
+        this.tileMaps.push(map);
+        return map;
     }
     
     createClouds() {
@@ -162,8 +249,23 @@ export class Earth {
                 new THREE.Vector3().subVectors(camera.position, this.group.position);
         }
 
-        if (this.surfaceLOD) {
-            this.surfaceLOD.update(camera);
+        if (camera && this.tiles.length) {
+            const cameraPosition = camera.position;
+            this.tiles.forEach(tile => {
+                const distance = cameraPosition.distanceTo(tile.center);
+                let selected = tile.levels.length - 1;
+
+                for (let i = 0; i < tile.levels.length; i++) {
+                    if (distance < tile.levels[i].maxDistance) {
+                        selected = i;
+                        break;
+                    }
+                }
+
+                tile.levels.forEach((level, idx) => {
+                    level.mesh.visible = idx === selected;
+                });
+            });
         }
 
         // No rotation - Earth remains stationary in J2000 reference frame
@@ -178,10 +280,17 @@ export class Earth {
     }
     
     dispose() {
-        this.lodMeshes.forEach(mesh => {
-            mesh.geometry.dispose();
-            mesh.material.dispose();
+        this.tiles.forEach(tile => {
+            tile.levels.forEach(level => {
+                level.mesh.geometry.dispose();
+                if (level.mesh.material && level.mesh.material.dispose) {
+                    level.mesh.material.dispose();
+                }
+            });
         });
+
+        this.tileMaps.forEach(map => map.dispose?.());
+        this.tileMaterials.forEach(mat => mat.dispose?.());
         
         if (this.clouds) {
             this.clouds.geometry.dispose();

@@ -81,7 +81,7 @@ export class TrajectoryManager {
     
     createInstancedPathPoints() {
         // Geometry for each point - minimal detail for performance
-        const pointGeometry = new THREE.SphereGeometry(0.02, 4, 2);
+        const pointGeometry = new THREE.SphereGeometry(0.00005, 4, 2);
         const pointMaterial = new THREE.MeshBasicMaterial({
             color: 0x00ffff,
             transparent: true,
@@ -116,7 +116,7 @@ export class TrajectoryManager {
     
     createPositionMarker() {
         // Position marker (invisible by default)
-        const markerGeometry = new THREE.SphereGeometry(0.005, 8, 8);
+        const markerGeometry = new THREE.SphereGeometry(0.00002, 8, 8);
         const markerMaterial = new THREE.MeshBasicMaterial({
             color: 0xff0000,
             transparent: true,

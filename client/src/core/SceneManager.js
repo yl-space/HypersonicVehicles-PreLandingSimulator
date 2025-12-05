@@ -57,7 +57,7 @@ export class SceneManager {
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1)); // Cap at 1 for better performance
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.0;
+        this.renderer.toneMappingExposure = 1.4; // Brighten overall scene
         this.renderer.shadowMap.enabled = false;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         
@@ -74,7 +74,7 @@ export class SceneManager {
         this.camera = new THREE.PerspectiveCamera(
             50,
             aspect,
-            0.001,  // Very close near plane for small spacecraft (0.01 units)
+            0.00005,  // Closer near plane for meter-scale spacecraft
             10000   // Far plane for large scale scenes
         );
         
@@ -115,11 +115,16 @@ export class SceneManager {
         pmremGenerator.compileEquirectangularShader();
         
         // Uniform ambient/hemisphere lighting (no directional shadows)
-        const ambientLight = new THREE.AmbientLight(0xfff8e6, 1.4);
+        const ambientLight = new THREE.AmbientLight(0xfff2d9, 1.8);
         marsScene.add(ambientLight);
 
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffc592, 1.1);
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffc592, 1.5);
         marsScene.add(hemiLight);
+
+        // Gentle directional fill to lift the craft
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        dirLight.position.set(1, 1, 0.5).normalize().multiplyScalar(100);
+        marsScene.add(dirLight);
         
         // Create earth and jupiter scenes as placeholders
         const earthScene = marsScene.clone();

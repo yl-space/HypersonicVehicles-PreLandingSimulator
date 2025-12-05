@@ -14,12 +14,12 @@ export class CameraController {
         
         // Camera state (spacecraft-centric with planet collision prevention)
         this.state = {
-            distance: 0.15,    // Close initial distance for spacecraft focus
-            height: 0.05,      // Lower height for better spacecraft focus
+            distance: 0.0004,    // Very close initial distance for spacecraft focus (~40 m)
+            height: 0.00012,     // Lower height for better spacecraft focus (~12 m)
             angle: 0,
-            defaultDistance: 0.15,
-            minDistance: 0.005, // Very close minimum zoom for spacecraft detail
-            maxDistance: 2.5   // Max zoom to see entire trajectory (~2.5 units = full trajectory view)
+            defaultDistance: 0.0004,
+            minDistance: 0.00005, // Minimum zoom for fine detail (~5 m)
+            maxDistance: 0.05   // Max zoom to see nearby context
         };
         
         // Mouse controls for orbit mode
@@ -33,7 +33,7 @@ export class CameraController {
         this.orbit = {
             theta: Math.PI / 4,    // Azimuth
             phi: Math.PI / 3,      // Elevation (better initial angle)
-            radius: 0.3,           // Close orbit radius for spacecraft focus
+            radius: 0.0015,        // Close orbit radius for spacecraft focus (~150 m)
             minPhi: 0.1,           // Prevent camera from going below ground
             maxPhi: Math.PI - 0.1, // Prevent camera flip
             planetRadius: 33.9     // Mars radius for collision detection
@@ -74,10 +74,10 @@ export class CameraController {
 
         // Cinematic camera tracking state
         this.cinematic = {
-            offset: new THREE.Vector3(0, 0.03, 0.1),  // Camera offset relative to spacecraft (right, up, back)
+            offset: new THREE.Vector3(0.00004, 0.00008, 0.00016),  // Offset relative to spacecraft (right, up, back)
             smoothing: 0.08,  // Smooth position tracking
             orientationSmoothing: 0.05,  // Smoother orientation tracking
-            lookAheadDistance: 0.02,  // Look slightly ahead of spacecraft
+            lookAheadDistance: 0.00005,  // Look slightly ahead of spacecraft (~5 m)
             upVector: new THREE.Vector3(0, 1, 0),  // Target up vector
             currentUp: new THREE.Vector3(0, 1, 0),  // Current smoothed up vector
             initialized: false  // Track if camera has locked onto spacecraft
@@ -343,7 +343,7 @@ export class CameraController {
                 // Ensure camera doesn't go below Mars surface or through the planet
                 const distanceFromCenter = desiredPosition.length();
                 const marsRadius = this.orbit.planetRadius;
-                const minSafeDistance = marsRadius + 0.5;  // 0.5 units above surface
+                const minSafeDistance = marsRadius + 0.01;  // Keep camera just above surface (~1 km)
 
                 if (distanceFromCenter < minSafeDistance) {
                     // Push camera away from Mars center to safe distance
@@ -370,7 +370,7 @@ export class CameraController {
                 // Ensure camera doesn't go through Mars
                 const orbitDistFromCenter = desiredPosition.length();
                 const orbitMarsRadius = this.orbit.planetRadius;
-                const minOrbitDistance = orbitMarsRadius + 0.5;
+                const minOrbitDistance = orbitMarsRadius + 0.01;
 
                 if (orbitDistFromCenter < minOrbitDistance) {
                     // Push camera away from Mars center
@@ -380,9 +380,10 @@ export class CameraController {
 
                 // Ensure camera maintains minimum distance from spacecraft
                 const distToSpacecraft = desiredPosition.distanceTo(targetPos);
-                if (distToSpacecraft < 0.02) {  // Minimum 0.02 units from spacecraft
+                const minCraftDistance = Math.max(this.state.minDistance, 0.00008); // ~8 m clearance
+                if (distToSpacecraft < minCraftDistance) {
                     const toCamera = desiredPosition.clone().sub(targetPos).normalize();
-                    desiredPosition.copy(targetPos).add(toCamera.multiplyScalar(0.02));
+                    desiredPosition.copy(targetPos).add(toCamera.multiplyScalar(minCraftDistance));
                 }
 
                 // Use spacecraft-centric up vector for orbit mode too
