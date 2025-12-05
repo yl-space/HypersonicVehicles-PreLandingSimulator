@@ -157,6 +157,10 @@ export class SimulationManager {
 
         // Set camera target
         this.cameraController.setTarget(this.entryVehicle.getObject3D());
+        // Snap immediately to vehicle if we already have data
+        if (this.state.vehicleData) {
+            this.cameraController.snapToTarget(this.state.vehicleData);
+        }
     }
     
     initializeUI() {
@@ -299,13 +303,17 @@ export class SimulationManager {
         
         // Adjust camera for different planet sizes with smaller spacecraft (now properly scaled)
         const cameraDistances = {
-            mars: 0.1,    // Very close spacecraft-centric view for Mars
-            earth: 0.2,   // Close view for Earth
-            jupiter: 0.5  // Close view for Jupiter
+            mars: 0.00004,    // ~4 m
+            earth: 0.00005,   // ~5 m
+            jupiter: 0.00008  // ~8 m
         };
-        
+
         if (cameraDistances[planetName]) {
             this.cameraController.setDefaultDistance(cameraDistances[planetName]);
+            // Also snap immediately when switching planets
+            if (this.state.vehicleData) {
+                this.cameraController.snapToTarget(this.state.vehicleData);
+            }
         }
     }
     
@@ -333,6 +341,19 @@ export class SimulationManager {
 
             // Set trajectory data in TrajectoryManager
             this.trajectoryManager.setTrajectoryData(trajectoryData);
+            // Seed vehicle data at start for camera snap
+            const startData = this.trajectoryManager.getDataAtTime(0);
+            if (startData) {
+                this.state.vehicleData = startData;
+                if (this.entryVehicle && startData.position) {
+                    this.entryVehicle.setPosition(startData.position);
+                }
+                // Snap camera immediately to start position
+                this.cameraController.snapToTarget(startData);
+            } else if (this.entryVehicle) {
+                // Snap to vehicle even if data missing to avoid far camera
+                this.cameraController.snapToTarget();
+            }
 
             // Update total time from trajectory
             if (trajectoryData.length > 0) {
@@ -359,13 +380,6 @@ export class SimulationManager {
             }
 
             console.log('[SimulationManager] Trajectory data loaded successfully:', trajectoryData.length, 'points');
-
-            // Initialize spacecraft position to trajectory start (critical for camera positioning)
-            const startData = this.trajectoryManager.getDataAtTime(0);
-            if (startData && startData.position && this.entryVehicle) {
-                this.entryVehicle.setPosition(startData.position);
-                console.log('[SimulationManager] Spacecraft initialized at J2000 trajectory start:', startData.position);
-            }
 
         } catch (error) {
             console.error('[SimulationManager] Error loading data:', error);
@@ -564,6 +578,13 @@ export class SimulationManager {
     play() {
         this.state.isPlaying = true;
         this.clock.start();
+        // Force follow mode and snap to current state for close framing
+        this.cameraController.setMode('follow');
+        const currentData = this.trajectoryManager.getDataAtTime(this.state.currentTime || 0);
+        if (currentData) {
+            this.state.vehicleData = currentData;
+            this.cameraController.snapToTarget(currentData);
+        }
     }
     
     pause() {

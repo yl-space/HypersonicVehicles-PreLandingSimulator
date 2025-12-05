@@ -74,7 +74,7 @@ export class SceneManager {
         this.camera = new THREE.PerspectiveCamera(
             50,
             aspect,
-            0.001,  // Very close near plane for small spacecraft (0.01 units)
+            0.000001,  // Extremely close near plane for meter-scale spacecraft (~0.1 m)
             10000   // Far plane for large scale scenes
         );
         

@@ -11,7 +11,7 @@ export class ThrusterFlames {
     createFlames() {
         for (let i = 0; i < 8; i++) {
             const angle = (i / 8) * Math.PI * 2;
-            const flameGeometry = new THREE.ConeGeometry(0.3, 2, 8);
+            const flameGeometry = new THREE.ConeGeometry(0.000015, 0.00008, 8);
             const flameMaterial = new THREE.MeshBasicMaterial({
                 color: 0xFF4500,
                 transparent: true,
@@ -20,9 +20,9 @@ export class ThrusterFlames {
             
             const flame = new THREE.Mesh(flameGeometry, flameMaterial);
             flame.position.set(
-                Math.cos(angle) * 3,
-                -1,
-                Math.sin(angle) * 3
+                Math.cos(angle) * 0.00005,
+                -0.00004,
+                Math.sin(angle) * 0.00005
             );
             flame.visible = false;
             

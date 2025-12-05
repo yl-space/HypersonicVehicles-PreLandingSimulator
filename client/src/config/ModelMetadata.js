@@ -44,7 +44,7 @@ export const ModelMetadata = {
                 order: 'XYZ'
             },
             // Scale factor (uniform or per-axis) - increased for visibility
-            scale: 0.01,  // Increased scale for better visibility
+            scale: 0.00001,  // True scale (meters to scene units)
             // Position offset after centering
             position: { x: 0, y: 0, z: 0 }
         },
@@ -89,7 +89,7 @@ export const ModelMetadata = {
                 z: 0,
                 order: 'XYZ'
             },
-            scale: 0.01,  // Increased scale for better visibility
+            scale: 0.00001,  // True scale (meters to scene units)
             position: { x: 0, y: 0, z: 0 }
         },
         centerOffset: { x: 0, y: 0, z: 0 },
