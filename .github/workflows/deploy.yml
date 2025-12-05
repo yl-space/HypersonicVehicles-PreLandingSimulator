@@ -14,8 +14,9 @@ jobs:
         run: |
           cd /opt/HypersonicVehicles-PreLandingSimulator
           git checkout main
-          git fetch https://x-access-token:${GITHUB_TOKEN}@github.com/Sonica-B/HypersonicVehicles-PreLandingSimulator.git main
+          git fetch https://x-access-token:${GITHUB_TOKEN}@github.com/yl-space/HypersonicVehicles-PreLandingSimulator.git main
           git reset --hard origin/main
+          git pull
       - name: Rebuild and restart services
         run: |
           cd /opt/HypersonicVehicles-PreLandingSimulator

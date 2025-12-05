@@ -38,7 +38,7 @@ def entryeoms(t: float, x: np.ndarray, planet: dict, vehicle: dict, control: dic
 
     # Dynamics
     veldot = -rho * (V ** 2) / (2 * beta) - mu * np.sin(gamma) / (r ** 2)
-    gammadot = V * np.cos(gamma) / r + rho * V * LD * np.cos(bank) / (2 * beta) - mu * np.cos(gamma) / (V * (r ** 2))
-    psidot = rho * V * LD * np.sin(bank) / (2 * beta * np.cos(gamma)) - V * np.cos(gamma) * np.cos(psi) * np.tan(phi) / r
+    gammadot = V * np.cos(gamma) / r + rho * V * LD * np.cos(-bank) / (2 * beta) - mu * np.cos(gamma) / (V * (r ** 2))
+    psidot = rho * V * LD * np.sin(-bank) / (2 * beta * np.cos(gamma)) - V * np.cos(gamma) * np.cos(psi) * np.tan(phi) / r
     
     return np.array([raddot, thetadot, phidot, veldot, gammadot, psidot], dtype=float)

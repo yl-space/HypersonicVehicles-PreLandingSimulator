@@ -6,10 +6,14 @@
 
 import * as THREE from 'three';
 
+// Make sure to add https://esm.sh to server.js content security policy for scriptSrc and connectSrc to allow loading Apache Arrow from CDN
+import { tableFromIPC } from "https://esm.sh/apache-arrow@21.1.0";
+
 export class TrajectoryService {
     constructor(config = {}) {
         this.config = {
             backendUrl: config.backendUrl || 'http://localhost:3001',
+            useArrow: config.useArrow || true,
             timeout: config.timeout || 30000, // 30 seconds for physics calculations
             marsRadius: 3390000, // meters
             scaleFactorVisualization: 0.00001, // Convert meters to visualization units
@@ -53,9 +57,32 @@ export class TrajectoryService {
             this.currentParams.vehicle = { ...this.currentParams.vehicle, ...params.vehicle };
         }
 
-        console.log('[TrajectoryService] Calling backend with params:', this.currentParams);
-
         try {
+            if (this.config.useArrow) {
+                // Try Arrow format first
+                try {
+                    const response = await tableFromIPC(fetch(`${this.config.backendUrl}/sim/high-fidelity/?serialize_arrow=true`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            ...this.currentParams,
+                        }),
+                        signal: AbortSignal.timeout(this.config.timeout)
+                    }));
+
+                    // Transform backend format to frontend format
+                    const trajectory = this.transformBackendArrowResponse(response.toArray());
+
+                    return trajectory;
+                } catch (arrowError) {
+                    console.warn('[TrajectoryService] Arrow deserialization failed, falling back to JSON:', arrowError.message);
+                    // Fall through to JSON format
+                }
+            }
+
+            // Use JSON format (either useArrow=false or Arrow fallback)
             const response = await fetch(`${this.config.backendUrl}/sim/high-fidelity/`, {
                 method: 'POST',
                 headers: {
@@ -63,7 +90,6 @@ export class TrajectoryService {
                 },
                 body: JSON.stringify({
                     ...this.currentParams,
-                    serialize_arrow: false  // Use JSON format, not Arrow
                 }),
                 signal: AbortSignal.timeout(this.config.timeout)
             });
@@ -83,7 +109,6 @@ export class TrajectoryService {
             const trajectory = this.transformBackendResponse(data);
 
             return trajectory;
-
         } catch (error) {
             console.error('[TrajectoryService] Backend call failed:', error);
             throw new Error(`Failed to calculate trajectory from backend: ${error.message}`);
@@ -91,19 +116,38 @@ export class TrajectoryService {
     }
 
     /**
-     * Modify trajectory with new bank angle FROM CURRENT INSTANT ONWARDS
+     * Modify trajectory with new control values FROM CURRENT INSTANT ONWARDS
      * Sends current state (time, position, velocity) to backend
      * Backend recalculates trajectory from that point forward only
-     * @param {number} bankAngleDeg - Bank angle in degrees
+     * @param {Object|number} controls - Control values object {controlId: value} or legacy bank angle in degrees
      * @param {number} currentTime - Current simulation time in seconds
      * @param {Object} currentState - Current spacecraft state
      * @returns {Promise<Array>} Future trajectory points from current instant onwards
      */
-    async modifyTrajectoryFromCurrentState(bankAngleDeg, currentTime, currentState) {
-        // Convert degrees to radians for backend
-        const bankAngleRad = THREE.MathUtils.degToRad(bankAngleDeg);
+    async modifyTrajectoryFromCurrentState(controls, currentTime, currentState) {
+        // Support legacy bank angle parameter (backwards compatibility)
+        let controlParams = {};
+        if (typeof controls === 'number') {
+            // Legacy: single bank angle value in degrees
+            controlParams.bank_angle = THREE.MathUtils.degToRad(controls);
+            console.log(`[TrajectoryService] Legacy call with bank angle: ${controls}° (${controlParams.bank_angle.toFixed(4)} rad)`);
+        } else {
+            // New: controls object with control IDs and values
+            // Map control IDs to backend parameter names
+            if (controls.bankAngle !== undefined) {
+                controlParams.bank_angle = THREE.MathUtils.degToRad(controls.bankAngle);
+            }
+            // Future controls can be added here
+            // if (controls.angleOfAttack !== undefined) {
+            //     controlParams.angle_of_attack = THREE.MathUtils.degToRad(controls.angleOfAttack);
+            // }
+            // if (controls.throttle !== undefined) {
+            //     controlParams.throttle = controls.throttle / 100; // Normalize percentage
+            // }
+            
+            console.log(`[TrajectoryService] Modifying trajectory from t=${currentTime.toFixed(2)}s with controls:`, controls);
+        }
 
-        console.log(`[TrajectoryService] Modifying trajectory from t=${currentTime.toFixed(2)}s with bank angle: ${bankAngleDeg}° (${bankAngleRad.toFixed(4)} rad)`);
         console.log('[TrajectoryService] Current state:', {
             position: currentState.positionMeters,
             velocity: currentState.velocityMetersPerSec
@@ -113,7 +157,7 @@ export class TrajectoryService {
         const params = {
             planet: this.currentParams.planet,
             vehicle: this.currentParams.vehicle,
-            control: { bank_angle: bankAngleRad },
+            control: controlParams,
             // Send current state as initial conditions for continuation
             init: {
                 coord_type: 'cartesian', 
@@ -124,11 +168,29 @@ export class TrajectoryService {
                 vx_m_s: currentState.velocityMetersPerSec.x,
                 vy_m_s: currentState.velocityMetersPerSec.y,
                 vz_m_s: currentState.velocityMetersPerSec.z
-            },
-            serialize_arrow: false
+            }
         };
 
         try {
+            if (this.config.useArrow) {
+                try {
+                    const response = await tableFromIPC(fetch(`${this.config.backendUrl}/sim/high-fidelity/?serialize_arrow=true`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(params),
+                        signal: AbortSignal.timeout(this.config.timeout)
+                    }));
+
+                    const trajectory = this.transformBackendArrowResponse(response.toArray());
+
+                    return trajectory;
+                } catch (error) {
+                    console.warn('[TrajectoryService] Arrow serialization request failed, falling back to standard request:', error);
+                }
+            }
+
             const response = await fetch(`${this.config.backendUrl}/sim/high-fidelity/`, {
                 method: 'POST',
                 headers: {
@@ -213,6 +275,69 @@ export class TrajectoryService {
 
             trajectory.push({
                 time: data.time_s[i],
+                position: posScaled,                    // Scaled for Three.js rendering
+                velocity: velMetersPerSec,              // m/s
+                altitude: altitude,                     // km above surface
+                velocityMagnitude: velocityMagnitude,   // m/s
+                distanceToLanding: altitude,            // km (approximate)
+                bankAngle: this.currentParams.control.bank_angle * (180 / Math.PI), // degrees
+
+                positionMeters: posMeters
+            });
+        }
+
+        console.log('[TrajectoryService] Transformed trajectory:', {
+            points: trajectory.length,
+            duration: trajectory[trajectory.length - 1].time.toFixed(2) + 's',
+            initialAltitude: trajectory[0].altitude.toFixed(2) + 'km',
+            finalAltitude: trajectory[trajectory.length - 1].altitude.toFixed(2) + 'km',
+            initialVelocity: (trajectory[0].velocityMagnitude / 1000).toFixed(2) + 'km/s',
+            finalVelocity: (trajectory[trajectory.length - 1].velocityMagnitude / 1000).toFixed(2) + 'km/s'
+        });
+
+        return trajectory;
+    }
+
+    /**
+     * Transform backend response format to frontend trajectory format
+     * Backend format: { time_s, x_m, y_m, z_m, vx_m_s, vy_m_s, vz_m_s }[]
+     * Frontend format: Array of { time, position: Vector3, velocity: Vector3, ... }
+     * @param {Object} data - Backend response data
+     * @returns {Array} Transformed trajectory points
+     */
+    transformBackendArrowResponse(data) {
+        if (!data || !data[0].time_s || !data[0].x_m) {
+            throw new Error('Invalid backend response format');
+        }
+
+        const trajectory = [];
+        const numPoints = data.length;
+
+        for (let i = 0; i < numPoints; i++) {
+            // Position in meters (Mars-centered J2000 inertial)
+            const posMeters = new THREE.Vector3(
+                data[i].x_m,
+                data[i].y_m,
+                data[i].z_m
+            );
+
+            // Velocity in m/s
+            const velMetersPerSec = new THREE.Vector3(
+                data[i].vx_m_s,
+                data[i].vy_m_s,
+                data[i].vz_m_s
+            );
+
+            // Calculate derived quantities
+            const distanceFromCenter = posMeters.length();
+            const altitude = (distanceFromCenter - this.config.marsRadius) / 1000; // km
+            const velocityMagnitude = velMetersPerSec.length();
+
+            // Scale position for visualization
+            const posScaled = posMeters.clone().multiplyScalar(this.config.scaleFactorVisualization);
+
+            trajectory.push({
+                time: data[i].time_s,
                 position: posScaled,                    // Scaled for Three.js rendering
                 velocity: velMetersPerSec,              // m/s
                 altitude: altitude,                     // km above surface

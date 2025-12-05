@@ -52,7 +52,7 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         "ind": ODE_terminal_index, # ODE terminal index (0=radius, 1=longitude, 2=latitude, 3=velocity, 4=FPA, 5=heading, 6=downrange, 7=heat load) ref: Sarag Saikia (c) 2014
         "term": terminal_condition,
         "time_limit": 1000.0, # [s] Simulation time limit 
-        "dt": 0.02, # [sec] time step for the simulation
+        "dt": 0.1, # [sec] time step for the simulation
     }
 
     # initial conditions for ODE integration in a form: [radius, longitude, latitude, velocity, FPA, heading]
@@ -150,6 +150,10 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
     vel_inertial = vel_inertial[1:-1,:]
     time_array = time_array[1:-1]
 
+    # save cartesian states to a file
+    #np.savez("benchmark_DOP853_1e9_cartesian.npz", x_m=pos_inertial[:, 0], y_m=pos_inertial[:, 1], z_m=pos_inertial[:, 2], vx_m_s=vel_inertial[:, 0], vy_m_s=vel_inertial[:, 1], vz_m_s=vel_inertial[:, 2])
+    # Return the results
+
     if return_states:
         return {
             'time_s': time_array + init.get("start_time_s", 0.0),
@@ -158,7 +162,7 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
             'vel_inertial': vel_inertial,
         }
 
-    # Return the results
+    
     return {
         'time_s': time_array + init.get("start_time_s", 0.0),
         'x_m': pos_inertial[:, 0],
@@ -180,6 +184,23 @@ def main(init=None, control=None):
 
     # Define simulation parameters
     planet = get_planet_params(DEFAULT_PLANET["planet_name"])
+    vehicle = get_vehicle_params(DEFAULT_VEHICLE["vehicle_name"])
+
+
+# for bebug: need to comment out this init to make re-calc work again
+    # init = {
+    # "h0": 124999, # [m] Critical altitude (i.e. altitude to start entry) [m] ref - 125e3 - Li ,Jiang 2014  MSL; Note- Girija 2022 is 120e3. I made I lower for the dataset
+    # "vel0": 6.0836e3, # [m/s] MSL SPICE data
+    # "theta0": np.deg2rad(0), #Initial longitude of probe [rad] ref: SPICE J2000 MSL initial position
+    # "phi0": np.deg2rad(0), #Initial latitude of probe [rad] ref: SPICE J2000 MSL initial position
+    # "gamma0": np.deg2rad(-15.5), #flight path angle [rad] (should be negative)  ref - Li ,Jiang 2014  MSL
+    # "psi0": np.deg2rad(0), #Initial heading angle [rad]
+    # }
+
+    # control = {
+    # "bank_angle": np.deg2rad(30), # [rad] Bank Angle 
+    # }
+
     init = init if init is not None else DEFAULT_INIT
     vehicle = get_vehicle_params(DEFAULT_VEHICLE["vehicle_name"])
     control = control if control is not None else DEFAULT_CONTROL
@@ -195,6 +216,21 @@ def main(init=None, control=None):
     plt.title("r vs v")
     plt.grid(True)
     plt.legend(loc="best")
+    plt.show()
+
+    # 3D plot of theta, phi and altitude 
+    alt = results['states'][:, 0]/ 1000.0 - planet["rp"]/ 1000.0
+    theta = np.rad2deg(results['states'][:, 1])
+    phi = np.rad2deg(results['states'][:, 2])
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')  # Create 3D axes
+    ax.plot(theta, phi, alt, linewidth=1.5, label="Simulated")
+    ax.set_xlabel("Theta [deg]")
+    ax.set_ylabel("Phi [deg]")
+    ax.set_zlabel("Altitude [km]")
+    ax.set_title("Theta, Phi and Altitude")
+    ax.legend(loc="best")
+    plt.grid(True)
     plt.show()
 
 
