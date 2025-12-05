@@ -58,7 +58,7 @@ export class SceneManager {
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         // Brighter exposure so planet textures stay visible
-        this.renderer.toneMappingExposure = 1.5;
+        this.renderer.toneMappingExposure = 1.8;
         this.renderer.shadowMap.enabled = false;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         

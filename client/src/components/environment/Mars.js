@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import { PlanetTileManager } from './PlanetTileManager.js';
 
 export class Mars {
     constructor(options = {}) {
@@ -15,15 +16,74 @@ export class Mars {
         this.lodMeshes = [];
         this.textures = null;
         this.maxAnisotropy = options.maxAnisotropy || 1;
+        this.renderMode = options.renderMode || 'marsjs'; // 'tile' | 'marsjs' | 'legacy'
+        this.useTileLOD = this.renderMode === 'tile';
+        this.tileBaseUrl = options.tileBaseUrl || '/assets/textures/Mars/tiles';
+        this.maxTileLevel = options.maxTileLevel ?? 6;
+        this.tileManager = null;
+        this.marsJSBaseUrl = options.marsJSBaseUrl || '/assets/textures/MarsJS';
         
         this.init();
     }
     
     init() {
-        this.createSurface();
-        // Surface features removed for clean visualization
+        switch (this.renderMode) {
+            case 'marsjs':
+                this.createMarsJS();
+                break;
+            case 'tile':
+                this.createTiledSurface();
+                break;
+            default:
+                this.createSurface();
+                break;
+        }
     }
     
+    createTiledSurface() {
+        this.tileManager = new PlanetTileManager({
+            radius: this.radius,
+            baseUrl: this.tileBaseUrl,
+            maxLevel: this.maxTileLevel,
+            minLevel: 0,
+            segments: 12,
+            anisotropy: this.maxAnisotropy
+        });
+        this.group.add(this.tileManager.getObject3D());
+    }
+
+    createMarsJS() {
+        const loader = new THREE.TextureLoader();
+        const colorMap = loader.load(`${this.marsJSBaseUrl}/mars.jpg`);
+        const normalMap = loader.load(`${this.marsJSBaseUrl}/Blended_NRM.png`);
+        const dispMap = loader.load(`${this.marsJSBaseUrl}/Blended_DISP.jpg`);
+
+        [colorMap, normalMap, dispMap].forEach(tex => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.anisotropy = this.maxAnisotropy;
+            tex.minFilter = THREE.LinearMipmapLinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+        });
+
+        const material = new THREE.MeshBasicMaterial({
+            map: colorMap,
+            color: 0xffffff,
+            side: THREE.DoubleSide
+        });
+
+        const segments = 192;
+        const geometry = new THREE.SphereGeometry(this.radius, segments, segments / 2);
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        this.group.add(mesh);
+
+        // Keep reference for disposal
+        this.lodMeshes = [mesh];
+    }
+
     createSurface() {
         const loader = new THREE.TextureLoader();
         this.textures = {
@@ -95,9 +155,11 @@ export class Mars {
         });
     }
     
-    update(camera, deltaTime) {
+    update(camera, deltaTime, renderer = null) {
         // No rotation - Mars remains stationary in J2000 reference frame
-        if (this.surfaceLOD) {
+        if (this.tileManager) {
+            this.tileManager.update(camera, renderer);
+        } else if (this.surfaceLOD) {
             this.surfaceLOD.update(camera);
         }
     }
@@ -115,5 +177,8 @@ export class Mars {
             mesh.geometry.dispose();
             mesh.material.dispose();
         });
+        if (this.tileManager) {
+            this.tileManager.dispose();
+        }
     }
 }

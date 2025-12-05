@@ -133,7 +133,13 @@ export class SimulationManager {
         this.sceneManager.addToAllScenes(this.stars.getObject3D());
 
         // Create all planets
-        this.mars = new Mars({ maxAnisotropy });
+        this.mars = new Mars({
+            maxAnisotropy,
+            renderMode: 'marsjs', // switch to 'tile' for tile LOD or 'legacy' for old static textures
+            tileBaseUrl: '/assets/textures/Mars/tiles',
+            maxTileLevel: 6,
+            marsJSBaseUrl: '/assets/textures/MarsJS'
+        });
         this.earth = new Earth();
         this.jupiter = new Jupiter();
 
@@ -519,7 +525,7 @@ export class SimulationManager {
         
         // Update current planet
         if (this.currentPlanet) {
-            this.currentPlanet.update(this.cameraController.camera, deltaTime);
+            this.currentPlanet.update(this.cameraController.camera, deltaTime, this.sceneManager.renderer);
         }
         
         // Update stars
