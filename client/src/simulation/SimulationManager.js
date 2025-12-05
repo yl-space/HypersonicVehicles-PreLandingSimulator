@@ -322,11 +322,11 @@ export class SimulationManager {
         
         // Adjust camera for different planet sizes with smaller spacecraft (now properly scaled)
         const cameraDistances = {
-            mars: 0.0004,    // Very close spacecraft-centric view for Mars (~40 m)
-            earth: 0.0006,    // Slightly farther for Earth scale (~60 m)
-            jupiter: 0.0015   // Farther for Jupiter scale (~150 m)
+            mars: 0.00012,    // Ultra close (~12 m)
+            earth: 0.00018,   // Slightly farther (~18 m)
+            jupiter: 0.0004   // Farther for Jupiter scale (~40 m)
         };
-        
+
         if (cameraDistances[planetName]) {
             this.cameraController.setDefaultDistance(cameraDistances[planetName]);
         }
@@ -383,11 +383,14 @@ export class SimulationManager {
 
             console.log('[SimulationManager] Trajectory data loaded successfully:', trajectoryData.length, 'points');
 
-            // Initialize spacecraft position to trajectory start (critical for camera positioning)
+            // Initialize spacecraft position and state to trajectory start (critical for camera positioning)
             const startData = this.trajectoryManager.getDataAtTime(0);
             if (startData && startData.position && this.entryVehicle) {
                 this.entryVehicle.setPosition(startData.position);
+                this.state.vehicleData = startData;
                 console.log('[SimulationManager] Spacecraft initialized at J2000 trajectory start:', startData.position);
+                // Snap camera to the spacecraft immediately so it starts close
+                this.cameraController.snapToTarget(startData);
             }
 
         } catch (error) {
@@ -597,6 +600,18 @@ export class SimulationManager {
     play() {
         this.state.isPlaying = true;
         this.clock.start();
+        // Force follow mode and snap close when resuming
+        this.cameraController.setMode('follow');
+        this.cameraController.cinematic.initialized = false;
+        let currentData = this.state.vehicleData;
+        if (!currentData) {
+            currentData = this.trajectoryManager.getDataAtTime(this.state.currentTime || 0);
+            this.state.vehicleData = currentData;
+        }
+        if (currentData) {
+            this.cameraController.setDefaultDistance(this.cameraController.state.defaultDistance);
+            this.cameraController.snapToTarget(currentData);
+        }
     }
     
     pause() {

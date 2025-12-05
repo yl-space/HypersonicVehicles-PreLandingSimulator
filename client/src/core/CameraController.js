@@ -14,12 +14,12 @@ export class CameraController {
         
         // Camera state (spacecraft-centric with planet collision prevention)
         this.state = {
-            distance: 0.0004,    // Very close initial distance for spacecraft focus (~40 m)
-            height: 0.00012,     // Lower height for better spacecraft focus (~12 m)
+            distance: 0.0002,    // Ultra-close initial distance (~20 m)
+            height: 0.00006,     // Low height (~6 m)
             angle: 0,
-            defaultDistance: 0.0004,
-            minDistance: 0.00005, // Minimum zoom for fine detail (~5 m)
-            maxDistance: 0.05   // Max zoom to see nearby context
+            defaultDistance: 0.0002,
+            minDistance: 0.00003, // Minimum zoom for fine detail (~3 m)
+            maxDistance: 0.02   // Max zoom for nearby context
         };
         
         // Mouse controls for orbit mode
@@ -33,7 +33,7 @@ export class CameraController {
         this.orbit = {
             theta: Math.PI / 4,    // Azimuth
             phi: Math.PI / 3,      // Elevation (better initial angle)
-            radius: 0.0015,        // Close orbit radius for spacecraft focus (~150 m)
+            radius: 0.0006,        // Close orbit radius for spacecraft focus (~60 m)
             minPhi: 0.1,           // Prevent camera from going below ground
             maxPhi: Math.PI - 0.1, // Prevent camera flip
             planetRadius: 33.9     // Mars radius for collision detection
@@ -74,10 +74,10 @@ export class CameraController {
 
         // Cinematic camera tracking state
         this.cinematic = {
-            offset: new THREE.Vector3(0.00004, 0.00008, 0.00016),  // Offset relative to spacecraft (right, up, back)
+            offset: new THREE.Vector3(0.00002, 0.00004, 0.00008),  // Offset relative to spacecraft (right, up, back)
             smoothing: 0.08,  // Smooth position tracking
             orientationSmoothing: 0.05,  // Smoother orientation tracking
-            lookAheadDistance: 0.00005,  // Look slightly ahead of spacecraft (~5 m)
+            lookAheadDistance: 0.00003,  // Look slightly ahead of spacecraft (~3 m)
             upVector: new THREE.Vector3(0, 1, 0),  // Target up vector
             currentUp: new THREE.Vector3(0, 1, 0),  // Current smoothed up vector
             initialized: false  // Track if camera has locked onto spacecraft
@@ -134,6 +134,8 @@ export class CameraController {
         // Mouse up on both canvas and document to prevent stuck drag
         const handleMouseUp = () => {
             this.mouse.isDown = false;
+            // Stop manual follow rotation once mouse is released
+            this.followOrbit.enabled = false;
         };
         canvas.addEventListener('mouseup', handleMouseUp);
         document.addEventListener('mouseup', handleMouseUp);
@@ -143,19 +145,9 @@ export class CameraController {
         
         // Wheel for zoom - focused on spacecraft with proper limits
         canvas.addEventListener('wheel', (e) => {
+            // Disable wheel zoom to prevent accidental zoom-outs
             e.preventDefault();
-            const zoomSpeed = 0.08; // Smooth zoom speed
-            // Scroll up = zoom in (smaller distance)
-            const delta = e.deltaY < 0 ? 1 - zoomSpeed : 1 + zoomSpeed;
-
-            if (this.mode === 'orbit') {
-                this.orbit.radius = Math.max(this.state.minDistance,
-                    Math.min(this.state.maxDistance, this.orbit.radius * delta));
-            } else if (this.mode === 'follow') {
-                this.state.distance = Math.max(this.state.minDistance,
-                    Math.min(this.state.maxDistance, this.state.distance * delta));
-            }
-        }, { passive: false });
+            }, { passive: false });
         
         // Touch support for mobile devices
         this.setupTouchControls(canvas);
@@ -247,9 +239,63 @@ export class CameraController {
         // Do NOT immediately move camera - respect J2000-aware initialization
         // Camera will smoothly transition to following target during update loop
     }
+
+    /**
+     * Immediately snap camera to a spacecraft-centric follow position.
+     * Useful to ensure the vehicle is framed from the first frame.
+     */
+    snapToTarget(vehicleData = null) {
+        if (!this.target) return;
+
+        const targetPos = this.target.position.clone();
+        let desiredPosition = new THREE.Vector3();
+        let upVec = new THREE.Vector3(0, 1, 0);
+
+        if (vehicleData && vehicleData.velocity instanceof THREE.Vector3 && vehicleData.position instanceof THREE.Vector3) {
+            const velocity = vehicleData.velocity.clone();
+            const position = vehicleData.position.clone();
+
+            if (velocity.length() > 0.001 && position.length() > 0.001) {
+                const forward = velocity.clone().normalize();
+                const radial = position.clone().normalize();
+                const right = new THREE.Vector3().crossVectors(forward, radial).normalize();
+                const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+
+                desiredPosition.copy(targetPos);
+                desiredPosition.add(right.multiplyScalar(this.cinematic.offset.x * this.state.distance));
+                desiredPosition.add(up.multiplyScalar(this.cinematic.offset.y * this.state.distance));
+                desiredPosition.add(forward.multiplyScalar(-this.cinematic.offset.z * this.state.distance));
+
+                upVec.copy(radial);
+            }
+        }
+
+        if (desiredPosition.lengthSq() === 0) {
+            desiredPosition.set(
+                targetPos.x,
+                targetPos.y + this.state.height,
+                targetPos.z + this.state.distance
+            );
+        }
+
+        this.camera.position.copy(desiredPosition);
+        this.camera.up.copy(upVec.normalize());
+        this.camera.lookAt(targetPos.clone());
+        this.cinematic.initialized = true;
+    }
     
     update(deltaTime, vehicleData) {
         if (!this.target) return;
+
+        const hasVehicle = vehicleData && vehicleData.position && vehicleData.position.length() > 0.001;
+        const isManualFollow = this.mode === 'follow' && this.followOrbit.enabled;
+        const isManualOrbit = this.mode === 'orbit' && this.mouse.isDown;
+        const isAuto = !isManualFollow && !isManualOrbit;
+
+        // Keep distances pinned to defaults every frame to avoid drift/zoom-outs
+        this.state.distance = this.state.defaultDistance;
+        this.orbit.radius = Math.max(this.state.minDistance,
+            Math.min(this.state.maxDistance, this.state.defaultDistance * 1.5));
 
         // Apply inertia damping
         if (this.mode === 'orbit' && !this.mouse.isDown) {
@@ -343,10 +389,9 @@ export class CameraController {
                 // Ensure camera doesn't go below Mars surface or through the planet
                 const distanceFromCenter = desiredPosition.length();
                 const marsRadius = this.orbit.planetRadius;
-                const minSafeDistance = marsRadius + 0.01;  // Keep camera just above surface (~1 km)
+                const minSafeDistance = marsRadius + 0.00001;  // Tiny clearance above surface
 
                 if (distanceFromCenter < minSafeDistance) {
-                    // Push camera away from Mars center to safe distance
                     const direction = desiredPosition.clone().normalize();
                     desiredPosition.copy(direction.multiplyScalar(minSafeDistance));
                 }
@@ -370,7 +415,7 @@ export class CameraController {
                 // Ensure camera doesn't go through Mars
                 const orbitDistFromCenter = desiredPosition.length();
                 const orbitMarsRadius = this.orbit.planetRadius;
-                const minOrbitDistance = orbitMarsRadius + 0.01;
+                const minOrbitDistance = orbitMarsRadius + 0.0001;
 
                 if (orbitDistFromCenter < minOrbitDistance) {
                     // Push camera away from Mars center
@@ -398,8 +443,22 @@ export class CameraController {
                 break;
         }
 
-        // Smooth camera position movement
-        this.camera.position.lerp(desiredPosition, this.cinematic.smoothing);
+        // Snap immediately on first valid target, then smooth
+        const shouldSnap =
+            !this.cinematic.initialized &&
+            hasVehicle &&
+            (this.mode === 'follow' || this.mode === 'orbit');
+
+        const distToDesired = this.camera.position.distanceTo(desiredPosition);
+
+        if (shouldSnap || distToDesired > this.state.defaultDistance * 5) {
+            // Immediate correction if uninitialized or drifted far away
+            this.camera.position.copy(desiredPosition);
+            this.cinematic.initialized = true;
+        } else {
+            // Smooth toward target for normal operation
+            this.camera.position.lerp(desiredPosition, this.cinematic.smoothing);
+        }
 
         // Smooth up vector transition for stable orientation
         this.cinematic.currentUp.lerp(this.cinematic.upVector, this.cinematic.orientationSmoothing);
@@ -415,10 +474,9 @@ export class CameraController {
         this.camera.lookAt(lookAtPoint);
 
         // Update field of view based on distance (cinematic effect)
-        if (this.mode === 'follow' && vehicleData) {
-            const altitude = vehicleData.altitude || 100;
-            const targetFOV = 50 + Math.min(25, altitude * 0.1);
-            this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFOV, 0.05);
+        // Lock FOV to avoid zoom changes during play
+        if (this.camera.fov !== 50) {
+            this.camera.fov = 50;
             this.camera.updateProjectionMatrix();
         }
     }
