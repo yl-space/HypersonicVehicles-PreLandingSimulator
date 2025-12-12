@@ -116,19 +116,38 @@ export class TrajectoryService {
     }
 
     /**
-     * Modify trajectory with new bank angle FROM CURRENT INSTANT ONWARDS
+     * Modify trajectory with new control values FROM CURRENT INSTANT ONWARDS
      * Sends current state (time, position, velocity) to backend
      * Backend recalculates trajectory from that point forward only
-     * @param {number} bankAngleDeg - Bank angle in degrees
+     * @param {Object|number} controls - Control values object {controlId: value} or legacy bank angle in degrees
      * @param {number} currentTime - Current simulation time in seconds
      * @param {Object} currentState - Current spacecraft state
      * @returns {Promise<Array>} Future trajectory points from current instant onwards
      */
-    async modifyTrajectoryFromCurrentState(bankAngleDeg, currentTime, currentState) {
-        // Convert degrees to radians for backend
-        const bankAngleRad = THREE.MathUtils.degToRad(bankAngleDeg);
+    async modifyTrajectoryFromCurrentState(controls, currentTime, currentState) {
+        // Support legacy bank angle parameter (backwards compatibility)
+        let controlParams = {};
+        if (typeof controls === 'number') {
+            // Legacy: single bank angle value in degrees
+            controlParams.bank_angle = THREE.MathUtils.degToRad(controls);
+            console.log(`[TrajectoryService] Legacy call with bank angle: ${controls}° (${controlParams.bank_angle.toFixed(4)} rad)`);
+        } else {
+            // New: controls object with control IDs and values
+            // Map control IDs to backend parameter names
+            if (controls.bankAngle !== undefined) {
+                controlParams.bank_angle = THREE.MathUtils.degToRad(controls.bankAngle);
+            }
+            // Future controls can be added here
+            // if (controls.angleOfAttack !== undefined) {
+            //     controlParams.angle_of_attack = THREE.MathUtils.degToRad(controls.angleOfAttack);
+            // }
+            // if (controls.throttle !== undefined) {
+            //     controlParams.throttle = controls.throttle / 100; // Normalize percentage
+            // }
+            
+            console.log(`[TrajectoryService] Modifying trajectory from t=${currentTime.toFixed(2)}s with controls:`, controls);
+        }
 
-        console.log(`[TrajectoryService] Modifying trajectory from t=${currentTime.toFixed(2)}s with bank angle: ${bankAngleDeg}° (${bankAngleRad.toFixed(4)} rad)`);
         console.log('[TrajectoryService] Current state:', {
             position: currentState.positionMeters,
             velocity: currentState.velocityMetersPerSec
@@ -138,7 +157,7 @@ export class TrajectoryService {
         const params = {
             planet: this.currentParams.planet,
             vehicle: this.currentParams.vehicle,
-            control: { bank_angle: bankAngleRad },
+            control: controlParams,
             // Send current state as initial conditions for continuation
             init: {
                 coord_type: 'cartesian', 

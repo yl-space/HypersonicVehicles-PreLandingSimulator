@@ -14,6 +14,10 @@ export class TrajectoryManager {
         this.pathPoints = null;
         this.currentPositionMarker = null;
 
+        // Reference trajectory
+        this.referenceTrajectoryLine = null;
+        this.referenceTrajectoryData = [];
+
         // Performance optimizations
         this.useInstancing = true;
         this.useLOD = true;
@@ -180,7 +184,110 @@ export class TrajectoryManager {
         this.createOptimizedTrajectory();
         this.updateInstancedPoints();
     }
+
+    setReferenceTrajectory(trajectoryData) {
+        this.referenceTrajectoryData = trajectoryData;
+        this.createReferenceTrajectory();
+    }
     
+    setReferenceTrajectoryFromCSV(rows) {
+        this.referenceTrajectoryData = [];
+        let prevPosition = null;
+        
+        // Process CSV data
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const time = parseFloat(row.Time || row.time || 0);
+            const x = convertMSL ? -parseFloat(row.x || 0) : parseFloat(row.x || 0);
+            const y = convertMSL ? -parseFloat(row.y || 0) : parseFloat(row.y || 0);
+            const z = parseFloat(row.z || 0);
+            
+            if (!isNaN(time) && !isNaN(x) && !isNaN(y) && !isNaN(z)) {
+                const rawDistance = Math.sqrt(x * x + y * y + z * z);
+                const altitude = rawDistance - this.marsRadius;
+                
+                const position = new THREE.Vector3(
+                    x * this.SCALE_FACTOR,
+                    y * this.SCALE_FACTOR,
+                    z * this.SCALE_FACTOR
+                );
+                
+                let velocityVector = new THREE.Vector3(0, -1, 0);
+                let velocityMagnitude = 5900 * (1 - time / this.totalTime);
+                
+                if (prevPosition && i > 0) {
+                    const prevTime = this.referenceTrajectoryData[this.referenceTrajectoryData.length - 1].time;
+                    const dt = time - prevTime;
+                    if (dt > 0) {
+                        velocityVector = position.clone().sub(prevPosition).divideScalar(dt);
+                        velocityMagnitude = velocityVector.length() / this.SCALE_FACTOR;
+                    }
+                }
+                
+                this.referenceTrajectoryData.push({
+                    time,
+                    position,
+                    altitude: altitude * 0.001, // km
+                    velocity: velocityVector.clone(), // Ensure it's a Vector3
+                    velocityMagnitude,
+                    distanceToLanding: rawDistance * 0.001 // km
+                });
+                
+                prevPosition = position.clone();
+            }
+        }
+        
+        this.createReferenceTrajectory();
+    }
+
+    createReferenceTrajectory() {
+        if (this.referenceTrajectoryData.length < 2) return;
+
+        if (this.referenceTrajectoryLine) {
+            this.group.remove(this.referenceTrajectoryLine);
+            if (this.referenceTrajectoryLine.geometry) this.referenceTrajectoryLine.geometry.dispose();
+            if (this.referenceTrajectoryLine.material) this.referenceTrajectoryLine.material.dispose();
+            this.referenceTrajectoryLine = null;
+        }
+
+        const positions = new Float32Array(this.referenceTrajectoryData.length * 3);
+
+        for (let i = 0; i < this.referenceTrajectoryData.length; i++) {
+            const point = this.referenceTrajectoryData[i];
+            positions[i * 3] = point.position.x;
+            positions[i * 3 + 1] = point.position.y;
+            positions[i * 3 + 2] = point.position.z;
+        }
+
+        const newGeometry = new THREE.BufferGeometry();
+        newGeometry.setAttribute(
+            'position',
+            new THREE.BufferAttribute(positions, 3)
+        );
+        newGeometry.computeBoundingSphere();
+
+        this.referenceTrajectoryLine = new THREE.Line(
+            newGeometry,
+            new THREE.LineBasicMaterial({
+                color: 0x00ff00,  // Green for reference
+                opacity: 0.3,     // Lower opacity
+                transparent: true,
+                linewidth: 10
+            })
+        );
+        
+        this.referenceTrajectoryLine.visible = false; // Hidden by default
+        this.group.add(this.referenceTrajectoryLine);
+    }
+
+    toggleReferenceTrajectory(visible) {
+        if (this.referenceTrajectoryLine) {
+            this.referenceTrajectoryLine.visible = visible;
+        } else {
+            console.warn('[TrajectoryManager] Cannot toggle reference trajectory: line does not exist');
+        }
+    }
+
     createOptimizedTrajectory() {
         if (this.trajectoryData.length < 2) return;
 

@@ -68,6 +68,12 @@ The actions runner on the hypersonics.wpi.edu server is stored under wlgoldman/a
 
 See the runner configuration link above to control it via systemd.
 
+**Potential issues with automatic deployment**
+
+First, you can diagnose issues by going to the actions runner directory and checking the logs in _diag. 
+
+One issue we had was a permission issue with "/~", since the runner used that as the working directory by default. To fix this, we set the workFolder in .runner to _work instead.
+
 **Logging:**
 
 To ensure that the app can log to the `logs` folder within this codebase, we open write permissions to that folder:
@@ -183,3 +189,4 @@ Time,x,y,z
 - Level-of-detail (LOD) for planet surfaces
 - Efficient particle systems for atmospheric effects
 - WebGL 2.0 features when available
+

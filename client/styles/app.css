@@ -511,7 +511,66 @@ body {
    Control Components
    =========================== */
 
-/* Bank Angle Controls */
+/* Dynamic Controls - Generic styles for all interactive controls */
+.control-container {
+    position: static;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    width: 100%;
+}
+
+.hidden-control {
+    display: none !important;
+}
+
+.control-container.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.control-slider-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.control-slider {
+    flex: 1;
+    accent-color: #f60;
+    height: 3px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.control-slider:focus {
+    outline: none;
+}
+
+.control-value {
+    position: absolute;
+    right: 0;
+    top: 0;
+    transform: translate(10px, -140%);
+    min-width: 32px;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    pointer-events: none;
+}
+
+.control-status {
+    font-size: 11px;
+    color: #ffb347;
+    margin: 4px 0 0;
+    min-height: 16px;
+}
+
+/* Legacy class names for backward compatibility */
 .bank-angle-controls {
     position: static;
     background: rgba(255, 255, 255, 0.03);
@@ -627,6 +686,11 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+.control-group.control-disabled {
+    opacity: 0.5;
+    pointer-events: none;
 }
 
 .control-label {
@@ -1151,6 +1215,51 @@ body {
     font-weight: 700;
     font-family: 'Courier New', monospace;
     color: #FFFFFF;
+}
+
+.cell-value-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cell-arrow-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    color: #FFFFFF;
+    min-width: 20px;
+    min-height: 20px;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.cell-arrow-btn:hover:not(:disabled) {
+    background: rgba(255, 102, 0, 0.3);
+    border-color: rgba(255, 102, 0, 0.6);
+    transform: scale(1.1);
+}
+
+.cell-arrow-btn:active:not(:disabled) {
+    transform: scale(0.95);
+    background: rgba(255, 102, 0, 0.5);
+}
+
+.cell-arrow-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.cell-arrow-btn svg {
+    display: block;
 }
 
 .scroll-indicator {

@@ -2,17 +2,31 @@
  * UI controls for camera modes, zoom, and other interactions
  */
 
+import { 
+    CONTROLS_CONFIG, 
+    ControlTypes,
+    normalizeControlValue,
+    adjustControlValue,
+    getAllControlIds
+} from '../config/ControlsConfig.js';
+
 export class Controls {
     constructor(options) {
         this.options = {
             onCameraMode: () => {},
             onZoom: () => {},
             onSettings: () => {},
-            onBankAngle: () => {},
+            onControlChange: () => {}, // Unified callback for all control changes
+            onToggleReference: () => {},
             ...options
         };
         
-        this.lastSliderValue = 0;
+        // Store last values for each control to detect changes
+        this.lastControlValues = {};
+        
+        // Store control elements organized by control ID
+        this.controlElements = {};
+        
         this.elements = {};
         this.activeCamera = 'FOLLOW';
         
@@ -21,8 +35,8 @@ export class Controls {
     
     init() {
         this.createCameraControls();
-        this.createBankAngleControls();
         // this.createZoomControls(); // Disabled - using HTML zoom controls instead
+        this.createDynamicControls(); 
         this.createSettingsPanel();
         this.createKeyboardShortcuts();
     }
@@ -50,83 +64,191 @@ export class Controls {
                     ORBIT
                 </button>
             </div>
+            <div class="control-group">
+                <h3 class="control-label">REFERENCE TRAJECTORY</h3>
+                <button class="camera-mode" id="toggle-reference-traj" style="width: 100%; justify-content: center;">
+                    SHOW REFERENCE
+                </button>
+            </div>
         `;
         
         document.body.appendChild(container);
         
         // Event listeners
-        const toggle = container.querySelector('.panel-collapse-toggle');
-        if (toggle) {
-            toggle.addEventListener('click', () => {
-                container.classList.toggle('collapsed');
-            });
-        }
-
-        container.querySelectorAll('.camera-mode').forEach(button => {
+        container.querySelectorAll('.camera-mode:not(#toggle-reference-traj)').forEach(button => {
             button.addEventListener('click', () => {
                 this.setActiveCamera(button.dataset.mode);
                 this.options.onCameraMode(button.dataset.mode);
             });
         });
+
+        const refBtn = container.querySelector('#toggle-reference-traj');
+        if (refBtn) {
+            refBtn.addEventListener('click', () => {
+                refBtn.classList.toggle('active');
+                const isActive = refBtn.classList.contains('active');
+                refBtn.textContent = isActive ? 'HIDE REFERENCE' : 'SHOW REFERENCE';
+                if (this.options.onToggleReference) {
+                    this.options.onToggleReference(isActive);
+                } else {
+                    console.warn('[Controls] No onToggleReference callback provided');
+                }
+            });
+        }
         
         this.elements.cameraControls = container;
     }
     
-    createBankAngleControls() {
-        const container = document.createElement('div');
-        container.className = 'bank-angle-controls';
-        container.innerHTML = `
-            <div class="control-group bank-angle-group">
-                <h3 class="control-label">BANK ANGLE</h3>
-                <div class="bank-slider-row bank-slider-relative">
-                    <input type="range" min="-90" max="90" value="0" step="1" class="bank-slider" id="bank-angle-slider">
-                    <span class="bank-angle-value" id="bank-angle-value">0°</span>
-                </div>
-                <p class="bank-angle-status" id="bank-angle-status" aria-live="polite"></p>
+    /**
+     * Create all interactive controls based on configuration
+     */
+    createDynamicControls() {
+        const controlIds = getAllControlIds();
+        
+        controlIds.forEach(controlId => {
+            const config = CONTROLS_CONFIG[controlId];
+            
+            switch (config.type) {
+                case ControlTypes.NUMBER:
+                case ControlTypes.ANGLE:
+                    this.createSliderControl(controlId, config);
+                    break;
+                case ControlTypes.BOOLEAN:
+                    this.createToggleControl(controlId, config);
+                    break;
+                case ControlTypes.SELECT:
+                    this.createSelectControl(controlId, config);
+                    break;
+            }
+            
+            // Initialize last value
+            this.lastControlValues[controlId] = config.defaultValue;
+        });
+    }
+    
+    /**
+     * Create a slider control (for number/angle types)
+     */
+    createSliderControl(controlId, config) {
+        const controlGroup = document.createElement('div');
+        controlGroup.classList = "control-group hidden-control";
+        controlGroup.innerHTML = `
+            <h3 class="control-label">${config.label}</h3>
+            <div class="control-slider-row">
+                <input 
+                    type="range" 
+                    min="${config.min}" 
+                    max="${config.max}" 
+                    value="${config.defaultValue}" 
+                    step="${config.step}" 
+                    class="control-slider" 
+                    id="${controlId}-slider"
+                    data-control-id="${controlId}">
+                <span class="control-value" id="${controlId}-value">${config.defaultValue}${config.unit}</span>
             </div>
+            ${config.canBeDisabled ? `<p class="control-status" id="${controlId}-status" aria-live="polite"></p>` : ''}
         `;
         
-        const parent = this.elements.cameraControls || document.body;
-        // Insert bank angle controls at the top of the camera panel
-        if (parent.firstChild) {
-            parent.insertBefore(container, parent.firstChild);
+        // Add to camera controls container
+        const cameraControls = this.elements.cameraControls;
+        if (cameraControls) {
+            cameraControls.appendChild(controlGroup);
         } else {
-            parent.appendChild(container);
+            console.warn('Camera controls container not found, adding to body');
+            document.body.appendChild(controlGroup);
         }
 
-        // Event listener for slider
-        const slider = container.querySelector('#bank-angle-slider');
-        const valueLabel = container.querySelector('#bank-angle-value');
-        this.lastSliderValue = slider.value;
+        // Store element references
+        const slider = controlGroup.querySelector(`#${controlId}-slider`);
+        const valueLabel = controlGroup.querySelector(`#${controlId}-value`);
+        const statusLabel = config.canBeDisabled ? controlGroup.querySelector(`#${controlId}-status`) : null;
+        
+        this.controlElements[controlId] = {
+            container: controlGroup,
+            slider,
+            valueLabel,
+            statusLabel,
+            config
+        };
+
+        // Event listeners for slider
         slider.addEventListener('input', () => {
-            valueLabel.textContent = `${slider.value}°`;
+            valueLabel.textContent = `${slider.value}${config.unit}`;
         });
+        
         slider.addEventListener('change', () => {
-            if (this.options.onBankAngle) {
-                const newValue = Number(slider.value);
-                // Prevent redundant calls if value hasn't changed
-                if (newValue === this.lastSliderValue) return;
-                this.options.onBankAngle(this.lastSliderValue, newValue);
-                this.lastSliderValue = newValue;
-            }
-        });
-
-        this.elements.bankAngleControls = container;
-        this.elements.bankAngleSlider = slider;
-        this.elements.bankAngleValue = valueLabel;
-        this.elements.bankAngleStatus = container.querySelector('#bank-angle-status');
-    }
-
-    updateBankAngleRelative(adjustment) {
-        const currentValue = Number(this.elements.bankAngleSlider.value);
-        this.elements.bankAngleSlider.value = currentValue + adjustment;
-        this.elements.bankAngleValue.textContent = `${this.elements.bankAngleSlider.value}°`;
-        if (this.options.onBankAngle) {
-            const newValue = Number(this.elements.bankAngleSlider.value);
+            const newValue = Number(slider.value);
+            const lastValue = this.lastControlValues[controlId];
+            
             // Prevent redundant calls if value hasn't changed
-            if (newValue === this.lastSliderValue) return;
-            this.options.onBankAngle(this.lastSliderValue, newValue);
-            this.lastSliderValue = newValue;
+            if (newValue === lastValue) return;
+            
+            // Normalize value if needed (e.g., angle wrapping)
+            const normalizedValue = normalizeControlValue(controlId, newValue);
+            
+            // Update slider and label with normalized value (important for angle wrapping)
+            if (normalizedValue !== newValue) {
+                slider.value = normalizedValue;
+                valueLabel.textContent = `${normalizedValue}${config.unit}`;
+            }
+            
+            // Notify change
+            this.notifyControlChange(controlId, lastValue, normalizedValue);
+            
+            this.lastControlValues[controlId] = normalizedValue;
+        });
+    }
+    
+    /**
+     * Create a toggle control (for boolean types)
+     */
+    createToggleControl(controlId, config) {
+        // Future implementation for boolean controls
+        console.log(`Toggle control ${controlId} not yet implemented`);
+    }
+    
+    /**
+     * Create a select control (for select types)
+     */
+    createSelectControl(controlId, config) {
+        // Future implementation for select controls
+        console.log(`Select control ${controlId} not yet implemented`);
+    }
+    
+    /**
+     * Update control value with relative adjustment
+     */
+    updateControlRelative(controlId, adjustment) {
+        const elements = this.controlElements[controlId];
+        if (!elements) {
+            console.warn(`Control ${controlId} not found`);
+            return;
+        }
+        
+        const currentValue = Number(elements.slider.value);
+        const newValue = adjustControlValue(controlId, currentValue, adjustment);
+        
+        elements.slider.value = newValue;
+        elements.valueLabel.textContent = `${newValue}${elements.config.unit}`;
+        
+        const lastValue = this.lastControlValues[controlId];
+        if (newValue !== lastValue) {
+            this.notifyControlChange(controlId, lastValue, newValue);
+            this.lastControlValues[controlId] = newValue;
+        }
+    }
+    
+    /**
+     * Notify listeners of control change
+     */
+    notifyControlChange(controlId, oldValue, newValue) {
+        if (this.options.onControlChange) {
+            this.options.onControlChange({
+                controlId,
+                oldValue,
+                newValue,
+                config: CONTROLS_CONFIG[controlId]
+            });
         }
     }
 
@@ -168,20 +290,55 @@ export class Controls {
         return this.elements.cameraControls;
     }
 
-    setBankAngleEnabled(enabled, message = '') {
-        const slider = this.elements.bankAngleSlider;
-        const status = this.elements.bankAngleStatus;
-        if (!slider) return;
+    /**
+     * Enable or disable all dynamic controls
+     * @param {boolean} enabled - Whether controls should be enabled
+     * @param {string} message - Optional status message to display on all controls
+     */
+    setControlsEnabled(enabled, message = '') {
+        for (const [controlId, elements] of Object.entries(this.controlElements)) {
+            const { slider, container, statusLabel } = elements;
+
+            slider.disabled = !enabled;
+            container.classList.toggle('control-disabled', !enabled);
+
+            if (statusLabel) {
+                statusLabel.textContent = message;
+                statusLabel.style.display = message ? 'block' : 'none';
+            }
+        }
+    }
+    
+    /**
+     * Enable or disable a specific control
+     * @param {string} controlId - Control identifier
+     * @param {boolean} enabled - Whether control should be enabled
+     * @param {string} message - Optional status message to display
+     */
+    setSpecificControlEnabled(controlId, enabled, message = '') {
+        const elements = this.controlElements[controlId];
+        if (!elements) {
+            console.warn(`Control ${controlId} not found`);
+            return;
+        }
+
+        const { slider, container, statusLabel } = elements;
 
         slider.disabled = !enabled;
-        if (this.elements.bankAngleControls) {
-            this.elements.bankAngleControls.classList.toggle('disabled', !enabled);
-        }
+        container.classList.toggle('control-disabled', !enabled);
 
-        if (status) {
-            status.textContent = message;
-            status.style.display = message ? 'block' : 'none';
+        if (statusLabel) {
+            statusLabel.textContent = message;
+            statusLabel.style.display = message ? 'block' : 'none';
         }
+    }
+    
+    /**
+     * Legacy method for backward compatibility
+     * @deprecated Use setControlsEnabled(enabled, message) instead
+     */
+    setBankAngleEnabled(enabled, message = '') {
+        this.setSpecificControlEnabled('bankAngle', enabled, message);
     }
 
     createSettingsPanel() {
@@ -292,6 +449,17 @@ export class Controls {
     createKeyboardShortcuts() {
         const shortcutsPanel = document.createElement('div');
         shortcutsPanel.className = 'shortcuts-panel';
+        
+        // Build keyboard shortcuts dynamically from control configuration
+        let controlShortcuts = '';
+        for (const [controlId, config] of Object.entries(CONTROLS_CONFIG)) {
+            if (config.keyboardShortcuts) {
+                const increaseKeys = config.keyboardShortcuts.increase.join('/').toUpperCase();
+                const decreaseKeys = config.keyboardShortcuts.decrease.join('/').toUpperCase();
+                controlShortcuts += `<dt>${decreaseKeys}/${increaseKeys}</dt><dd>Adjust ${config.label}</dd>`;
+            }
+        }
+        
         shortcutsPanel.innerHTML = `
             <button class="shortcuts-toggle" title="Keyboard Shortcuts">?</button>
             <div class="shortcuts-content">
@@ -302,7 +470,7 @@ export class Controls {
                     <dt>2</dt><dd>Orbit Camera</dd>
                     <dt>←/→</dt><dd>Skip 5 seconds</dd>
                     <dt>↑/↓</dt><dd>Zoom In/Out</dd>
-                    <dt>A/D</dt><dd>Adjust Bank Angle</dd>
+                    ${controlShortcuts}
                     <dt>V</dt><dd>Toggle Vectors</dd>
                     <dt>F</dt><dd>Fullscreen</dd>
                     <dt>S</dt><dd>Toggle Settings</dd>
@@ -355,5 +523,62 @@ export class Controls {
             notification.classList.add('notification-slide-out');
             setTimeout(() => notification.remove(), 300);
         }, 3000);
+    }
+    
+    /**
+     * Get current value of a control
+     * @param {string} controlId - Control identifier
+     * @returns {*} Current control value
+     */
+    getControlValue(controlId) {
+        return this.lastControlValues[controlId];
+    }
+    
+    /**
+     * Set value of a control programmatically
+     * @param {string} controlId - Control identifier
+     * @param {*} value - New value
+     * @param {boolean} notify - Whether to trigger change notification
+     */
+    setControlValue(controlId, value, notify = false) {
+        const elements = this.controlElements[controlId];
+        if (!elements) {
+            console.warn(`Control ${controlId} not found`);
+            return;
+        }
+        
+        const normalizedValue = normalizeControlValue(controlId, value);
+        elements.slider.value = normalizedValue;
+        elements.valueLabel.textContent = `${normalizedValue}${elements.config.unit}`;
+        
+        if (notify) {
+            const oldValue = this.lastControlValues[controlId];
+            this.notifyControlChange(controlId, oldValue, normalizedValue);
+        }
+        
+        this.lastControlValues[controlId] = normalizedValue;
+    }
+    
+    /**
+     * Handle keyboard input for controls
+     * @param {string} key - Key pressed
+     * @returns {boolean} Whether key was handled
+     */
+    handleControlKeyPress(key) {
+        for (const [controlId, config] of Object.entries(CONTROLS_CONFIG)) {
+            if (!config.keyboardShortcuts) continue;
+            
+            if (config.keyboardShortcuts.increase.includes(key)) {
+                this.updateControlRelative(controlId, config.keyboardStep || 1);
+                return true;
+            }
+            
+            if (config.keyboardShortcuts.decrease.includes(key)) {
+                this.updateControlRelative(controlId, -(config.keyboardStep || 1));
+                return true;
+            }
+        }
+        
+        return false;
     }
 }
