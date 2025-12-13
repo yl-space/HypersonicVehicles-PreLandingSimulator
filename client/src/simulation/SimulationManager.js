@@ -157,9 +157,10 @@ export class SimulationManager {
         // Create all planets
         this.mars = new Mars({
             maxAnisotropy,
-            renderMode: 'marsjs', // switch to 'tile' for tile LOD or 'legacy' for old static textures
-            tileBaseUrl: '/assets/textures/Mars/tiles',
-            maxTileLevel: 6,
+            renderMode: 'tile', // now proxied via sim-server to avoid CORS
+            tileBaseUrl: 'http://localhost:8000/tiles/mars',
+            tileExtension: 'jpg',
+            maxTileLevel: 8,
             marsJSBaseUrl: '/assets/textures/MarsJS'
         });
         this.earth = new Earth();

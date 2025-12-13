@@ -21,6 +21,7 @@ export class PlanetTileManager {
         this.lru = [];
         this.maxTextures = 64;
         this.loader = new THREE.TextureLoader();
+        this.loader.crossOrigin = 'anonymous';
 
         this.init();
     }
@@ -54,7 +55,7 @@ export class PlanetTileManager {
         }
     }
 
-    createTile(z, x, y) {
+    createTile(z, x, y, parent = null) {
         const key = `${z}/${x}/${y}`;
         if (this.tileCache.has(key)) return this.tileCache.get(key);
 
@@ -71,7 +72,8 @@ export class PlanetTileManager {
             lonSpan,
             loading: false,
             loaded: false,
-            children: null
+            children: null,
+            parent
         };
 
         this.tileCache.set(key, tile);
@@ -202,9 +204,20 @@ export class PlanetTileManager {
         const desired = [];
         this.collectVisible(this.root, camera, pixelsPerRad, desired);
 
-        // Only keep desired tiles
-        this.tileCache.forEach((tile, key) => {
-            if (!desired.includes(tile)) {
+        // Retain desired tiles and their ancestors to avoid deleting the tree
+        const retained = new Set();
+        desired.forEach(tile => {
+            let current = tile;
+            while (current) {
+                if (retained.has(current)) break;
+                retained.add(current);
+                current = current.parent;
+            }
+        });
+
+        // Only remove tiles not in the retained set
+        this.tileCache.forEach((tile) => {
+            if (!retained.has(tile)) {
                 this.removeTile(tile);
             }
         });
@@ -231,7 +244,7 @@ export class PlanetTileManager {
                 tile.children = [];
                 for (let dy = 0; dy < 2; dy++) {
                     for (let dx = 0; dx < 2; dx++) {
-                        const child = this.createTile(tile.z + 1, tile.x * 2 + dx, tile.y * 2 + dy);
+                        const child = this.createTile(tile.z + 1, tile.x * 2 + dx, tile.y * 2 + dy, tile);
                         tile.children.push(child);
                         this.group.add(child.mesh);
                     }

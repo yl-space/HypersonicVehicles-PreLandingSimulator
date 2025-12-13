@@ -1,10 +1,11 @@
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from dotenv import load_dotenv
 import os
 from pathlib import Path
+import httpx
 
 from src.sim_server.server_helpers import log_timing, parse_simulation_params, serialize_simulation_results
 from src.sim_server.constants.schemas import PlanetParams, InitParams, SphericalInitParams, CartesianInitParams, VehicleParams, ControlParams
@@ -33,10 +34,41 @@ import logging
 
 logger = logging.getLogger("uvicorn")
 
+# WMTS base for Viking MDIM21 (232m); includes TileMatrixSet "default028mm"
+WMTS_MARS_BASE = "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm"
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint for client to verify backend is available."""
     return {"status": "healthy", "service": "sim-server", "port": DEFAULT_PORT}
+
+@app.get("/tiles/mars/{z}/{x}/{y}.{ext}")
+async def proxy_mars_tile(z: int, x: int, y: int, ext: str = "jpg"):
+    """
+    Proxy Mars WMTS tiles from NASA Trek to avoid CORS issues in the client.
+    URL pattern matches XYZ-style requests from the frontend and forwards to Trek.
+    """
+    # Try requested extension first, then fall back to the other common one.
+    candidates = [ext]
+    if ext.lower() == "png":
+        candidates.append("jpg")
+    else:
+        candidates.append("png")
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for candidate_ext in candidates:
+                url = f"{WMTS_MARS_BASE}/{z}/{x}/{y}.{candidate_ext}"
+                r = await client.get(url)
+                if r.status_code == 200:
+                    headers = {
+                        "Content-Type": r.headers.get("Content-Type", f"image/{candidate_ext}"),
+                        "Access-Control-Allow-Origin": "*"
+                    }
+                    return Response(content=r.content, media_type=headers["Content-Type"], headers=headers)
+            raise HTTPException(status_code=404, detail=f"Upstream returned {r.status_code}")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Tile fetch failed: {e}") from e
 
 @app.post("/high-fidelity/")
 @log_timing

@@ -193,6 +193,7 @@ export class TrajectoryManager {
     setReferenceTrajectoryFromCSV(rows) {
         this.referenceTrajectoryData = [];
         let prevPosition = null;
+        const convertMSL = false; // default: do not negate coordinates unless explicitly enabled later
         
         // Process CSV data
         for (let i = 0; i < rows.length; i++) {

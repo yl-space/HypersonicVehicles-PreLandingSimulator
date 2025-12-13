@@ -16,10 +16,11 @@ export class Mars {
         this.lodMeshes = [];
         this.textures = null;
         this.maxAnisotropy = options.maxAnisotropy || 1;
-        this.renderMode = options.renderMode || 'marsjs'; // 'tile' | 'marsjs' | 'legacy'
+        this.renderMode = options.renderMode || 'tile'; // 'tile' | 'marsjs' | 'legacy'
         this.useTileLOD = this.renderMode === 'tile';
-        this.tileBaseUrl = options.tileBaseUrl || '/assets/textures/Mars/tiles';
-        this.maxTileLevel = options.maxTileLevel ?? 6;
+        this.tileBaseUrl = options.tileBaseUrl || 'https://trek.nasa.gov/tiles/Mars/EQ/corrected/Mars_Viking_MDIM21_ClrMosaic_global_232m';
+        this.tileExtension = options.tileExtension || 'png';
+        this.maxTileLevel = options.maxTileLevel ?? 8;
         this.tileManager = null;
         this.marsJSBaseUrl = options.marsJSBaseUrl || '/assets/textures/MarsJS';
         
@@ -47,7 +48,8 @@ export class Mars {
             maxLevel: this.maxTileLevel,
             minLevel: 0,
             segments: 12,
-            anisotropy: this.maxAnisotropy
+            anisotropy: this.maxAnisotropy,
+            extension: this.tileExtension
         });
         this.group.add(this.tileManager.getObject3D());
     }
