@@ -136,15 +136,15 @@ body {
     gap: 12px;
 }
 
-.nasa-logo {
-    width: 45px;
-    height: 45px;
+.wpi-logo {
+    width: 30px;
+    height: 30px;
     /* background: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICAgIDxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQ1IiBmaWxsPSIjZmZmIi8+CiAgICA8dGV4dCB4PSI1MCIgeT0iNjUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvcnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSI0NSIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiMwMDAiPk48L3RleHQ+Cjwvc3ZnPg==') center/contain no-repeat; */
 }
 
-.nasa-logo > svg {
-    width: 45px;
-    height: 45px;
+.wpi-logo > img {
+    width: 30px;
+    height: 30px;
 }
 
 .mission-title {
@@ -1731,7 +1731,7 @@ body {
         display: none;
     }
     
-    .nasa-logo {
+    .wpi-logo {
         width: 30px;
         height: 30px;
     }
