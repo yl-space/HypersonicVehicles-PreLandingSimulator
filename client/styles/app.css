@@ -159,7 +159,8 @@ body {
    =========================== */
 #phase-info {
     position: absolute;
-    top: 120px;
+    top: 50%;
+    transform: translateY(-50%);
     left: 48px;
     background: none;
     backdrop-filter: none;

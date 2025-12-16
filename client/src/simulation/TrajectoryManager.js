@@ -190,7 +190,7 @@ export class TrajectoryManager {
         this.createReferenceTrajectory();
     }
     
-    setReferenceTrajectoryFromCSV(rows) {
+    setReferenceTrajectoryFromCSV(rows, convertMSL = true) {
         this.referenceTrajectoryData = [];
         let prevPosition = null;
         
