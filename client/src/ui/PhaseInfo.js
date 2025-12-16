@@ -20,6 +20,7 @@ export class PhaseInfo {
         this.elements = {};
         this.currentPhase = null;
         this.showingPlots = false;
+        this.isVisible = true;
         
         // Data arrays for plots
         this.dataLimit = null; // No limit by default, can be set to a number to limit data points
@@ -74,6 +75,17 @@ export class PhaseInfo {
     
     createDOM() {
         const html = `
+            <div class="toggle-icon" id="toggle-icon" title="Hide panel">
+                <svg class="icon-collapse" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="11 17 6 12 11 7"></polyline>
+                    <polyline points="18 17 13 12 18 7"></polyline>
+                </svg>
+                <svg class="icon-expand" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                    <polyline points="13 17 18 12 13 7"></polyline>
+                    <polyline points="6 17 11 12 6 7"></polyline>
+                </svg>
+            </div>
+            
             <div class="swap-icon" id="swap-icon" title="Show plots">
                 <svg class="icon-chart" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="20" x2="18" y2="10"></line>
@@ -167,13 +179,20 @@ export class PhaseInfo {
             progressLabel: document.getElementById('phase-progress-label'),
             telemetryGrid: document.getElementById('telemetry-grid'),
             scrollIndicator: document.getElementById('scroll-indicator'),
+            toggleIcon: document.getElementById('toggle-icon'),
             swapIcon: document.getElementById('swap-icon'),
             telemetryView: document.getElementById('telemetry-view'),
             plotsView: document.getElementById('plots-view'),
             plotsContainer: document.getElementById('plots-container'),
+            contentWrapper: document.getElementById('content-wrapper'),
             iconChart: this.options.container.querySelector('.icon-chart'),
-            iconInfo: this.options.container.querySelector('.icon-info')
+            iconInfo: this.options.container.querySelector('.icon-info'),
+            iconCollapse: this.options.container.querySelector('.icon-collapse'),
+            iconExpand: this.options.container.querySelector('.icon-expand')
         };
+        
+        // Add toggle icon event listener
+        this.elements.toggleIcon.addEventListener('click', () => this.toggleVisibility());
         
         // Add swap icon event listener
         this.elements.swapIcon.addEventListener('click', () => this.toggleView());
@@ -371,6 +390,29 @@ export class PhaseInfo {
         });
     }
     
+    
+    toggleVisibility() {
+        this.isVisible = !this.isVisible;
+        
+        if (this.isVisible) {
+            // Show panel - slide in from left
+            this.options.container.classList.remove('hidden');
+            this.elements.contentWrapper.classList.remove('slide-out');
+            this.elements.contentWrapper.classList.add('slide-in');
+            this.elements.iconCollapse.style.display = 'block';
+            this.elements.iconExpand.style.display = 'none';
+            this.elements.toggleIcon.title = 'Hide panel';
+            this.elements.swapIcon.style.display = 'flex';
+        } else {
+            // Hide panel - slide out to left
+            this.elements.contentWrapper.classList.remove('slide-in');
+            this.elements.contentWrapper.classList.add('slide-out');
+            this.elements.iconCollapse.style.display = 'none';
+            this.elements.iconExpand.style.display = 'block';
+            this.elements.toggleIcon.title = 'Show panel';
+            this.elements.swapIcon.style.display = 'none';
+        }
+    }
     
     toggleView() {
         this.showingPlots = !this.showingPlots;
