@@ -633,21 +633,74 @@ body {
 }
 
 /* Camera Controls */
-.camera-controls {
+.camera-controls-wrapper {
     position: absolute;
     top: 50%;
-    right: 20px;
+    right: 8px;
     transform: translateY(-50%);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-direction: row-reverse;
+}
+
+.camera-toggle-icon {
+    position: relative;
+    right: 0;
+    margin-left: 8px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 101;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.camera-toggle-icon:hover {
+    background: rgba(255, 102, 0, 0.3);
+}
+
+.camera-toggle-icon svg {
+    width: 20px;
+    height: 20px;
+    color: #ddd;
+    transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.camera-toggle-icon:hover svg {
+    color: #fff;
+    transform: scale(1.1);
+}
+
+.camera-controls {
+    position: relative;
     background: rgba(0, 0, 0, 0.35);
     padding: 16px;
     border-radius: 10px;
     backdrop-filter: blur(18px);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    z-index: 100;
     width: 230px;
     display: flex;
     flex-direction: column;
     gap: 18px;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
+}
+
+.camera-controls.slide-out {
+    transform: translateX(100%);
+    opacity: 0;
+}
+
+.camera-controls.slide-in {
+    transform: translateX(0);
+    opacity: 1;
 }
 
 .control-group {
