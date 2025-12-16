@@ -237,7 +237,7 @@ export class SimulationManager {
         planetControls.id = 'planet-controls';
         planetControls.style.cssText = `
             position: absolute;
-            top: 20px;
+            top: 8px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 100;
@@ -250,7 +250,7 @@ export class SimulationManager {
             btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''}`;
             btn.textContent = planet.charAt(0).toUpperCase() + planet.slice(1);
             btn.style.cssText = `
-                padding: 12px 24px;
+                padding: 10px 16px;
                 font-size: 14px;
                 background-color: rgba(255, 255, 255, 0.1);
                 color: white;
