@@ -14,7 +14,7 @@ export class PlanetTileManager {
         this.anisotropy = anisotropy;
         this.extension = extension.startsWith('.') ? extension.slice(1) : extension;
 
-        this.root = null;
+        this.rootTiles = [];
         this.group = new THREE.Group();
         this.tileCache = new Map(); // key -> tile
         this.textureCache = new Map(); // url -> texture
@@ -23,12 +23,36 @@ export class PlanetTileManager {
         this.loader = new THREE.TextureLoader();
         this.loader.crossOrigin = 'anonymous';
 
+        // Throttle tile requests to avoid flooding the network
+        this.maxConcurrentLoads = 6;
+        this.activeLoads = 0;
+        this.loadQueue = [];
+
+        // Simple fallback sphere so the planet is visible even before tiles finish
+        const fallbackGeo = new THREE.SphereGeometry(this.radius, 32, 16);
+        const fallbackMat = new THREE.MeshBasicMaterial({ color: 0x7a5a45, side: THREE.DoubleSide });
+        this.fallbackMesh = new THREE.Mesh(fallbackGeo, fallbackMat);
+        this.group.add(this.fallbackMesh);
+
         this.init();
     }
 
     init() {
-        this.root = this.createTile(0, 0, 0);
-        this.group.add(this.root.mesh);
+        // WMTS tile matrix: at level z, there are 2^(z+1) columns × 2^z rows
+        // NASA Trek tiles typically start at level 1, not level 0
+        const z = this.minLevel;
+        const cols = 1 << (z + 1); // 2^(z+1) columns
+        const rows = 1 << z;       // 2^z rows
+
+        console.log(`[PlanetTileManager] Initializing with minLevel=${z}, creating ${cols}x${rows} root tiles`);
+
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                const tile = this.createTile(z, x, y);
+                this.rootTiles.push(tile);
+                this.group.add(tile.mesh);
+            }
+        }
     }
 
     getObject3D() {
@@ -82,11 +106,13 @@ export class PlanetTileManager {
     }
 
     buildTileMesh(z, x, y) {
-        const tilesAtLevel = 1 << z;
-        const lonLeft = -Math.PI + (2 * Math.PI * x) / tilesAtLevel;
-        const lonRight = -Math.PI + (2 * Math.PI * (x + 1)) / tilesAtLevel;
-        const latTop = Math.PI / 2 - (Math.PI * y) / tilesAtLevel;
-        const latBottom = Math.PI / 2 - (Math.PI * (y + 1)) / tilesAtLevel;
+        // WMTS default028mm matrix: cols = 2^(z+1), rows = 2^z
+        const cols = 1 << (z + 1);
+        const rows = 1 << z;
+        const lonLeft = -Math.PI + (2 * Math.PI * x) / cols;
+        const lonRight = -Math.PI + (2 * Math.PI * (x + 1)) / cols;
+        const latTop = Math.PI / 2 - (Math.PI * y) / rows;
+        const latBottom = Math.PI / 2 - (Math.PI * (y + 1)) / rows;
 
         const lonSpan = lonRight - lonLeft;
         const latSpan = latTop - latBottom;
@@ -107,12 +133,16 @@ export class PlanetTileManager {
                 const cosLon = Math.cos(lon);
                 const sinLon = Math.sin(lon);
 
+                // Slight offset (0.001) to prevent z-fighting with fallback sphere
+                const r = this.radius * 1.001;
                 verts.push(
-                    this.radius * cosLat * cosLon,
-                    this.radius * sinLat,
-                    this.radius * cosLat * sinLon
+                    r * cosLat * cosLon,
+                    r * sinLat,
+                    r * cosLat * sinLon
                 );
-                uvs.push((lon + Math.PI) / (2 * Math.PI), 1 - (lat + Math.PI / 2) / Math.PI);
+                // Use local tile UVs (0-1) - each tile texture covers its full extent
+                // Flip V because image y=0 is top, but UV v=0 is bottom (OpenGL convention)
+                uvs.push(u, 1 - v);
             }
         }
 
@@ -150,39 +180,38 @@ export class PlanetTileManager {
     }
 
     loadTextureForTile(tile) {
-        const url = `${this.baseUrl}/${tile.z}/${tile.x}/${tile.y}.${this.extension}`;
+        // WMTS standard order: /{TileMatrix}/{TileRow}/{TileCol}.{ext} = /{z}/{y}/{x}
+        const url = `${this.baseUrl}/${tile.z}/${tile.y}/${tile.x}.${this.extension}`;
         if (this.textureCache.has(url)) {
             this.setTileTexture(tile, this.textureCache.get(url));
             return;
         }
-        tile.loading = true;
-        this.loader.load(
-            url,
-            (tex) => {
-                tex.colorSpace = THREE.SRGBColorSpace;
-                tex.minFilter = THREE.LinearMipmapLinearFilter;
-                tex.magFilter = THREE.LinearFilter;
-                tex.anisotropy = this.anisotropy;
-                tex.wrapS = THREE.ClampToEdgeWrapping;
-                tex.wrapT = THREE.ClampToEdgeWrapping;
-                this.textureCache.set(url, tex);
-                this.lru.push(url);
-                this.evictIfNeeded();
-                this.setTileTexture(tile, tex);
-            },
-            undefined,
-            () => {
-                tile.loading = false;
-            }
-        );
+        // Avoid duplicate queue entries
+        if (this.loadQueue.find(entry => entry.url === url && entry.tile === tile)) return;
+        // Enqueue load request with throttling
+        this.loadQueue.push({ url, tile });
+        this.sortQueueByPriority();
+        this.processQueue();
     }
 
     setTileTexture(tile, texture) {
+        console.log(`[PlanetTileManager] setTileTexture called for tile ${tile.key}, mesh exists: ${!!tile.mesh}, material exists: ${!!tile.mesh?.material}`);
         if (tile.mesh?.material) {
             tile.mesh.material.map = texture;
             tile.mesh.material.needsUpdate = true;
             tile.loaded = true;
             tile.loading = false;
+            console.log(`[PlanetTileManager] Texture applied to tile ${tile.key}`);
+            // Remove fallback completely once we have at least one textured tile
+            if (this.fallbackMesh && this.fallbackMesh.parent) {
+                this.group.remove(this.fallbackMesh);
+                this.fallbackMesh.geometry.dispose();
+                this.fallbackMesh.material.dispose();
+                this.fallbackMesh = null;
+                console.log(`[PlanetTileManager] Fallback mesh removed from scene`);
+            }
+        } else {
+            console.warn(`[PlanetTileManager] Cannot apply texture - mesh or material missing for tile ${tile.key}`);
         }
     }
 
@@ -195,14 +224,84 @@ export class PlanetTileManager {
         }
     }
 
+    processQueue() {
+        while (this.activeLoads < this.maxConcurrentLoads && this.loadQueue.length > 0) {
+            const { url, tile } = this.loadQueue.shift();
+            if (tile.loading || tile.loaded) {
+                continue;
+            }
+            tile.loading = true;
+            this.activeLoads++;
+
+            const done = () => {
+                this.activeLoads = Math.max(0, this.activeLoads - 1);
+                this.processQueue();
+            };
+            console.log(`[PlanetTileManager] Loading texture: ${url}`);
+            this.loader.load(
+                url,
+                (tex) => {
+                    console.log(`[PlanetTileManager] Texture loaded successfully: ${url}`);
+                    tex.colorSpace = THREE.SRGBColorSpace;
+                    tex.minFilter = THREE.LinearMipmapLinearFilter;
+                    tex.magFilter = THREE.LinearFilter;
+                    tex.anisotropy = this.anisotropy;
+                    tex.wrapS = THREE.ClampToEdgeWrapping;
+                    tex.wrapT = THREE.ClampToEdgeWrapping;
+                    this.textureCache.set(url, tex);
+                    this.lru.push(url);
+                    this.evictIfNeeded();
+                    this.setTileTexture(tile, tex);
+                    done();
+                },
+                undefined,
+                (error) => {
+                    console.error(`[PlanetTileManager] Failed to load tile ${tile.key}:`, url, error?.message || error);
+                    tile.loading = false;
+                    done();
+                }
+            );
+        }
+    }
+
+    sortQueueByPriority() {
+        const camPos = this.lastCameraPos;
+        const camDir = this.lastCameraDir;
+        this.loadQueue.sort((a, b) => this.computePriority(a.tile, camPos, camDir) - this.computePriority(b.tile, camPos, camDir));
+    }
+
+    computePriority(tile, camPos, camDir) {
+        // Lower value = higher priority
+        let priority = tile.z * 10; // favor coarser tiles first
+
+        if (camPos && camDir) {
+            const tileDir = tile.center.clone().normalize();
+            const angle = 1 - Math.max(-1, Math.min(1, tileDir.dot(camDir)));
+            const dist = camPos.distanceTo(tile.center);
+            priority += angle * 100;
+            priority += dist * 0.01;
+        }
+        return priority;
+    }
+
     update(camera, renderer) {
-        if (!camera || !this.root) return;
+        if (!camera || this.rootTiles.length === 0) return;
+
+        // Debug: log group children count periodically
+        if (!this._debugCounter) this._debugCounter = 0;
+        if (++this._debugCounter % 60 === 0) {
+            console.log(`[PlanetTileManager] Group has ${this.group.children.length} children, tileCache has ${this.tileCache.size} tiles`);
+        }
+        // Cache camera info for prioritization
+        this.lastCameraPos = camera.position.clone();
+        this.lastCameraDir = new THREE.Vector3();
+        camera.getWorldDirection(this.lastCameraDir);
         const viewportHeight = renderer?.domElement?.clientHeight || window.innerHeight || 1080;
         const fovRad = (camera.fov || 50) * (Math.PI / 180);
         const pixelsPerRad = viewportHeight / fovRad;
 
         const desired = [];
-        this.collectVisible(this.root, camera, pixelsPerRad, desired);
+        this.rootTiles.forEach(root => this.collectVisible(root, camera, pixelsPerRad, desired));
 
         // Retain desired tiles and their ancestors to avoid deleting the tree
         const retained = new Set();
@@ -234,9 +333,17 @@ export class PlanetTileManager {
     }
 
     collectVisible(tile, camera, pixelsPerRad, desired) {
-        const dist = camera.position.distanceTo(tile.center);
-        const angularSize = Math.max(tile.latSpan, tile.lonSpan);
-        const screenSize = angularSize * pixelsPerRad;
+        // Convert tile center to world space for accurate distance calculation
+        const worldCenter = tile.center.clone();
+        this.group.localToWorld(worldCenter);
+        const dist = camera.position.distanceTo(worldCenter);
+
+        // Calculate apparent angular size based on distance to tile
+        // Tile's actual size in world units (arc length on sphere)
+        const tileArcSize = Math.max(tile.latSpan, tile.lonSpan) * this.radius;
+        // Apparent angular size from camera's perspective
+        const apparentAngularSize = 2 * Math.atan2(tileArcSize / 2, dist);
+        const screenSize = apparentAngularSize * pixelsPerRad;
         const shouldSubdivide = screenSize > 120 && tile.z < this.maxLevel;
 
         if (shouldSubdivide) {
@@ -251,8 +358,18 @@ export class PlanetTileManager {
                 }
             }
             tile.children.forEach(child => this.collectVisible(child, camera, pixelsPerRad, desired));
-            if (tile.mesh && this.group.children.includes(tile.mesh)) {
-                this.group.remove(tile.mesh);
+            // Keep parent mesh visible until all children are loaded to avoid gaps
+            const allChildrenLoaded = tile.children.every(c => c.loaded);
+            if (tile.mesh) {
+                if (allChildrenLoaded) {
+                    if (this.group.children.includes(tile.mesh)) {
+                        this.group.remove(tile.mesh);
+                    }
+                } else {
+                    if (!this.group.children.includes(tile.mesh)) {
+                        this.group.add(tile.mesh);
+                    }
+                }
             }
         } else {
             if (tile.children) {

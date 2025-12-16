@@ -46,7 +46,7 @@ export class Mars {
             radius: this.radius,
             baseUrl: this.tileBaseUrl,
             maxLevel: this.maxTileLevel,
-            minLevel: 0,
+            minLevel: 1,  // NASA Trek tiles start at level 1, not 0
             segments: 12,
             anisotropy: this.maxAnisotropy,
             extension: this.tileExtension
