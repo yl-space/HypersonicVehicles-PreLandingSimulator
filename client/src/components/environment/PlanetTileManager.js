@@ -150,8 +150,9 @@ export class PlanetTileManager {
             for (let ix = 0; ix < this.segments; ix++) {
                 const a = iy * (this.segments + 1) + ix;
                 const b = a + this.segments + 1;
-                indices.push(a, b, a + 1);
-                indices.push(b, b + 1, a + 1);
+                // Counter-clockwise winding for outward-facing triangles
+                indices.push(a, a + 1, b);
+                indices.push(a + 1, b + 1, b);
             }
         }
 
@@ -336,6 +337,23 @@ export class PlanetTileManager {
         // Convert tile center to world space for accurate distance calculation
         const worldCenter = tile.center.clone();
         this.group.localToWorld(worldCenter);
+
+        // Check if tile is on the camera-facing side of the planet
+        // Tile normal points outward from planet center (same direction as tile center from origin)
+        const tileNormal = worldCenter.clone().normalize();
+        const cameraDir = camera.position.clone().sub(worldCenter).normalize();
+        const dotProduct = tileNormal.dot(cameraDir);
+
+        // If tile is facing away from camera (back side of planet), skip it
+        // Use small threshold to include tiles near the horizon
+        if (dotProduct < -0.2) {
+            // Hide this tile's mesh if it exists
+            if (tile.mesh && this.group.children.includes(tile.mesh)) {
+                this.group.remove(tile.mesh);
+            }
+            return; // Don't process or subdivide back-facing tiles
+        }
+
         const dist = camera.position.distanceTo(worldCenter);
 
         // Calculate apparent angular size based on distance to tile
