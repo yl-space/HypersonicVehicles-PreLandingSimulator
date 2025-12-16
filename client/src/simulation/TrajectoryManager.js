@@ -190,9 +190,16 @@ export class TrajectoryManager {
         this.createReferenceTrajectory();
     }
     
-    setReferenceTrajectoryFromCSV(rows) {
+    setReferenceTrajectoryFromCSV(rows, convertMSL = true) {
         this.referenceTrajectoryData = [];
         let prevPosition = null;
+        
+        // First pass: get landing site position (last point in trajectory)
+        const lastRow = rows[rows.length - 1];
+        const landingX = convertMSL ? -parseFloat(lastRow.x || 0) : parseFloat(lastRow.x || 0);
+        const landingY = convertMSL ? -parseFloat(lastRow.y || 0) : parseFloat(lastRow.y || 0);
+        const landingZ = parseFloat(lastRow.z || 0);
+        const landingSite = new THREE.Vector3(landingX, landingY, landingZ);
         
         // Process CSV data
         for (let i = 0; i < rows.length; i++) {
@@ -203,6 +210,7 @@ export class TrajectoryManager {
             const z = parseFloat(row.z || 0);
             
             if (!isNaN(time) && !isNaN(x) && !isNaN(y) && !isNaN(z)) {
+                const currentPos = new THREE.Vector3(x, y, z);
                 const rawDistance = Math.sqrt(x * x + y * y + z * z);
                 const altitude = rawDistance - this.marsRadius;
                 
@@ -224,13 +232,16 @@ export class TrajectoryManager {
                     }
                 }
                 
+                // Calculate distance to landing site (in meters, then convert to km)
+                const distanceToLanding = currentPos.distanceTo(landingSite) * 0.001;
+                
                 this.referenceTrajectoryData.push({
                     time,
                     position,
                     altitude: altitude * 0.001, // km
                     velocity: velocityVector.clone(), // Ensure it's a Vector3
                     velocityMagnitude,
-                    distanceToLanding: rawDistance * 0.001 // km
+                    distanceToLanding // km
                 });
                 
                 prevPosition = position.clone();
@@ -503,6 +514,47 @@ export class TrajectoryManager {
                 this.trajectoryData[i + 1].time > time) {
                 prev = this.trajectoryData[i];
                 next = this.trajectoryData[i + 1];
+                break;
+            }
+        }
+        
+        const t = (time - prev.time) / (next.time - prev.time || 1);
+        
+        return {
+            time,
+            position: prev.position.clone().lerp(next.position, t),
+            altitude: THREE.MathUtils.lerp(prev.altitude, next.altitude, t),
+            velocity: (prev.velocity instanceof THREE.Vector3 && next.velocity instanceof THREE.Vector3)
+                ? prev.velocity.clone().lerp(next.velocity, t)
+                : new THREE.Vector3(0, -1, 0),
+            velocityMagnitude: THREE.MathUtils.lerp(
+                prev.velocityMagnitude,
+                next.velocityMagnitude,
+                t
+            ),
+            distanceToLanding: THREE.MathUtils.lerp(
+                prev.distanceToLanding,
+                next.distanceToLanding,
+                t
+            )
+        };
+    }
+    
+    getReferenceDataAtTime(time) {
+        if (this.referenceTrajectoryData.length === 0) return null;
+        
+        // Find total time from reference data
+        const refTotalTime = this.referenceTrajectoryData[this.referenceTrajectoryData.length - 1].time;
+        time = Math.max(0, Math.min(time, refTotalTime));
+        
+        let prev = this.referenceTrajectoryData[0];
+        let next = this.referenceTrajectoryData[this.referenceTrajectoryData.length - 1];
+        
+        for (let i = 0; i < this.referenceTrajectoryData.length - 1; i++) {
+            if (this.referenceTrajectoryData[i].time <= time && 
+                this.referenceTrajectoryData[i + 1].time > time) {
+                prev = this.referenceTrajectoryData[i];
+                next = this.referenceTrajectoryData[i + 1];
                 break;
             }
         }

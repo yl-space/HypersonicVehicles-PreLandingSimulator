@@ -7,6 +7,10 @@ import { CONTROLS_CONFIG } from '../config/ControlsConfig.js';
  * Displays current phase information and telemetry
  */
 
+// Reference trajectory color - easily customizable
+const REFERENCE_TRAJECTORY_COLOR = '#ffffff'; // white
+const SHOW_LEGEND = false;
+
 export class PhaseInfo {
     constructor(options) {
         this.options = {
@@ -20,6 +24,7 @@ export class PhaseInfo {
         this.elements = {};
         this.currentPhase = null;
         this.showingPlots = false;
+        this.isVisible = true;
         
         // Data arrays for plots
         this.dataLimit = null; // No limit by default, can be set to a number to limit data points
@@ -28,11 +33,27 @@ export class PhaseInfo {
         this.altitudeData = [];
         this.velocityData = [];
         
+        // Reference trajectory data arrays
+        this.refTimeData = [];
+        this.refDistanceData = [];
+        this.refAltitudeData = [];
+        this.refVelocityData = [];
+        
         // Dynamic control data storage - one array per control
         this.controlsData = {};
         Object.keys(CONTROLS_CONFIG).forEach(controlId => {
             this.controlsData[controlId] = [];
         });
+        
+        // Reference control data storage - one array per control
+        this.refControlsData = {};
+        Object.keys(CONTROLS_CONFIG).forEach(controlId => {
+            this.refControlsData[controlId] = []; // Will store 0 values for now
+        });
+        
+        // Flags to track if we've started collecting valid data (velocity >= 100 mph)
+        this.hasStartedSimData = false;
+        this.hasStartedRefData = false;
 
         this.isReplayMode = false;
         this.currentTime = 0;
@@ -55,10 +76,25 @@ export class PhaseInfo {
         this.altitudeData = [];
         this.velocityData = [];
         
+        // Reset reference trajectory data
+        this.refTimeData = [];
+        this.refDistanceData = [];
+        this.refAltitudeData = [];
+        this.refVelocityData = [];
+        
         // Reset all control data arrays
         Object.keys(this.controlsData).forEach(controlId => {
             this.controlsData[controlId] = [];
         });
+        
+        // Reset reference control data arrays
+        Object.keys(this.refControlsData).forEach(controlId => {
+            this.refControlsData[controlId] = [];
+        });
+        
+        // Reset data collection flags
+        this.hasStartedSimData = false;
+        this.hasStartedRefData = false;
         
         this.currentTime = 0;
     }
@@ -74,6 +110,17 @@ export class PhaseInfo {
     
     createDOM() {
         const html = `
+            <div class="toggle-icon" id="toggle-icon" title="Hide panel">
+                <svg class="icon-collapse" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="11 17 6 12 11 7"></polyline>
+                    <polyline points="18 17 13 12 18 7"></polyline>
+                </svg>
+                <svg class="icon-expand" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                    <polyline points="13 17 18 12 13 7"></polyline>
+                    <polyline points="6 17 11 12 6 7"></polyline>
+                </svg>
+            </div>
+            
             <div class="swap-icon" id="swap-icon" title="Show plots">
                 <svg class="icon-chart" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="20" x2="18" y2="10"></line>
@@ -167,13 +214,20 @@ export class PhaseInfo {
             progressLabel: document.getElementById('phase-progress-label'),
             telemetryGrid: document.getElementById('telemetry-grid'),
             scrollIndicator: document.getElementById('scroll-indicator'),
+            toggleIcon: document.getElementById('toggle-icon'),
             swapIcon: document.getElementById('swap-icon'),
             telemetryView: document.getElementById('telemetry-view'),
             plotsView: document.getElementById('plots-view'),
             plotsContainer: document.getElementById('plots-container'),
+            contentWrapper: document.getElementById('content-wrapper'),
             iconChart: this.options.container.querySelector('.icon-chart'),
-            iconInfo: this.options.container.querySelector('.icon-info')
+            iconInfo: this.options.container.querySelector('.icon-info'),
+            iconCollapse: this.options.container.querySelector('.icon-collapse'),
+            iconExpand: this.options.container.querySelector('.icon-expand')
         };
+        
+        // Add toggle icon event listener
+        this.elements.toggleIcon.addEventListener('click', () => this.toggleVisibility());
         
         // Add swap icon event listener
         this.elements.swapIcon.addEventListener('click', () => this.toggleView());
@@ -372,6 +426,29 @@ export class PhaseInfo {
     }
     
     
+    toggleVisibility() {
+        this.isVisible = !this.isVisible;
+        
+        if (this.isVisible) {
+            // Show panel - slide in from left
+            this.options.container.classList.remove('hidden');
+            this.elements.contentWrapper.classList.remove('slide-out');
+            this.elements.contentWrapper.classList.add('slide-in');
+            this.elements.iconCollapse.style.display = 'block';
+            this.elements.iconExpand.style.display = 'none';
+            this.elements.toggleIcon.title = 'Hide panel';
+            this.elements.swapIcon.style.display = 'flex';
+        } else {
+            // Hide panel - slide out to left
+            this.elements.contentWrapper.classList.remove('slide-in');
+            this.elements.contentWrapper.classList.add('slide-out');
+            this.elements.iconCollapse.style.display = 'none';
+            this.elements.iconExpand.style.display = 'block';
+            this.elements.toggleIcon.title = 'Show panel';
+            this.elements.swapIcon.style.display = 'none';
+        }
+    }
+    
     toggleView() {
         this.showingPlots = !this.showingPlots;
         
@@ -399,7 +476,7 @@ export class PhaseInfo {
         // Clear previous plots
         this.elements.plotsContainer.innerHTML = '';
 
-        // Prepare data for plots
+        // Prepare data for simulation plots
         const timeData = this.isReplayMode ? this.timeData.filter(time => time <= this.currentTime) : this.timeData;
         const plotData = timeData.map((time, i) => {
             const dataPoint = {
@@ -416,16 +493,70 @@ export class PhaseInfo {
             
             return dataPoint;
         });
+        
+        // Prepare reference trajectory data
+        const refTimeData = this.isReplayMode ? this.refTimeData.filter(time => time <= this.currentTime) : this.refTimeData;
+        const refPlotData = refTimeData.map((time, i) => {
+            const dataPoint = {
+                time: time,
+                distance: this.refDistanceData[i],
+                altitude: this.refAltitudeData[i],
+                velocity: this.refVelocityData[i]
+            };
+            
+            // Add all control values (0 for reference)
+            Object.keys(CONTROLS_CONFIG).forEach(controlId => {
+                dataPoint[controlId] = this.refControlsData[controlId][i] || 0;
+            });
+            
+            return dataPoint;
+        });
 
         const totalHeight = 500; 
         const plotHeight = totalHeight / 4;
         
         // Distance plot
+        const distanceMarks = [
+            Plot.line(plotData, {
+                x: 'time',
+                y: 'distance',
+                stroke: '#ff6600',
+                strokeWidth: 2
+            }),
+            Plot.dot(plotData.slice(-1), {
+                x: 'time',
+                y: 'distance',
+                fill: '#ff6600',
+                r: 4,
+            }),
+            Plot.text(plotData.slice(-1), { 
+                x: "time", 
+                y: "distance", 
+                text: (d) => `${d.distance.toFixed(0)}`, 
+                dy: -6, 
+                lineAnchor: "bottom"
+            })
+        ];
+        
+        // Add reference trajectory line if available
+        if (refPlotData.length > 0) {
+            distanceMarks.unshift(
+                Plot.line(refPlotData, {
+                    x: 'time',
+                    y: 'distance',
+                    stroke: REFERENCE_TRAJECTORY_COLOR,
+                    strokeWidth: 1,
+                    strokeDasharray: "4,4"
+                })
+            );
+        }
+        
         const distancePlot = Plot.plot({
             width: 400,
             height: plotHeight,
             marginLeft: 50,
             marginBottom: 30,
+            marginRight: 80,
             style: {
                 background: 'transparent',
                 color: '#fff'
@@ -440,29 +571,57 @@ export class PhaseInfo {
                 grid: true,
                 tickFormat: d => d.toFixed(0)
             },
-            marks: [
-                Plot.line(plotData, {
-                    x: 'time',
-                    y: 'distance',
-                    stroke: '#ff6600',
-                    strokeWidth: 2
-                }),
-                Plot.dot(plotData.slice(-1), {
-                    x: 'time',
-                    y: 'distance',
-                    fill: '#ff6600',
-                    r: 4,
-                }),
-                Plot.text(plotData.slice(-1), { x: "time", y: "distance", text: (d) => `${d.distance.toFixed(0)}`, dy: -6, lineAnchor: "bottom"})
-            ]
+            marks: distanceMarks,
+            // Add legend
+            color: {
+                legend: SHOW_LEGEND,
+                domain: refPlotData.length > 0 ? ["Reference", "Current"] : ["Current"],
+                range: refPlotData.length > 0 ? [REFERENCE_TRAJECTORY_COLOR, '#ff6600'] : ['#ff6600']
+            }
         });
         
         // Altitude plot
+        const altitudeMarks = [
+            Plot.line(plotData, {
+                x: 'time',
+                y: 'altitude',
+                stroke: '#00aaff',
+                strokeWidth: 2
+            }),
+            Plot.dot(plotData.slice(-1), {
+                x: 'time',
+                y: 'altitude',
+                fill: '#00aaff',
+                r: 4
+            }),
+            Plot.text(plotData.slice(-1), { 
+                x: "time", 
+                y: "altitude", 
+                text: (d) => `${d.altitude.toFixed(1)}`, 
+                dy: -6, 
+                lineAnchor: "bottom" 
+            })
+        ];
+        
+        // Add reference trajectory line if available
+        if (refPlotData.length > 0) {
+            altitudeMarks.unshift(
+                Plot.line(refPlotData, {
+                    x: 'time',
+                    y: 'altitude',
+                    stroke: REFERENCE_TRAJECTORY_COLOR,
+                    strokeWidth: 1,
+                    strokeDasharray: "4,4"
+                })
+            );
+        }
+        
         const altitudePlot = Plot.plot({
             width: 400,
             height: plotHeight,
             marginLeft: 50,
             marginBottom: 30,
+            marginRight: 80,
             style: {
                 background: 'transparent',
                 color: '#fff'
@@ -477,29 +636,57 @@ export class PhaseInfo {
                 grid: true,
                 tickFormat: d => d.toFixed(1)
             },
-            marks: [
-                Plot.line(plotData, {
-                    x: 'time',
-                    y: 'altitude',
-                    stroke: '#00aaff',
-                    strokeWidth: 2
-                }),
-                Plot.dot(plotData.slice(-1), {
-                    x: 'time',
-                    y: 'altitude',
-                    fill: '#00aaff',
-                    r: 4
-                }),
-                Plot.text(plotData.slice(-1), { x: "time", y: "altitude", text: (d) => `${d.altitude.toFixed(1)}`, dy: -6, lineAnchor: "bottom" })
-            ]
+            marks: altitudeMarks,
+            // Add legend
+            color: {
+                legend: SHOW_LEGEND,
+                domain: refPlotData.length > 0 ? ["Reference", "Current"] : ["Current"],
+                range: refPlotData.length > 0 ? [REFERENCE_TRAJECTORY_COLOR, '#00aaff'] : ['#00aaff']
+            }
         });
         
         // Velocity plot
+        const velocityMarks = [
+            Plot.line(plotData, {
+                x: 'time',
+                y: 'velocity',
+                stroke: '#00ff88',
+                strokeWidth: 2,
+            }),
+            Plot.dot(plotData.slice(-1), {
+                x: 'time',
+                y: 'velocity',
+                fill: '#00ff88',
+                r: 4,
+            }),
+            Plot.text(plotData.slice(-1), { 
+                x: "time", 
+                y: "velocity", 
+                text: (d) => `${d.velocity.toFixed(0)}`, 
+                dy: -6, 
+                lineAnchor: "bottom" 
+            })
+        ];
+        
+        // Add reference trajectory line if available
+        if (refPlotData.length > 0) {
+            velocityMarks.unshift(
+                Plot.line(refPlotData, {
+                    x: 'time',
+                    y: 'velocity',
+                    stroke: REFERENCE_TRAJECTORY_COLOR,
+                    strokeWidth: 1,
+                    strokeDasharray: "4,4"
+                })
+            );
+        }
+        
         const velocityPlot = Plot.plot({
             width: 400,
             height: plotHeight,
             marginLeft: 50,
             marginBottom: 30,
+            marginRight: 80,
             style: {
                 background: 'transparent',
                 color: '#fff'
@@ -514,21 +701,13 @@ export class PhaseInfo {
                 grid: true,
                 tickFormat: d => d.toFixed(0)
             },
-            marks: [
-                Plot.line(plotData, {
-                    x: 'time',
-                    y: 'velocity',
-                    stroke: '#00ff88',
-                    strokeWidth: 2,
-                }),
-                Plot.dot(plotData.slice(-1), {
-                    x: 'time',
-                    y: 'velocity',
-                    fill: '#00ff88',
-                    r: 4,
-                }),
-                Plot.text(plotData.slice(-1), { x: "time", y: "velocity", text: (d) => `${d.velocity.toFixed(0)}`, dy: -6, lineAnchor: "bottom" })
-            ]
+            marks: velocityMarks,
+            // Add legend
+            color: {
+                legend: SHOW_LEGEND,
+                domain: refPlotData.length > 0 ? ["Reference", "Current"] : ["Current"],
+                range: refPlotData.length > 0 ? [REFERENCE_TRAJECTORY_COLOR, '#00ff88'] : ['#00ff88']
+            }
         });
 
         // Append base plots
@@ -545,11 +724,47 @@ export class PhaseInfo {
             const color = controlColors[colorIndex % controlColors.length];
             colorIndex++;
             
+            const controlMarks = [
+                Plot.line(plotData, {
+                    x: 'time',
+                    y: controlId,
+                    stroke: color,
+                    strokeWidth: 2
+                }),
+                Plot.dot(plotData.slice(-1), {
+                    x: 'time',
+                    y: controlId,
+                    fill: color,
+                    r: 4
+                }),
+                Plot.text(plotData.slice(-1), { 
+                    x: "time", 
+                    y: controlId, 
+                    text: (d) => `${d[controlId].toFixed(1)}`, 
+                    dy: -6, 
+                    lineAnchor: "bottom" 
+                })
+            ];
+            
+            // Add reference trajectory line (0 for all controls)
+            if (refPlotData.length > 0) {
+                controlMarks.unshift(
+                    Plot.line(refPlotData, {
+                        x: 'time',
+                        y: controlId,
+                        stroke: REFERENCE_TRAJECTORY_COLOR,
+                        strokeWidth: 1,
+                        strokeDasharray: "4,4"
+                    })
+                );
+            }
+            
             const controlPlot = Plot.plot({
                 width: 400,
                 height: plotHeight,
                 marginLeft: 50,
                 marginBottom: 30,
+                marginRight: 80,
                 style: {
                     background: 'transparent',
                     color: '#fff'
@@ -564,34 +779,20 @@ export class PhaseInfo {
                     grid: true,
                     tickFormat: d => d.toFixed(1)
                 },
-                marks: [
-                    Plot.line(plotData, {
-                        x: 'time',
-                        y: controlId,
-                        stroke: color,
-                        strokeWidth: 2
-                    }),
-                    Plot.dot(plotData.slice(-1), {
-                        x: 'time',
-                        y: controlId,
-                        fill: color,
-                        r: 4
-                    }),
-                    Plot.text(plotData.slice(-1), { 
-                        x: "time", 
-                        y: controlId, 
-                        text: (d) => `${d[controlId].toFixed(1)}`, 
-                        dy: -6, 
-                        lineAnchor: "bottom" 
-                    })
-                ]
+                marks: controlMarks,
+                // Add legend
+                color: {
+                    legend: SHOW_LEGEND,
+                    domain: refPlotData.length > 0 ? ["Reference", "Current"] : ["Current"],
+                    range: refPlotData.length > 0 ? [REFERENCE_TRAJECTORY_COLOR, color] : [color]
+                }
             });
             
             this.elements.plotsContainer.appendChild(controlPlot);
         });
     }
     
-    update(phase, vehicleData, currentTime, totalTime, controls = {}) {
+    update(phase, vehicleData, currentTime, totalTime, controls = {}, refVehicleData = null) {
         if (!phase) return;
         
         // Update phase title with animation if changed
@@ -640,22 +841,63 @@ export class PhaseInfo {
 
             // Store data for plots (sample every ~0.25 seconds to avoid too many points)
             if (this.timeData.length === 0 || currentTime - this.timeData[this.timeData.length - 1] >= 0.25) {
-                // Skip if any of the values are NaN or if all are zero
-                if ((isNaN(distanceMiles) || isNaN(altitudeMiles) || isNaN(velocityMph)) || (distanceMiles === 0 && altitudeMiles === 0 && velocityMph === 0)) {
-                    return;
-                }
-
                 if (!this.isReplayMode) {
-                    this.timeData.push(currentTime);
-                    this.distanceData.push(distanceMiles);
-                    this.altitudeData.push(altitudeMiles);
-                    this.velocityData.push(Math.round(velocityMph));
+                    // Check if simulation data is valid (velocity >= 100 mph)
+                    const simDataValid = !isNaN(distanceMiles) && !isNaN(altitudeMiles) && !isNaN(velocityMph) && velocityMph >= 100;
                     
-                    // Store all control values
-                    Object.keys(CONTROLS_CONFIG).forEach(controlId => {
-                        const value = controls[controlId] !== undefined ? controls[controlId] : CONTROLS_CONFIG[controlId].defaultValue;
-                        this.controlsData[controlId].push(isNaN(value) ? 0 : value);
-                    });
+                    if (!this.hasStartedSimData) {
+                        if (simDataValid) {
+                            this.hasStartedSimData = true;
+                        } 
+                    }
+                    
+                    // Store simulation data once we've started collecting
+                    if (this.hasStartedSimData) {
+                        this.timeData.push(currentTime);
+                        this.distanceData.push(distanceMiles);
+                        this.altitudeData.push(altitudeMiles);
+                        this.velocityData.push(Math.round(velocityMph));
+                        
+                        // Store all control values
+                        Object.keys(CONTROLS_CONFIG).forEach(controlId => {
+                            const value = controls[controlId] !== undefined ? controls[controlId] : CONTROLS_CONFIG[controlId].defaultValue;
+                            this.controlsData[controlId].push(isNaN(value) ? 0 : value);
+                        });
+                    }
+                    
+                    // Store reference trajectory data if available
+                    if (refVehicleData) {
+                        const refDistanceMiles = (refVehicleData.distanceToLanding || 0) * 0.621371;
+                        const refAltitudeMiles = (refVehicleData.altitude || 0) * 0.621371;
+                        
+                        let refVelocityValue = 0;
+                        if (typeof refVehicleData.velocityMagnitude === 'number' && !isNaN(refVehicleData.velocityMagnitude)) {
+                            refVelocityValue = refVehicleData.velocityMagnitude;
+                        }
+                        const refVelocityMph = refVelocityValue * 0.621371;
+                        
+                        // Check if reference data is valid (velocity >= 100 mph)
+                        const refDataValid = !isNaN(refDistanceMiles) && !isNaN(refAltitudeMiles) && !isNaN(refVelocityMph) && refVelocityMph >= 100;
+                        
+                        if (!this.hasStartedRefData) {
+                            if (refDataValid) {
+                                this.hasStartedRefData = true;
+                            }
+                        }
+                        
+                        // Store reference data once we've started collecting
+                        if (this.hasStartedRefData) {
+                            this.refTimeData.push(currentTime);
+                            this.refDistanceData.push(refDistanceMiles);
+                            this.refAltitudeData.push(refAltitudeMiles);
+                            this.refVelocityData.push(Math.round(refVelocityMph));
+                            
+                            // Store reference control values (0 for all controls as per requirement)
+                            Object.keys(CONTROLS_CONFIG).forEach(controlId => {
+                                this.refControlsData[controlId].push(0);
+                            });
+                        }
+                    }
                     
                     if (this.dataLimit && this.timeData.length > this.dataLimit) {
                         this.timeData.shift();
@@ -663,9 +905,24 @@ export class PhaseInfo {
                         this.altitudeData.shift();
                         this.velocityData.shift();
                         
+                        // Shift reference data
+                        if (this.refTimeData.length > this.dataLimit) {
+                            this.refTimeData.shift();
+                            this.refDistanceData.shift();
+                            this.refAltitudeData.shift();
+                            this.refVelocityData.shift();
+                        }
+                        
                         // Shift all control data arrays
                         Object.keys(this.controlsData).forEach(controlId => {
                             this.controlsData[controlId].shift();
+                        });
+                        
+                        // Shift reference control data arrays
+                        Object.keys(this.refControlsData).forEach(controlId => {
+                            if (this.refControlsData[controlId].length > this.dataLimit) {
+                                this.refControlsData[controlId].shift();
+                            }
                         });
                     }
                 }
