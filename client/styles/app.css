@@ -202,7 +202,7 @@ body {
     position: absolute;
     bottom: 30px;
     left: 50%;
-    transform: translateX(-45%);
+    transform: translateX(-50%);
     width: auto;
     max-width: none;
     background: rgba(0, 0, 0, 0.3);
