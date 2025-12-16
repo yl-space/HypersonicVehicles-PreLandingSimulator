@@ -1821,3 +1821,8 @@ select:focus {
         display: none !important;
     }
 }
+
+.planet-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed !important;
+}
