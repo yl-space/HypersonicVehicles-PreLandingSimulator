@@ -581,13 +581,17 @@ export class SimulationManager {
             angleOfAttack: this.entryVehicle ? this.entryVehicle.attitude.angleOfAttack : -16,
             bankAngle: this.state.controls.bankAngle || 0
         };
+        
+        // Get reference trajectory data at current time
+        const refVehicleData = this.trajectoryManager.getReferenceDataAtTime(this.state.currentTime);
 
         this.phaseInfo.update(
             this.phaseController.phases[this.state.currentPhase],
             enhancedVehicleData,
             this.state.currentTime,
             this.state.totalTime,
-            this.state.controls  // Pass entire controls object instead of just bankAngle
+            this.state.controls,  // Pass entire controls object instead of just bankAngle
+            refVehicleData  // Pass reference trajectory data
         );
     }
     
