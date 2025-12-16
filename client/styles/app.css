@@ -143,6 +143,7 @@ body {
 }
 
 .simulation-badge {
+    margin-right: 44px;
     padding: 5px 12px;
     background: rgba(255, 102, 0, 0.2);
     border: 1px solid rgba(255, 102, 0, 0.5);
@@ -1316,7 +1317,8 @@ body {
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    display: flex;
+    /* display: flex; */
+    display: none;
     align-items: center;
     gap: 5px;
     font-size: 12px;
@@ -1612,7 +1614,7 @@ body {
     color: #fff !important;
     font-size: 20px !important;
     font-weight: bold !important;
-    border-radius: 4px !important;
+    border-radius: 50% !important;
     cursor: pointer !important;
     display: flex !important;
     align-items: center !important;
@@ -1634,8 +1636,11 @@ body {
 }
 
 .zoom-reset {
-    font-size: 16px !important;
-    font-weight: bold !important;
+    padding: 0 !important;
+}
+
+.zoom-reset svg {
+    display: block !important;
 }
 
 /* ===========================
