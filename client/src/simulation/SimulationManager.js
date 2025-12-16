@@ -259,7 +259,7 @@ export class SimulationManager {
                 cursor: pointer;
                 transition: all 0.3s ease;
                 backdrop-filter: blur(10px);
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                font-family: 'Roboto', 'Helvetica Neue', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                 text-transform: capitalize;
             `;
             
