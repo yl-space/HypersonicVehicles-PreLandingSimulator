@@ -59,10 +59,10 @@ export class ModelSelector {
         wrapper.className = 'model-selector-compact';
         wrapper.innerHTML = `
             <div class="selector-header">
-                <span class="control-label">SPACECRAFT</span>
+                <span class="control-label">VEHICLE</span>
                 <span class="model-status" aria-live="polite">Select vehicle</span>
             </div>
-            <div class="model-toggle" role="group" aria-label="Spacecraft model">
+            <div class="model-toggle" role="group" aria-label="Vehicle model">
                 ${this.models.map(model => `
                     <button 
                         type="button" 

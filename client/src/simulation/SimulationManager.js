@@ -244,10 +244,12 @@ export class SimulationManager {
             display: flex;
             gap: 10px;
         `;
+
+        const EARTH_DISABLED = true; // Temporarily disable Earth until fully implemented
         
-        ['mars', 'earth', 'jupiter'].forEach(planet => {
+        ['mars', 'earth'].forEach(planet => {
             const btn = document.createElement('button');
-            btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''}`;
+            btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''} ${planet === 'earth' && EARTH_DISABLED ? 'disabled' : ''}`;
             btn.textContent = planet.charAt(0).toUpperCase() + planet.slice(1);
             btn.style.cssText = `
                 padding: 10px 16px;
@@ -275,7 +277,11 @@ export class SimulationManager {
                 }
             });
             
-            btn.addEventListener('click', () => this.switchPlanet(planet));
+            btn.addEventListener('click', () => {
+                if (!btn.classList.contains('disabled')) {
+                    this.switchPlanet(planet);
+                }
+            });
             planetControls.appendChild(btn);
         });
         
