@@ -36,6 +36,9 @@ logger = logging.getLogger("uvicorn")
 
 # WMTS base for Viking MDIM21 (232m); includes TileMatrixSet "default028mm"
 WMTS_MARS_BASE = "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm"
+# Local cache for tiles (prefetched during Docker build; also filled on-demand)
+TILE_CACHE_DIR = Path(os.getenv("TILE_CACHE_DIR", "/app/tile_cache/mars"))
+TILE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 @app.get("/health")
 async def health_check():
@@ -48,6 +51,19 @@ async def proxy_mars_tile(z: int, x: int, y: int, ext: str = "jpg"):
     Proxy Mars WMTS tiles from NASA Trek to avoid CORS issues in the client.
     URL pattern matches XYZ-style requests from the frontend and forwards to Trek.
     """
+    cache_path = TILE_CACHE_DIR / str(z) / str(x) / f"{y}.{ext}"
+    if cache_path.exists():
+        try:
+            data = cache_path.read_bytes()
+            return Response(
+                content=data,
+                media_type="image/jpeg",
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+        except Exception:
+            # If cache read fails, continue to fetch from upstream
+            pass
+
     # Try requested extension first, then fall back to the other common one.
     candidates = [ext]
     if ext.lower() == "png":
@@ -61,6 +77,14 @@ async def proxy_mars_tile(z: int, x: int, y: int, ext: str = "jpg"):
                 url = f"{WMTS_MARS_BASE}/{z}/{x}/{y}.{candidate_ext}"
                 r = await client.get(url)
                 if r.status_code == 200:
+                    # Persist to cache for future hits
+                    cache_path.parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        cache_path.write_bytes(r.content)
+                    except Exception:
+                        # Ignore cache write errors; still return tile
+                        pass
+
                     headers = {
                         "Content-Type": r.headers.get("Content-Type", f"image/{candidate_ext}"),
                         "Access-Control-Allow-Origin": "*"

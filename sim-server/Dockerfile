@@ -18,6 +18,8 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
+# Prefetch a small, bounded set of WMTS tiles into the image cache
+RUN /app/.venv/bin/python scripts/prefetch_tiles.py
 
 # Then, use a final image without uv
 FROM python:3.12-slim-bookworm
@@ -30,6 +32,9 @@ COPY --from=builder --chown=app:app /app /app
 
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
+
+# Ensure log directory exists for RotatingFileHandler
+RUN mkdir -p /app/src/logs
 
 ENV IS_PRODUCTION=True
 ENV SIM_SERVER_HOST=0.0.0.0
