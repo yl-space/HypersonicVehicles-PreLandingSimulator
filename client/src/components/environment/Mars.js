@@ -73,8 +73,10 @@ export class Mars {
         const material = new THREE.MeshBasicMaterial({
             map: colorMap,
             color: 0xffffff,
-            side: THREE.DoubleSide
+            side: THREE.DoubleSide,
+            toneMapped: false
         });
+        material.color.multiplyScalar(1.6); // brighten unlit marsjs surface
 
         const segments = 192;
         const geometry = new THREE.SphereGeometry(this.radius, segments, segments / 2);

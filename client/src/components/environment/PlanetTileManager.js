@@ -14,6 +14,8 @@ export class PlanetTileManager {
         this.segments = Math.max(8, segments);
         this.anisotropy = anisotropy;
         this.extension = extension.startsWith('.') ? extension.slice(1) : extension;
+        // Brighten the planet textures (no lighting), >1 is allowed for un-tonemapped MeshBasic
+        this.brightness = 1.6;
 
         this.rootTiles = [];
         this.group = new THREE.Group();
@@ -31,7 +33,8 @@ export class PlanetTileManager {
 
         // Simple fallback sphere so the planet is visible even before tiles finish
         const fallbackGeo = new THREE.SphereGeometry(this.radius, 32, 16);
-        const fallbackMat = new THREE.MeshBasicMaterial({ color: 0x7a5a45, side: THREE.DoubleSide });
+        const fallbackMat = new THREE.MeshBasicMaterial({ color: 0x7a5a45, side: THREE.DoubleSide, toneMapped: false });
+        fallbackMat.color.multiplyScalar(this.brightness);
         this.fallbackMesh = new THREE.Mesh(fallbackGeo, fallbackMat);
         this.group.add(this.fallbackMesh);
 
@@ -164,8 +167,10 @@ export class PlanetTileManager {
 
         const material = new THREE.MeshBasicMaterial({
             color: 0xffffff,
-            side: THREE.DoubleSide
+            side: THREE.DoubleSide,
+            toneMapped: false
         });
+        material.color.multiplyScalar(this.brightness);
 
         const mesh = new THREE.Mesh(geometry, material);
         mesh.frustumCulled = false;
@@ -200,6 +205,8 @@ export class PlanetTileManager {
         console.log(`[PlanetTileManager] setTileTexture called for tile ${tile.key}, mesh exists: ${!!tile.mesh}, material exists: ${!!tile.mesh?.material}`);
         if (tile.mesh?.material) {
             tile.mesh.material.map = texture;
+            tile.mesh.material.toneMapped = false;
+            tile.mesh.material.color.multiplyScalar(this.brightness);
             tile.mesh.material.needsUpdate = true;
             tile.loaded = true;
             tile.loading = false;

@@ -57,8 +57,8 @@ export class SceneManager {
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1)); // Cap at 1 for better performance
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        // Brighter exposure so planet textures stay visible
-        this.renderer.toneMappingExposure = 1.8;
+        // Brighter exposure so planet and scene stay visible
+        this.renderer.toneMappingExposure = 4.4;
         this.renderer.shadowMap.enabled = false;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         
@@ -117,11 +117,11 @@ export class SceneManager {
         
         // Uniform ambient/hemisphere lighting (no directional shadows)
         // Strong ambient to eliminate dark hemispheres
-        const ambientLight = new THREE.AmbientLight(0xfff8e6, 2.0);
+        const ambientLight = new THREE.AmbientLight(0xfff8e6, 3.0);
         marsScene.add(ambientLight);
 
         // Gentle hemisphere for subtle color variation without real shading
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffc592, 0.6);
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffc592, 1.0);
         marsScene.add(hemiLight);
         
         // Create earth and jupiter scenes as placeholders
