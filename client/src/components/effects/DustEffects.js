@@ -33,7 +33,7 @@ export class DustEffects {
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos(2 * Math.random() - 1);
             // Keep particles within tens of meters of the vehicle
-            const radius = 0.0001 + Math.random() * 0.0004; // 10-50 meters in scene units
+            const radius = 0.0001 + Math.random() * 0.0004;
             
             positions[i3] = radius * Math.sin(phi) * Math.cos(theta);
             positions[i3 + 1] = radius * Math.cos(phi);
@@ -44,7 +44,7 @@ export class DustEffects {
             colors[i3 + 1] = 0.6 + Math.random() * 0.2; // G
             colors[i3 + 2] = 0.3 + Math.random() * 0.2; // B
             
-            sizes[i] = 0.00002 + Math.random() * 0.00004; // 2-6 meters
+            sizes[i] = 0.00002 + Math.random() * 0.00004;
         }
         
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));

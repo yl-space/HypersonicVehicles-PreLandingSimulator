@@ -155,7 +155,14 @@ export class SimulationManager {
         this.sceneManager.addToAllScenes(this.stars.getObject3D());
 
         // Create all planets
-        this.mars = new Mars({ maxAnisotropy });
+        this.mars = new Mars({
+            maxAnisotropy,
+            renderMode: 'tile', // now proxied via sim-server to avoid CORS
+            tileBaseUrl: 'http://localhost:8000/tiles/mars',
+            tileExtension: 'jpg',
+            maxTileLevel: 6, // keep tile loads lighter for faster visibility
+            marsJSBaseUrl: '/assets/textures/MarsJS'
+        });
         this.earth = new Earth();
         this.jupiter = new Jupiter();
 
@@ -179,6 +186,10 @@ export class SimulationManager {
 
         // Set camera target
         this.cameraController.setTarget(this.entryVehicle.getObject3D());
+        // Snap immediately to vehicle if we already have data
+        if (this.state.vehicleData) {
+            this.cameraController.snapToTarget(this.state.vehicleData);
+        }
     }
     
     initializeUI() {
@@ -204,7 +215,15 @@ export class SimulationManager {
             onCameraMode: (mode) => this.setCameraMode(mode),
             onZoom: (direction) => this.handleZoom(direction),
             onControlChange: (change) => this.handleControlChange(change),
-            onSettings: (setting) => this.handleSettings(setting)
+            onSettings: (setting) => this.handleSettings(setting),
+            onToggleReference: (visible) => {
+                console.log(`[SimulationManager] onToggleReference callback triggered: ${visible}`);
+                if (this.trajectoryManager) {
+                    this.trajectoryManager.toggleReferenceTrajectory(visible);
+                } else {
+                    console.error('[SimulationManager] TrajectoryManager not initialized');
+                }
+            }
         });
         this.controls.setControlsEnabled(true, '');
 
@@ -231,20 +250,22 @@ export class SimulationManager {
         planetControls.id = 'planet-controls';
         planetControls.style.cssText = `
             position: absolute;
-            top: 20px;
+            top: 8px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 100;
             display: flex;
             gap: 10px;
         `;
+
+        const EARTH_DISABLED = true; // Temporarily disable Earth until fully implemented
         
-        ['mars', 'earth', 'jupiter'].forEach(planet => {
+        ['mars', 'earth'].forEach(planet => {
             const btn = document.createElement('button');
-            btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''}`;
+            btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''} ${planet === 'earth' && EARTH_DISABLED ? 'disabled' : ''}`;
             btn.textContent = planet.charAt(0).toUpperCase() + planet.slice(1);
             btn.style.cssText = `
-                padding: 12px 24px;
+                padding: 10px 16px;
                 font-size: 14px;
                 background-color: rgba(255, 255, 255, 0.1);
                 color: white;
@@ -253,7 +274,7 @@ export class SimulationManager {
                 cursor: pointer;
                 transition: all 0.3s ease;
                 backdrop-filter: blur(10px);
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                font-family: var(--font-ui);
                 text-transform: capitalize;
             `;
             
@@ -269,7 +290,11 @@ export class SimulationManager {
                 }
             });
             
-            btn.addEventListener('click', () => this.switchPlanet(planet));
+            btn.addEventListener('click', () => {
+                if (!btn.classList.contains('disabled')) {
+                    this.switchPlanet(planet);
+                }
+            });
             planetControls.appendChild(btn);
         });
         
@@ -322,13 +347,17 @@ export class SimulationManager {
         
         // Adjust camera for different planet sizes with smaller spacecraft (now properly scaled)
         const cameraDistances = {
-            mars: 0.00012,    // Ultra close (~12 m)
-            earth: 0.00018,   // Slightly farther (~18 m)
-            jupiter: 0.0004   // Farther for Jupiter scale (~40 m)
+            mars: 0.00004,    // ~4 m
+            earth: 0.00005,   // ~5 m
+            jupiter: 0.00008  // ~8 m
         };
 
         if (cameraDistances[planetName]) {
             this.cameraController.setDefaultDistance(cameraDistances[planetName]);
+            // Also snap immediately when switching planets
+            if (this.state.vehicleData) {
+                this.cameraController.snapToTarget(this.state.vehicleData);
+            }
         }
     }
     
@@ -357,6 +386,19 @@ export class SimulationManager {
             // Set trajectory data in TrajectoryManager
             this.trajectoryManager.setTrajectoryData(trajectoryData);
 
+            // Load reference trajectory from CSV (MSL position)
+            try {
+                const referenceData = await this.dataManager.loadTrajectoryCSV("MSL_position_J2000.csv");
+
+                if (referenceData && referenceData.rows) {
+                    this.trajectoryManager.setReferenceTrajectoryFromCSV(referenceData.rows);
+                } else {
+                    this.trajectoryManager.setReferenceTrajectory(trajectoryData);
+                }
+            } catch (refError) {
+                console.warn('[SimulationManager] Failed to load reference trajectory:', refError);
+            }
+
             // Update total time from trajectory
             if (trajectoryData.length > 0) {
                 this.state.totalTime = trajectoryData[trajectoryData.length - 1].time;
@@ -382,16 +424,6 @@ export class SimulationManager {
             }
 
             console.log('[SimulationManager] Trajectory data loaded successfully:', trajectoryData.length, 'points');
-
-            // Initialize spacecraft position and state to trajectory start (critical for camera positioning)
-            const startData = this.trajectoryManager.getDataAtTime(0);
-            if (startData && startData.position && this.entryVehicle) {
-                this.entryVehicle.setPosition(startData.position);
-                this.state.vehicleData = startData;
-                console.log('[SimulationManager] Spacecraft initialized at J2000 trajectory start:', startData.position);
-                // Snap camera to the spacecraft immediately so it starts close
-                this.cameraController.snapToTarget(startData);
-            }
 
         } catch (error) {
             console.error('[SimulationManager] Error loading data:', error);
@@ -531,16 +563,11 @@ export class SimulationManager {
         this.cameraController.update(deltaTime, this.state.vehicleData);
         
         // Update entry vehicle effects
-        this.entryVehicle.update(
-            this.state.currentTime,
-            this.state.vehicleData,
-            this.state.controls.bankAngle || 0,
-            this.cameraController.camera
-        );
+        this.entryVehicle.update(this.state.currentTime, this.state.vehicleData, this.state.controls.bankAngle || 0);
         
         // Update current planet
         if (this.currentPlanet) {
-            this.currentPlanet.update(this.cameraController.camera, deltaTime);
+            this.currentPlanet.update(this.cameraController.camera, deltaTime, this.sceneManager.renderer);
         }
         
         // Update stars
@@ -570,13 +597,17 @@ export class SimulationManager {
             angleOfAttack: this.entryVehicle ? this.entryVehicle.attitude.angleOfAttack : -16,
             bankAngle: this.state.controls.bankAngle || 0
         };
+        
+        // Get reference trajectory data at current time
+        const refVehicleData = this.trajectoryManager.getReferenceDataAtTime(this.state.currentTime);
 
         this.phaseInfo.update(
             this.phaseController.phases[this.state.currentPhase],
             enhancedVehicleData,
             this.state.currentTime,
             this.state.totalTime,
-            this.state.controls  // Pass entire controls object instead of just bankAngle
+            this.state.controls,  // Pass entire controls object instead of just bankAngle
+            refVehicleData  // Pass reference trajectory data
         );
     }
     
@@ -600,16 +631,11 @@ export class SimulationManager {
     play() {
         this.state.isPlaying = true;
         this.clock.start();
-        // Force follow mode and snap close when resuming
+        // Force follow mode and snap to current state for close framing
         this.cameraController.setMode('follow');
-        this.cameraController.cinematic.initialized = false;
-        let currentData = this.state.vehicleData;
-        if (!currentData) {
-            currentData = this.trajectoryManager.getDataAtTime(this.state.currentTime || 0);
-            this.state.vehicleData = currentData;
-        }
+        const currentData = this.trajectoryManager.getDataAtTime(this.state.currentTime || 0);
         if (currentData) {
-            this.cameraController.setDefaultDistance(this.cameraController.state.defaultDistance);
+            this.state.vehicleData = currentData;
             this.cameraController.snapToTarget(currentData);
         }
     }

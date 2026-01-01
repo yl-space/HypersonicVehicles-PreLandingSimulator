@@ -13,17 +13,10 @@ const MODEL_OPTIONS = [
     },
     {
         id: 'backup',
-        label: 'Generic RV',
+        label: 'Buran',
         badge: 'Backup',
-        description: 'Alternative GLTF model',
+        description: 'Buran GLTF model',
         requiresAssetLoader: true
-    },
-    {
-        id: 'cone',
-        label: 'Simple Cone',
-        badge: 'Fallback',
-        description: 'Procedural geometry',
-        requiresAssetLoader: false
     }
 ];
 
@@ -36,7 +29,7 @@ export class ModelSelector {
 
         this.models = MODEL_OPTIONS;
         this.modelLookup = new Map(this.models.map(model => [model.id, model]));
-        this.currentModel = options.defaultModel || (this.hasAssetLoader ? 'primary' : 'cone');
+        this.currentModel = options.defaultModel || 'primary';
         this.isSwitching = false;
 
         this.element = null;
@@ -59,18 +52,21 @@ export class ModelSelector {
         wrapper.className = 'model-selector-compact';
         wrapper.innerHTML = `
             <div class="selector-header">
-                <span class="control-label">SPACECRAFT</span>
+                <span class="control-label">VEHICLE</span>
                 <span class="model-status" aria-live="polite">Select vehicle</span>
             </div>
-            <label class="sr-only" for="spacecraft-dropdown">Choose spacecraft</label>
-            <div class="model-dropdown">
-                <select id="spacecraft-dropdown">
-                    ${this.models.map(model => `
-                        <option value="${model.id}">
-                            ${model.label} • ${model.badge}
-                        </option>
-                    `).join('')}
-                </select>
+            <div class="model-toggle" role="group" aria-label="Vehicle model">
+                ${this.models.map(model => `
+                    <button 
+                        type="button" 
+                        class="model-chip" 
+                        data-model="${model.id}"
+                        aria-pressed="${model.id === this.currentModel}"
+                        title="${model.description}">
+                        <span class="chip-label">${model.label}</span>
+                        <span class="chip-badge">${model.badge}</span>
+                    </button>
+                `).join('')}
             </div>
         `;
 
@@ -107,10 +103,9 @@ export class ModelSelector {
             option.dataset.disabled = unavailable ? 'true' : 'false';
         });
 
-        if (!this.hasAssetLoader && this.currentModel !== 'cone') {
-            this.currentModel = 'cone';
-            this.selectEl.value = 'cone';
-            this.setStatus(`${this.getModelLabel(this.currentModel)} ready`, 'ready');
+        // If no asset loader, disable all (we require GLTF for both models)
+        if (!this.hasAssetLoader) {
+            this.setStatus('GLTF loader unavailable', 'error');
         }
     }
 

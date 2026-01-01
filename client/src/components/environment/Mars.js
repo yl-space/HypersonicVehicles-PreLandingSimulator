@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import { PlanetTileManager } from './PlanetTileManager.js';
 
 export class Mars {
     constructor(options = {}) {
@@ -13,29 +14,79 @@ export class Mars {
         this.radius = 33.9; // 3,390 km / 100
         this.textures = null;
         this.maxAnisotropy = options.maxAnisotropy || 1;
-        this.tiles = [];
-        this.tileGroup = null;
-        this.tileMaps = [];
-        this.tileMaterials = [];
-        this.tileConfig = {
-            rows: 4,
-            cols: 8,
-            lodLevels: [
-                { detail: 'ultra', segments: 64, maxDistance: 50 },
-                { detail: 'high', segments: 48, maxDistance: 150 },
-                { detail: 'medium', segments: 32, maxDistance: 300 },
-                { detail: 'low', segments: 16, maxDistance: Infinity }
-            ]
-        };
+        this.renderMode = options.renderMode || 'tile'; // 'tile' | 'marsjs' | 'legacy'
+        this.useTileLOD = this.renderMode === 'tile';
+        this.tileBaseUrl = options.tileBaseUrl || 'https://trek.nasa.gov/tiles/Mars/EQ/corrected/Mars_Viking_MDIM21_ClrMosaic_global_232m';
+        this.tileExtension = options.tileExtension || 'png';
+        // Lower maxTileLevel by default for faster first-paint; adjust via options if needed
+        this.maxTileLevel = options.maxTileLevel ?? 4;
+        this.tileManager = null;
+        this.marsJSBaseUrl = options.marsJSBaseUrl || '/assets/textures/MarsJS';
         
         this.init();
     }
     
     init() {
-        this.createSurface();
-        // Surface features removed for clean visualization
+        switch (this.renderMode) {
+            case 'marsjs':
+                this.createMarsJS();
+                break;
+            case 'tile':
+                this.createTiledSurface();
+                break;
+            default:
+                this.createSurface();
+                break;
+        }
     }
     
+    createTiledSurface() {
+        this.tileManager = new PlanetTileManager({
+            radius: this.radius,
+            baseUrl: this.tileBaseUrl,
+            maxLevel: this.maxTileLevel,
+            minLevel: 1,  // NASA Trek tiles start at level 1, not 0
+            segments: 12,
+            anisotropy: this.maxAnisotropy,
+            extension: this.tileExtension
+        });
+        this.group.add(this.tileManager.getObject3D());
+    }
+
+    createMarsJS() {
+        const loader = new THREE.TextureLoader();
+        const colorMap = loader.load(`${this.marsJSBaseUrl}/mars.jpg`);
+        const normalMap = loader.load(`${this.marsJSBaseUrl}/Blended_NRM.png`);
+        const dispMap = loader.load(`${this.marsJSBaseUrl}/Blended_DISP.jpg`);
+
+        [colorMap, normalMap, dispMap].forEach(tex => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.anisotropy = this.maxAnisotropy;
+            tex.minFilter = THREE.LinearMipmapLinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+        });
+
+        const material = new THREE.MeshBasicMaterial({
+            map: colorMap,
+            color: 0xffffff,
+            side: THREE.DoubleSide,
+            toneMapped: false
+        });
+        material.color.multiplyScalar(1.6); // brighten unlit marsjs surface
+
+        const segments = 192;
+        const geometry = new THREE.SphereGeometry(this.radius, segments, segments / 2);
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        this.group.add(mesh);
+
+        // Keep reference for disposal
+        this.lodMeshes = [mesh];
+    }
+
     createSurface() {
         const loader = new THREE.TextureLoader();
         this.textures = {
@@ -158,67 +209,20 @@ export class Mars {
                         ? (this.textures.colorMedium || this.textures.colorLow || this.textures.colorHigh)
                         : (this.textures.colorLow || this.textures.colorMedium || this.textures.colorHigh);
 
-        const tiledColorMap = this.createTiledMap(colorMap, uvTransform);
-        const tiledNormalMap = (this.textures.normal && (detail === 'ultra' || detail === 'high' || detail === 'medium'))
-            ? this.createTiledMap(this.textures.normal, uvTransform, true)
-            : null;
-
-        if (detail === 'low') {
-            return new THREE.MeshBasicMaterial({
-                map: tiledColorMap,
-                color: 0xffffff
-            });
-        }
-
-        const mat = new THREE.MeshPhongMaterial({
-            map: tiledColorMap,
-            shininess: detail === 'ultra' ? 16 : detail === 'high' ? 12 : 6,
+        // Fully lit surface: use unshaded material at all LODs (no day/night or shadows)
+        return new THREE.MeshBasicMaterial({
+            map: colorMap,
+            color: 0xffffff,
             side: THREE.DoubleSide
         });
-
-        if (tiledNormalMap) {
-            mat.normalMap = tiledNormalMap;
-            mat.normalScale = new THREE.Vector2(0.7, 0.7);
-        }
-
-        this.tileMaterials.push(mat);
-        return mat;
-    }
-
-    createTiledMap(texture, uvTransform, isNormal = false) {
-        if (!texture) return null;
-
-        const map = texture.clone();
-        map.repeat.copy(uvTransform.uvRepeat || new THREE.Vector2(1, 1));
-        map.offset.copy(uvTransform.uvOffset || new THREE.Vector2(0, 0));
-        map.wrapS = THREE.ClampToEdgeWrapping;
-        map.wrapT = THREE.ClampToEdgeWrapping;
-        map.anisotropy = this.maxAnisotropy;
-        map.needsUpdate = true;
-
-        this.tileMaps.push(map);
-        return map;
     }
     
-    update(camera, deltaTime) {
+    update(camera, deltaTime, renderer = null) {
         // No rotation - Mars remains stationary in J2000 reference frame
-        if (camera && this.tiles.length) {
-            const cameraPosition = camera.position;
-            this.tiles.forEach(tile => {
-                const distance = cameraPosition.distanceTo(tile.center);
-                let selected = tile.levels.length - 1;
-
-                for (let i = 0; i < tile.levels.length; i++) {
-                    if (distance < tile.levels[i].maxDistance) {
-                        selected = i;
-                        break;
-                    }
-                }
-
-                tile.levels.forEach((level, idx) => {
-                    level.mesh.visible = idx === selected;
-                });
-            });
+        if (this.tileManager) {
+            this.tileManager.update(camera, renderer);
+        } else if (this.surfaceLOD) {
+            this.surfaceLOD.update(camera);
         }
     }
     
@@ -231,16 +235,12 @@ export class Mars {
     }
     
     dispose() {
-        this.tiles.forEach(tile => {
-            tile.levels.forEach(level => {
-                level.mesh.geometry.dispose();
-                if (level.mesh.material && level.mesh.material.dispose) {
-                    level.mesh.material.dispose();
-                }
-            });
+        this.lodMeshes.forEach(mesh => {
+            mesh.geometry.dispose();
+            mesh.material.dispose();
         });
-
-        this.tileMaps.forEach(map => map.dispose?.());
-        this.tileMaterials.forEach(mat => mat.dispose?.());
+        if (this.tileManager) {
+            this.tileManager.dispose();
+        }
     }
 }

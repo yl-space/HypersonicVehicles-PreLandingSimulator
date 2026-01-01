@@ -43,8 +43,8 @@ export const ModelMetadata = {
                 z: 0,    // Degrees - rotate around Z axis
                 order: 'XYZ'
             },
-            // Scale factor (uniform or per-axis) - true physical scale
-            scale: 0.00001,  // Convert meters to visualization units
+            // Scale factor (uniform or per-axis) - increased for visibility
+            scale: 0.00001,  // True scale (meters to scene units)
             // Position offset after centering
             position: { x: 0, y: 0, z: 0 }
         },
@@ -66,20 +66,20 @@ export const ModelMetadata = {
         source: 'SOLIDWORKS conversion by Oleksii'
     },
 
-    // Backup/alternative spacecraft model
-    genericDragonLike: {
-        name: 'Generic RV Dragon-like (Backup)',
-        filename: 'generic_RV_dragon_like/generic_RV_dragon_like/generic_RV_dragon_like.gltf',
+    // Buran spacecraft model
+    buran: {
+        name: 'Buran Spacecraft',
+        filename: 'Buran_converted/Buran_converted/Buran_converted.gltf',
         originalAxes: {
-            forward: '+Z',  // Model's forward direction
-            up: '+Y',       // Model's up direction
-            right: '+X',    // Model's right direction
-            notes: 'Generic model orientation'
+            forward: '+Z',
+            up: '+Y',
+            right: '+X',
+            notes: 'Assumed glTF export axes'
         },
         simulationAxes: {
-            forward: '+X',  // Velocity direction
-            up: '+Z',       // North pole
-            right: '+Y',    // Right-hand system
+            forward: '+X',
+            up: '+Z',
+            right: '+Y',
             notes: 'J2000 reference frame'
         },
         transformations: {
@@ -89,7 +89,7 @@ export const ModelMetadata = {
                 z: 0,
                 order: 'XYZ'
             },
-            scale: 0.00001,  // Convert meters to visualization units
+            scale: 0.00001,  // True scale (meters to scene units)
             position: { x: 0, y: 0, z: 0 }
         },
         centerOffset: { x: 0, y: 0, z: 0 },
@@ -104,52 +104,9 @@ export const ModelMetadata = {
             metallic: 0.6,
             roughness: 0.4
         },
-        notes: 'Backup model, simpler geometry, open source friendly',
-        trademarks: 'Generic model, no trademark concerns',
-        source: 'SOLIDWORKS conversion by Oleksii'
-    },
-
-    // Simple cone model (current/fallback)
-    simpleCone: {
-        name: 'Simple Cone Model (Fallback)',
-        filename: null,  // Procedurally generated
-        originalAxes: {
-            forward: '+Y',  // Cone points along Y
-            up: '+Z',
-            right: '+X',
-            notes: 'Three.js ConeGeometry default'
-        },
-        simulationAxes: {
-            forward: '+X',
-            up: '+Z',
-            right: '+Y',
-            notes: 'J2000 reference frame'
-        },
-        transformations: {
-            rotation: {
-                x: 0,
-                y: 0,
-                z: -90,  // Rotate cone to point forward
-                order: 'XYZ'
-            },
-            scale: 0.00001,  // True scale for 4.5m diameter at 100km scale
-            position: { x: 0, y: 0, z: 0 }
-        },
-        centerOffset: { x: 0, y: 0, z: 0 },
-        visualScale: {
-            near: 0.00003,
-            medium: 0.00002,
-            far: 0.00001
-        },
-        materials: {
-            heatShieldColor: '#ff6600',
-            bodyColor: '#cccccc',
-            metallic: 0.5,
-            roughness: 0.5
-        },
-        notes: 'Current implementation, procedural geometry',
-        trademarks: 'None - procedural geometry',
-        source: 'Three.js primitive'
+        notes: 'Buran glTF import',
+        trademarks: 'Check for markings',
+        source: 'Converted archive'
     }
 };
 
@@ -318,15 +275,11 @@ export class ModelSelector {
     }
 
     static getBackupModel() {
-        return ModelMetadata.genericDragonLike;
-    }
-
-    static getFallbackModel() {
-        return ModelMetadata.simpleCone;
+        return ModelMetadata.buran;
     }
 
     static getAllModels() {
-        return Object.values(ModelMetadata);
+        return [ModelMetadata.dragonConverted, ModelMetadata.buran];
     }
 }
 

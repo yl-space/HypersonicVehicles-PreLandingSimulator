@@ -1,12 +1,11 @@
 import * as THREE from 'three';
 import { ModelMetadata, ModelTransformHelper, ModelSelector } from '../../config/ModelMetadata.js';
 
-const METERS_PER_UNIT = 100000; // Visualization scale: 1 unit = 100 km
+const METERS_PER_UNIT = 100000; // 1 unit = 100 km
 const VEHICLE_DIAMETER_METERS = 4.5;
 const VEHICLE_HEIGHT_METERS = 3.0;
 const VEHICLE_RADIUS_UNITS = (VEHICLE_DIAMETER_METERS * 0.5) / METERS_PER_UNIT;
 const VEHICLE_HEIGHT_UNITS = VEHICLE_HEIGHT_METERS / METERS_PER_UNIT;
-const TARGET_DIAMETER_UNITS = VEHICLE_DIAMETER_METERS / METERS_PER_UNIT;
 
 export class EntryVehicle {
     constructor(assetLoader = null) {
@@ -72,6 +71,21 @@ export class EntryVehicle {
             position: null
         };
 
+        // Derived visual scales (meters mapped to scene units)
+        this.visualScales = {
+            velocityVector: 3 / METERS_PER_UNIT,   // ~3 m
+            bankVector: 1.5 / METERS_PER_UNIT,     // ~1.5 m, keep bank arrow tight to craft
+            positionVector: 3 / METERS_PER_UNIT,   // ~3 m
+            label: 1.5 / METERS_PER_UNIT,          // ~1.5 m sprite width
+            glowRadius: 1.5 / METERS_PER_UNIT,       // ~1.5 m heat glow radius
+            plasma: {
+                lateralSpread: 1.5 / METERS_PER_UNIT, // ~1.5 m sideways spread
+                spawnDepth: 8 / METERS_PER_UNIT,      // ~8 m tail depth
+                velocityJitter: 1 / METERS_PER_UNIT,  // ~1 m/frame drift
+                pointSize: 0.6 / METERS_PER_UNIT      // ~0.6 m particle size
+            }
+        };
+
         // Don't call init in constructor since it's async now
         // this.init();
     }
@@ -83,13 +97,9 @@ export class EntryVehicle {
                 await this.loadGLTFModel();
             } catch (error) {
                 console.error('Failed to load GLTF model during init:', error);
-                // Fall back to cone geometry
+                // If GLTF fails, keep no spacecraft rather than procedural cone
                 this.useGLTF = false;
-                this.createVehicleWithLOD();
             }
-        } else {
-            // Fallback to cone geometry
-            this.createVehicleWithLOD();
         }
 
         this.createHeatEffects();
@@ -135,19 +145,8 @@ export class EntryVehicle {
             });
 
         } catch (error) {
-            console.error('Failed to load GLTF model, falling back to cone geometry:', error);
+            console.error('Failed to load GLTF model; spacecraft will remain hidden until a valid model is available:', error);
             this.useGLTF = false;
-            this.createVehicleWithLOD();
-        }
-    }
-
-    scaleModelToDiameter(model, targetDiameterUnits) {
-        const bbox = new THREE.Box3().setFromObject(model);
-        const size = bbox.getSize(new THREE.Vector3());
-        const currentMax = Math.max(size.x, size.y, size.z);
-        if (currentMax > 0) {
-            const scaleFactor = targetDiameterUnits / currentMax;
-            model.scale.multiplyScalar(scaleFactor);
         }
     }
 
@@ -162,8 +161,8 @@ export class EntryVehicle {
         this.applyLowDetailTweaks(lowDetail);
 
         this.vehicleLOD.addLevel(highDetail, 0);
-        this.vehicleLOD.addLevel(mediumDetail, 0.2);  // Switch at ~20 km
-        this.vehicleLOD.addLevel(lowDetail, 0.6);     // Switch at ~60 km
+        this.vehicleLOD.addLevel(mediumDetail, 0.0002);
+        this.vehicleLOD.addLevel(lowDetail, 0.0005);
 
         this.group.add(this.vehicleLOD);
     }
@@ -219,11 +218,11 @@ export class EntryVehicle {
 
         // Medium detail
         const mediumDetail = this.createMediumDetailVehicle();
-        this.vehicleLOD.addLevel(mediumDetail, 0.2);
+        this.vehicleLOD.addLevel(mediumDetail, 0.0002);
 
         // Low detail (far)
         const lowDetail = this.createLowDetailVehicle();
-        this.vehicleLOD.addLevel(lowDetail, 0.6);
+        this.vehicleLOD.addLevel(lowDetail, 0.0005);
 
         this.group.add(this.vehicleLOD);
     }
@@ -231,11 +230,9 @@ export class EntryVehicle {
     createHighDetailVehicle() {
         const group = new THREE.Group();
         
-        // MSL Aeroshell actual dimensions: 4.5m diameter (2.25m radius), ~3m height
-        // Visualization scale: 1 unit = 100 km (100,000 m)
-        // True-to-scale radius in scene units
-        const shellRadius = this.dimensions.radius;
-        const shellHeight = this.dimensions.height;
+        // True-scale aeroshell (~4.5 m dia, ~3 m height) mapped to scene units
+        const shellRadius = VEHICLE_RADIUS_UNITS;
+        const shellHeight = VEHICLE_HEIGHT_UNITS;
         const shellGeometry = new THREE.ConeGeometry(shellRadius, shellHeight, 32, 16);
         const shellMaterial = new THREE.MeshStandardMaterial({
             color: 0x8B7355,
@@ -262,8 +259,8 @@ export class EntryVehicle {
     createMediumDetailVehicle() {
         const group = new THREE.Group();
 
-        const shellRadius = this.dimensions.radius;
-        const shellHeight = this.dimensions.height;
+        const shellRadius = VEHICLE_RADIUS_UNITS;
+        const shellHeight = VEHICLE_HEIGHT_UNITS;
 
         const geometry = new THREE.ConeGeometry(shellRadius, shellHeight, 16, 8);
         const material = new THREE.MeshStandardMaterial({
@@ -283,8 +280,8 @@ export class EntryVehicle {
     createLowDetailVehicle() {
         const group = new THREE.Group();
 
-        const shellRadius = this.dimensions.radius;
-        const shellHeight = this.dimensions.height;
+        const shellRadius = VEHICLE_RADIUS_UNITS;
+        const shellHeight = VEHICLE_HEIGHT_UNITS;
 
         const geometry = new THREE.ConeGeometry(shellRadius, shellHeight, 8, 4);
         const material = new THREE.MeshBasicMaterial({
@@ -309,7 +306,7 @@ export class EntryVehicle {
                 time: { value: 0 }
             },
             vertexShader: `
-                precision highp float;
+                precision mediump float;
 
                 varying vec3 vNormal;
                 varying vec3 vWorldPosition;
@@ -322,7 +319,7 @@ export class EntryVehicle {
                 }
             `,
             fragmentShader: `
-                precision highp float;
+                precision mediump float;
 
                 uniform float intensity;
                 uniform vec3 glowColor;
@@ -350,8 +347,8 @@ export class EntryVehicle {
             depthWrite: false
         });
         
-        // Scale glow to match true spacecraft size (meters-to-units)
-        const glowRadius = this.visualScales.glowRadius; // Slightly larger than spacecraft for glow envelope
+        // Scale glow to match new spacecraft size
+        const glowRadius = this.visualScales.glowRadius; // Slightly larger than spacecraft for glow effect
         const glowGeometry = new THREE.SphereGeometry(glowRadius, 16, 16);
         this.effects.heatGlow = new THREE.Mesh(glowGeometry, glowMaterial);
         this.group.add(this.effects.heatGlow);
@@ -373,7 +370,7 @@ export class EntryVehicle {
             positions[i * 3 + 1] = 0;
             positions[i * 3 + 2] = 0;
             
-            // Scale velocities for smaller spacecraft (tens of meters per frame)
+            // Scale velocities for smaller spacecraft (meters mapped to units)
             velocities[i * 3] = (Math.random() - 0.5) * this.visualScales.plasma.velocityJitter;
             velocities[i * 3 + 1] = -Math.random() * (this.visualScales.plasma.velocityJitter * 1.6);
             velocities[i * 3 + 2] = (Math.random() - 0.5) * this.visualScales.plasma.velocityJitter;
@@ -386,7 +383,7 @@ export class EntryVehicle {
         geometry.setAttribute('lifetime', new THREE.BufferAttribute(lifetimes, 1));
         
         const material = new THREE.PointsMaterial({
-            size: this.visualScales.plasma.pointSize,  // Scaled to meters-based units
+            size: this.visualScales.plasma.pointSize,
             color: 0xff6600,
             blending: THREE.AdditiveBlending,
             transparent: true,
@@ -406,7 +403,7 @@ export class EntryVehicle {
         // Create axes helper for spacecraft body-fixed reference frame
         // This shows the spacecraft's local coordinate system orientation
         const axesGroup = new THREE.Group();
-        const axisLength = this.dimensions.radius * 5; // ~12 m for readability
+        const axisLength = 0.00004; // ~4 m, matches vector scale
 
         // Helper function to create text label
         const createAxisLabel = (text, color) => {
@@ -491,7 +488,7 @@ export class EntryVehicle {
 
         // Bank angle vector (cyan)
         const bankLength = this.visualScales.bankVector;
-        this.bankAngleArrow = new THREE.ArrowHelper(direction, origin, bankLength, 0x00ffff, bankLength * 0.25, bankLength * 0.18);
+        this.bankAngleArrow = new THREE.ArrowHelper(direction, origin, bankLength, 0x00ffff, bankLength * 0.18, bankLength * 0.12);
         this.bankAngleArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0x00ffff });
         this.bankAngleArrow.line.material = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 });
         this.bankAngleArrow.visible = false;
@@ -526,9 +523,7 @@ export class EntryVehicle {
                 alphaTest: 0.001
             });
             const sprite = new THREE.Sprite(spriteMaterial);
-            const labelWidth = this.visualScales.label;
-            const labelHeight = this.visualScales.label * 0.35;
-            sprite.scale.set(labelWidth, labelHeight, 1);
+            sprite.scale.set(this.visualScales.label, this.visualScales.label * 0.35, 1);
             sprite.visible = false;
             return sprite;
         };
@@ -634,6 +629,7 @@ export class EntryVehicle {
             // Transform from world to local space
             const localLiftDir = liftDirection.clone().applyQuaternion(spacecraftQuaternionInverse);
 
+            // Keep lift/bank vector at meter-scale (matches visualScales.bankVector)
             const bankLength = this.visualScales.bankVector;
             this.bankAngleArrow.setDirection(localLiftDir);
             this.bankAngleArrow.setLength(bankLength, bankLength * 0.2, bankLength * 0.15);
@@ -736,9 +732,9 @@ export class EntryVehicle {
             lifetimes.array[i] -= 0.01;
 
             if (lifetimes.array[i] <= 0) {
-                // Reset particle around the vehicle with a few hundred meters of trail
+                // Reset particle - scaled for smaller spacecraft
                 positions.array[i * 3] = (Math.random() - 0.5) * this.visualScales.plasma.lateralSpread;
-                positions.array[i * 3 + 1] = -this.visualScales.plasma.spawnDepth * (0.5 + Math.random() * 0.5);
+                positions.array[i * 3 + 1] = -this.visualScales.plasma.spawnDepth;  // Start behind spacecraft
                 positions.array[i * 3 + 2] = (Math.random() - 0.5) * this.visualScales.plasma.lateralSpread;
                 lifetimes.array[i] = 1;
             } else {
@@ -943,17 +939,13 @@ export class EntryVehicle {
                 }
                 break;
             case 'backup':
+            default:
                 {
                     const backupModel = ModelSelector.getBackupModel();
                     this.useGLTF = true;
                     this.modelMetadata = backupModel;
                     await this.loadGLTFModel(backupModel.filename);
                 }
-                break;
-            case 'cone':
-            default:
-                this.useGLTF = false;
-                this.createVehicleWithLOD();
                 break;
         }
 
@@ -966,8 +958,7 @@ export class EntryVehicle {
     static getAvailableModels() {
         return [
             { id: 'primary', name: 'Dragon Spacecraft (GLTF)', requiresAssetLoader: true },
-            { id: 'backup', name: 'Generic RV Dragon-like (GLTF)', requiresAssetLoader: true },
-            { id: 'cone', name: 'Simple Cone (Procedural)', requiresAssetLoader: false }
+            { id: 'backup', name: 'Buran Spacecraft (GLTF)', requiresAssetLoader: true }
         ];
     }
 

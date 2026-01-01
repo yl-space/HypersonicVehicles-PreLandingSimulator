@@ -14,6 +14,10 @@ export class TrajectoryManager {
         this.pathPoints = null;
         this.currentPositionMarker = null;
 
+        // Reference trajectory
+        this.referenceTrajectoryLine = null;
+        this.referenceTrajectoryData = [];
+
         // Performance optimizations
         this.useInstancing = true;
         this.useLOD = true;
@@ -180,7 +184,121 @@ export class TrajectoryManager {
         this.createOptimizedTrajectory();
         this.updateInstancedPoints();
     }
+
+    setReferenceTrajectory(trajectoryData) {
+        this.referenceTrajectoryData = trajectoryData;
+        this.createReferenceTrajectory();
+    }
     
+    setReferenceTrajectoryFromCSV(rows, convertMSL = true) {
+        this.referenceTrajectoryData = [];
+        let prevPosition = null;
+        
+        // First pass: get landing site position (last point in trajectory)
+        const lastRow = rows[rows.length - 1];
+        const landingX = convertMSL ? -parseFloat(lastRow.x || 0) : parseFloat(lastRow.x || 0);
+        const landingY = convertMSL ? -parseFloat(lastRow.y || 0) : parseFloat(lastRow.y || 0);
+        const landingZ = parseFloat(lastRow.z || 0);
+        const landingSite = new THREE.Vector3(landingX, landingY, landingZ);
+        
+        // Process CSV data
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const time = parseFloat(row.Time || row.time || 0);
+            const x = convertMSL ? -parseFloat(row.x || 0) : parseFloat(row.x || 0);
+            const y = convertMSL ? -parseFloat(row.y || 0) : parseFloat(row.y || 0);
+            const z = parseFloat(row.z || 0);
+            
+            if (!isNaN(time) && !isNaN(x) && !isNaN(y) && !isNaN(z)) {
+                const currentPos = new THREE.Vector3(x, y, z);
+                const rawDistance = Math.sqrt(x * x + y * y + z * z);
+                const altitude = rawDistance - this.marsRadius;
+                
+                const position = new THREE.Vector3(
+                    x * this.SCALE_FACTOR,
+                    y * this.SCALE_FACTOR,
+                    z * this.SCALE_FACTOR
+                );
+                
+                let velocityVector = new THREE.Vector3(0, -1, 0);
+                let velocityMagnitude = 5900 * (1 - time / this.totalTime);
+                
+                if (prevPosition && i > 0) {
+                    const prevTime = this.referenceTrajectoryData[this.referenceTrajectoryData.length - 1].time;
+                    const dt = time - prevTime;
+                    if (dt > 0) {
+                        velocityVector = position.clone().sub(prevPosition).divideScalar(dt);
+                        velocityMagnitude = velocityVector.length() / this.SCALE_FACTOR;
+                    }
+                }
+                
+                // Calculate distance to landing site (in meters, then convert to km)
+                const distanceToLanding = currentPos.distanceTo(landingSite) * 0.001;
+                
+                this.referenceTrajectoryData.push({
+                    time,
+                    position,
+                    altitude: altitude * 0.001, // km
+                    velocity: velocityVector.clone(), // Ensure it's a Vector3
+                    velocityMagnitude,
+                    distanceToLanding // km
+                });
+                
+                prevPosition = position.clone();
+            }
+        }
+        
+        this.createReferenceTrajectory();
+    }
+
+    createReferenceTrajectory() {
+        if (this.referenceTrajectoryData.length < 2) return;
+
+        if (this.referenceTrajectoryLine) {
+            this.group.remove(this.referenceTrajectoryLine);
+            if (this.referenceTrajectoryLine.geometry) this.referenceTrajectoryLine.geometry.dispose();
+            if (this.referenceTrajectoryLine.material) this.referenceTrajectoryLine.material.dispose();
+            this.referenceTrajectoryLine = null;
+        }
+
+        const positions = new Float32Array(this.referenceTrajectoryData.length * 3);
+
+        for (let i = 0; i < this.referenceTrajectoryData.length; i++) {
+            const point = this.referenceTrajectoryData[i];
+            positions[i * 3] = point.position.x;
+            positions[i * 3 + 1] = point.position.y;
+            positions[i * 3 + 2] = point.position.z;
+        }
+
+        const newGeometry = new THREE.BufferGeometry();
+        newGeometry.setAttribute(
+            'position',
+            new THREE.BufferAttribute(positions, 3)
+        );
+        newGeometry.computeBoundingSphere();
+
+        this.referenceTrajectoryLine = new THREE.Line(
+            newGeometry,
+            new THREE.LineBasicMaterial({
+                color: 0x00ff00,  // Green for reference
+                opacity: 0.3,     // Lower opacity
+                transparent: true,
+                linewidth: 10
+            })
+        );
+        
+        this.referenceTrajectoryLine.visible = false; // Hidden by default
+        this.group.add(this.referenceTrajectoryLine);
+    }
+
+    toggleReferenceTrajectory(visible) {
+        if (this.referenceTrajectoryLine) {
+            this.referenceTrajectoryLine.visible = visible;
+        } else {
+            console.warn('[TrajectoryManager] Cannot toggle reference trajectory: line does not exist');
+        }
+    }
+
     createOptimizedTrajectory() {
         if (this.trajectoryData.length < 2) return;
 
@@ -396,6 +514,47 @@ export class TrajectoryManager {
                 this.trajectoryData[i + 1].time > time) {
                 prev = this.trajectoryData[i];
                 next = this.trajectoryData[i + 1];
+                break;
+            }
+        }
+        
+        const t = (time - prev.time) / (next.time - prev.time || 1);
+        
+        return {
+            time,
+            position: prev.position.clone().lerp(next.position, t),
+            altitude: THREE.MathUtils.lerp(prev.altitude, next.altitude, t),
+            velocity: (prev.velocity instanceof THREE.Vector3 && next.velocity instanceof THREE.Vector3)
+                ? prev.velocity.clone().lerp(next.velocity, t)
+                : new THREE.Vector3(0, -1, 0),
+            velocityMagnitude: THREE.MathUtils.lerp(
+                prev.velocityMagnitude,
+                next.velocityMagnitude,
+                t
+            ),
+            distanceToLanding: THREE.MathUtils.lerp(
+                prev.distanceToLanding,
+                next.distanceToLanding,
+                t
+            )
+        };
+    }
+    
+    getReferenceDataAtTime(time) {
+        if (this.referenceTrajectoryData.length === 0) return null;
+        
+        // Find total time from reference data
+        const refTotalTime = this.referenceTrajectoryData[this.referenceTrajectoryData.length - 1].time;
+        time = Math.max(0, Math.min(time, refTotalTime));
+        
+        let prev = this.referenceTrajectoryData[0];
+        let next = this.referenceTrajectoryData[this.referenceTrajectoryData.length - 1];
+        
+        for (let i = 0; i < this.referenceTrajectoryData.length - 1; i++) {
+            if (this.referenceTrajectoryData[i].time <= time && 
+                this.referenceTrajectoryData[i + 1].time > time) {
+                prev = this.referenceTrajectoryData[i];
+                next = this.referenceTrajectoryData[i + 1];
                 break;
             }
         }
