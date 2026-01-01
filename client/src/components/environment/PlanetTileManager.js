@@ -10,7 +10,8 @@ export class PlanetTileManager {
         this.baseUrl = baseUrl.replace(/\/$/, '');
         this.maxLevel = maxLevel;
         this.minLevel = minLevel;
-        this.segments = segments;
+        // Fewer segments for faster mesh creation while tiles stream
+        this.segments = Math.max(8, segments);
         this.anisotropy = anisotropy;
         this.extension = extension.startsWith('.') ? extension.slice(1) : extension;
 
@@ -24,7 +25,7 @@ export class PlanetTileManager {
         this.loader.crossOrigin = 'anonymous';
 
         // Throttle tile requests to avoid flooding the network
-        this.maxConcurrentLoads = 6;
+        this.maxConcurrentLoads = 10;
         this.activeLoads = 0;
         this.loadQueue = [];
 

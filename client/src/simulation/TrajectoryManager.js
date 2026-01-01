@@ -193,7 +193,6 @@ export class TrajectoryManager {
     setReferenceTrajectoryFromCSV(rows, convertMSL = true) {
         this.referenceTrajectoryData = [];
         let prevPosition = null;
-        const convertMSL = false; // default: do not negate coordinates unless explicitly enabled later
         
         // First pass: get landing site position (last point in trajectory)
         const lastRow = rows[rows.length - 1];

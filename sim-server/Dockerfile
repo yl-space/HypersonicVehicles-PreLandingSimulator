@@ -33,8 +33,8 @@ COPY --from=builder --chown=app:app /app /app
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Ensure log directory exists for RotatingFileHandler
-RUN mkdir -p /app/src/logs
+# Ensure log directory exists for RotatingFileHandler (logs/sim_server.log)
+RUN mkdir -p /app/logs
 
 ENV IS_PRODUCTION=True
 ENV SIM_SERVER_HOST=0.0.0.0

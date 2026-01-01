@@ -40,6 +40,12 @@ WMTS_MARS_BASE = "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosa
 TILE_CACHE_DIR = Path(os.getenv("TILE_CACHE_DIR", "/app/tile_cache/mars"))
 TILE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
+# Reuse a single async HTTP client to avoid connection setup overhead on every tile
+HTTP_CLIENT = httpx.AsyncClient(
+    timeout=10.0,
+    limits=httpx.Limits(max_keepalive_connections=20, max_connections=50)
+)
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint for client to verify backend is available."""
@@ -58,7 +64,10 @@ async def proxy_mars_tile(z: int, x: int, y: int, ext: str = "jpg"):
             return Response(
                 content=data,
                 media_type="image/jpeg",
-                headers={"Access-Control-Allow-Origin": "*"}
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "public, max-age=31536000"
+                }
             )
         except Exception:
             # If cache read fails, continue to fetch from upstream
@@ -72,25 +81,25 @@ async def proxy_mars_tile(z: int, x: int, y: int, ext: str = "jpg"):
         candidates.append("png")
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            for candidate_ext in candidates:
-                url = f"{WMTS_MARS_BASE}/{z}/{x}/{y}.{candidate_ext}"
-                r = await client.get(url)
-                if r.status_code == 200:
-                    # Persist to cache for future hits
-                    cache_path.parent.mkdir(parents=True, exist_ok=True)
-                    try:
-                        cache_path.write_bytes(r.content)
-                    except Exception:
-                        # Ignore cache write errors; still return tile
-                        pass
+        for candidate_ext in candidates:
+            url = f"{WMTS_MARS_BASE}/{z}/{x}/{y}.{candidate_ext}"
+            r = await HTTP_CLIENT.get(url)
+            if r.status_code == 200:
+                # Persist to cache for future hits
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    cache_path.write_bytes(r.content)
+                except Exception:
+                    # Ignore cache write errors; still return tile
+                    pass
 
-                    headers = {
-                        "Content-Type": r.headers.get("Content-Type", f"image/{candidate_ext}"),
-                        "Access-Control-Allow-Origin": "*"
-                    }
-                    return Response(content=r.content, media_type=headers["Content-Type"], headers=headers)
-            raise HTTPException(status_code=404, detail=f"Upstream returned {r.status_code}")
+                headers = {
+                    "Content-Type": r.headers.get("Content-Type", f"image/{candidate_ext}"),
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "public, max-age=31536000"
+                }
+                return Response(content=r.content, media_type=headers["Content-Type"], headers=headers)
+        raise HTTPException(status_code=404, detail=f"Upstream returned {r.status_code}")
     except httpx.RequestError as e:
         raise HTTPException(status_code=502, detail=f"Tile fetch failed: {e}") from e
 
@@ -133,6 +142,13 @@ async def simulate_high_fidelity(
     return results
 
 if __name__ == "__main__":
+    @app.on_event("shutdown")
+    async def _shutdown_event():
+        try:
+            await HTTP_CLIENT.aclose()
+        except Exception:
+            pass
+
     host = os.getenv("SIM_SERVER_HOST", DEFAULT_HOST)
     port = int(os.getenv("SIM_SERVER_PORT", DEFAULT_PORT))
     
