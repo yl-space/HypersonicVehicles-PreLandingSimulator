@@ -250,20 +250,22 @@ export class SimulationManager {
         planetControls.id = 'planet-controls';
         planetControls.style.cssText = `
             position: absolute;
-            top: 20px;
+            top: 8px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 100;
             display: flex;
             gap: 10px;
         `;
+
+        const EARTH_DISABLED = true; // Temporarily disable Earth until fully implemented
         
-        ['mars', 'earth', 'jupiter'].forEach(planet => {
+        ['mars', 'earth'].forEach(planet => {
             const btn = document.createElement('button');
-            btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''}`;
+            btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''} ${planet === 'earth' && EARTH_DISABLED ? 'disabled' : ''}`;
             btn.textContent = planet.charAt(0).toUpperCase() + planet.slice(1);
             btn.style.cssText = `
-                padding: 12px 24px;
+                padding: 10px 16px;
                 font-size: 14px;
                 background-color: rgba(255, 255, 255, 0.1);
                 color: white;
@@ -272,7 +274,7 @@ export class SimulationManager {
                 cursor: pointer;
                 transition: all 0.3s ease;
                 backdrop-filter: blur(10px);
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                font-family: var(--font-ui);
                 text-transform: capitalize;
             `;
             
@@ -288,7 +290,11 @@ export class SimulationManager {
                 }
             });
             
-            btn.addEventListener('click', () => this.switchPlanet(planet));
+            btn.addEventListener('click', () => {
+                if (!btn.classList.contains('disabled')) {
+                    this.switchPlanet(planet);
+                }
+            });
             planetControls.appendChild(btn);
         });
         
@@ -591,13 +597,17 @@ export class SimulationManager {
             angleOfAttack: this.entryVehicle ? this.entryVehicle.attitude.angleOfAttack : -16,
             bankAngle: this.state.controls.bankAngle || 0
         };
+        
+        // Get reference trajectory data at current time
+        const refVehicleData = this.trajectoryManager.getReferenceDataAtTime(this.state.currentTime);
 
         this.phaseInfo.update(
             this.phaseController.phases[this.state.currentPhase],
             enhancedVehicleData,
             this.state.currentTime,
             this.state.totalTime,
-            this.state.controls  // Pass entire controls object instead of just bankAngle
+            this.state.controls,  // Pass entire controls object instead of just bankAngle
+            refVehicleData  // Pass reference trajectory data
         );
     }
     

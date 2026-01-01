@@ -29,6 +29,7 @@ export class Controls {
         
         this.elements = {};
         this.activeCamera = 'FOLLOW';
+        this.isVisible = true;
         
         this.init();
     }
@@ -42,6 +43,9 @@ export class Controls {
     }
     
     createCameraControls() {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'camera-controls-wrapper';
+        
         const container = document.createElement('div');
         container.className = 'camera-controls';
         container.innerHTML = `
@@ -72,7 +76,25 @@ export class Controls {
             </div>
         `;
         
-        document.body.appendChild(container);
+        // Create toggle button
+        const toggleButton = document.createElement('div');
+        toggleButton.className = 'camera-toggle-icon';
+        toggleButton.id = 'camera-toggle-icon';
+        toggleButton.title = 'Hide controls';
+        toggleButton.innerHTML = `
+            <svg class="icon-collapse" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="13 17 18 12 13 7"></polyline>
+                <polyline points="6 17 11 12 6 7"></polyline>
+            </svg>
+            <svg class="icon-expand" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                <polyline points="11 17 6 12 11 7"></polyline>
+                <polyline points="18 17 13 12 18 7"></polyline>
+            </svg>
+        `;
+        
+        wrapper.appendChild(toggleButton);
+        wrapper.appendChild(container);
+        document.body.appendChild(wrapper);
         
         // Event listeners
         container.querySelectorAll('.camera-mode:not(#toggle-reference-traj)').forEach(button => {
@@ -96,7 +118,14 @@ export class Controls {
             });
         }
         
+        // Toggle button event listener
+        toggleButton.addEventListener('click', () => this.toggleVisibility());
+        
+        this.elements.cameraControlsWrapper = wrapper;
         this.elements.cameraControls = container;
+        this.elements.cameraToggleIcon = toggleButton;
+        this.elements.iconCollapse = toggleButton.querySelector('.icon-collapse');
+        this.elements.iconExpand = toggleButton.querySelector('.icon-expand');
     }
     
     /**
@@ -496,6 +525,26 @@ export class Controls {
         });
         
         this.elements.shortcutsPanel = shortcutsPanel;
+    }
+    
+    toggleVisibility() {
+        this.isVisible = !this.isVisible;
+        
+        if (this.isVisible) {
+            // Show panel - slide in from right
+            this.elements.cameraControls.classList.remove('slide-out');
+            this.elements.cameraControls.classList.add('slide-in');
+            this.elements.iconCollapse.style.display = 'block';
+            this.elements.iconExpand.style.display = 'none';
+            this.elements.cameraToggleIcon.title = 'Hide controls';
+        } else {
+            // Hide panel - slide out to right
+            this.elements.cameraControls.classList.remove('slide-in');
+            this.elements.cameraControls.classList.add('slide-out');
+            this.elements.iconCollapse.style.display = 'none';
+            this.elements.iconExpand.style.display = 'block';
+            this.elements.cameraToggleIcon.title = 'Show controls';
+        }
     }
     
     setActiveCamera(mode) {

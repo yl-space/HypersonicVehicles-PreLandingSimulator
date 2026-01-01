@@ -52,18 +52,21 @@ export class ModelSelector {
         wrapper.className = 'model-selector-compact';
         wrapper.innerHTML = `
             <div class="selector-header">
-                <span class="control-label">SPACECRAFT</span>
+                <span class="control-label">VEHICLE</span>
                 <span class="model-status" aria-live="polite">Select vehicle</span>
             </div>
-            <label class="sr-only" for="spacecraft-dropdown">Choose spacecraft</label>
-            <div class="model-dropdown">
-                <select id="spacecraft-dropdown">
-                    ${this.models.map(model => `
-                        <option value="${model.id}">
-                            ${model.label} • ${model.badge}
-                        </option>
-                    `).join('')}
-                </select>
+            <div class="model-toggle" role="group" aria-label="Vehicle model">
+                ${this.models.map(model => `
+                    <button 
+                        type="button" 
+                        class="model-chip" 
+                        data-model="${model.id}"
+                        aria-pressed="${model.id === this.currentModel}"
+                        title="${model.description}">
+                        <span class="chip-label">${model.label}</span>
+                        <span class="chip-badge">${model.badge}</span>
+                    </button>
+                `).join('')}
             </div>
         `;
 
