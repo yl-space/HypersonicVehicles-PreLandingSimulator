@@ -51,13 +51,13 @@ export class EntryVehicle {
             position: null
         };
 
-        // Derived visual scales (meters mapped to scene units)
+        // Derived visual scales tied to vehicle size (keeps vectors/callouts close to the hull)
+        const baseVectorLength = VEHICLE_RADIUS_UNITS * 0.6; // ~60% of capsule radius
         this.visualScales = {
-            // Vectors scaled to spacecraft size (shorter, more compact)
-            velocityVector: 2.5 / METERS_PER_UNIT,   // ~2.0 m (compact, spacecraft-scale)
-            bankVector: 2.5 / METERS_PER_UNIT,       // ~2.0 m
-            positionVector: 2.5 / METERS_PER_UNIT,   // ~2.0 m
-            label: 2 / METERS_PER_UNIT,            // larger labels for visibility
+            velocityVector: baseVectorLength,
+            bankVector: baseVectorLength,
+            positionVector: baseVectorLength,
+            label: VEHICLE_RADIUS_UNITS * 0.9,
             glowRadius: 2.5 / METERS_PER_UNIT,       // unchanged
             plasma: {
                 lateralSpread: 2.0 / METERS_PER_UNIT,
@@ -89,6 +89,11 @@ export class EntryVehicle {
         // this.createLocalCoordinateAxes(); // REMOVED: User requested removal of body axes
         this.createOrientationVectors();
         this.createVectorLabels();
+
+        // Ensure a visible fallback if GLTF failed to load
+        if (!this.state.modelLoaded && !this.vehicleLOD) {
+            this.createVehicleWithLOD();
+        }
 
         return this; // Return this for chaining
     }
@@ -402,27 +407,27 @@ export class EntryVehicle {
 
         // Velocity vector (yellow) - compact with prominent arrow head
         const velocityLength = this.visualScales.velocityVector;
-        this.velocityArrow = new THREE.ArrowHelper(direction, origin, velocityLength, 0xffd447);
+        this.velocityArrow = new THREE.ArrowHelper(direction, origin, velocityLength, 0xffd447, velocityLength * 0.9, velocityLength * 0.7);
         this.velocityArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0xffd447 });
-        this.velocityArrow.line.material = new THREE.LineBasicMaterial({ color: 0xffd447, linewidth: 2 });
+        this.velocityArrow.line.material = new THREE.LineBasicMaterial({ color: 0xffd447, linewidth: 1 });
         this.velocityArrow.visible = false;
         this.velocityArrow.renderOrder = 999;
         this.group.add(this.velocityArrow);
 
         // Bank angle vector (cyan) - compact with prominent arrow head
         const bankLength = this.visualScales.bankVector;
-        this.bankAngleArrow = new THREE.ArrowHelper(direction, origin, bankLength, 0x00c1ff);
+        this.bankAngleArrow = new THREE.ArrowHelper(direction, origin, bankLength, 0x00c1ff, bankLength * 0.9, bankLength * 0.7);
         this.bankAngleArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0x00c1ff });
-        this.bankAngleArrow.line.material = new THREE.LineBasicMaterial({ color: 0x00c1ff, linewidth: 2 });
+        this.bankAngleArrow.line.material = new THREE.LineBasicMaterial({ color: 0x00c1ff, linewidth: 1 });
         this.bankAngleArrow.visible = false;
         this.bankAngleArrow.renderOrder = 999;
         this.group.add(this.bankAngleArrow);
 
         // Position vector (magenta) - compact with prominent arrow head
         const posLength = this.visualScales.positionVector;
-        this.positionArrow = new THREE.ArrowHelper(direction, origin, posLength, 0xff00ff);
+        this.positionArrow = new THREE.ArrowHelper(direction, origin, posLength, 0xff00ff, posLength * 0.9, posLength * 0.7);
         this.positionArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0xff00ff });
-        this.positionArrow.line.material = new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 2 });
+        this.positionArrow.line.material = new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 1 });
         this.positionArrow.visible = false;
         this.positionArrow.renderOrder = 999;
         this.group.add(this.positionArrow);
@@ -477,6 +482,7 @@ export class EntryVehicle {
             // Transform from world space to spacecraft local space
             const localVelocityDir = velocityDirection.clone().applyQuaternion(spacecraftQuaternionInverse);
             const velocityLength = this.visualScales.velocityVector;
+            this.velocityArrow.position.set(0, 0, 0);
             this.velocityArrow.setDirection(localVelocityDir);
             this.velocityArrow.setLength(velocityLength);
             if (this.vectorLabels.velocity) {
@@ -496,6 +502,7 @@ export class EntryVehicle {
             const localRadialDir = radialDirection.clone().applyQuaternion(spacecraftQuaternionInverse);
 
             const posLength = this.visualScales.positionVector;
+            this.positionArrow.position.set(0, 0, 0);
             this.positionArrow.setDirection(localRadialDir);
             this.positionArrow.setLength(posLength);
             if (this.vectorLabels.position) {
@@ -515,6 +522,7 @@ export class EntryVehicle {
             const spacecraftUpDir = new THREE.Vector3(0, 1, 0);
 
             const bankLength = this.visualScales.bankVector;
+            this.bankAngleArrow.position.set(0, 0, 0);
             this.bankAngleArrow.setDirection(spacecraftUpDir);
             this.bankAngleArrow.setLength(bankLength);
             if (this.vectorLabels.lift) {
