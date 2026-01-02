@@ -489,15 +489,21 @@ export class SimulationManager {
     
     animate() {
         this.animationId = requestAnimationFrame(() => this.animate());
-        
-        const deltaTime = this.clock.getDelta();
-        
-        if (this.state.isPlaying) {
-            this.updateSimulation(deltaTime);
+
+        try {
+            const deltaTime = this.clock.getDelta();
+
+            if (this.state.isPlaying) {
+                this.updateSimulation(deltaTime);
+            }
+
+            this.updateComponents(deltaTime);
+            this.sceneManager.render(this.cameraController.camera);
+        } catch (error) {
+            console.error('[SimulationManager] Animation loop error:', error);
+            console.error('Stack trace:', error.stack);
+            // Don't stop the animation loop - just log the error
         }
-        
-        this.updateComponents(deltaTime);
-        this.sceneManager.render(this.cameraController.camera);
     }
     
     updateSimulation(deltaTime) {
@@ -545,6 +551,13 @@ export class SimulationManager {
                         this.state.controls.bankAngle || 0
                     );
                 }
+
+                // Debug: Log spacecraft rendering state periodically
+                if (!this._renderDebugCounter) this._renderDebugCounter = 0;
+                if (++this._renderDebugCounter % 60 === 0) {
+                    const sc = this.entryVehicle.getObject3D();
+                    console.log(`[SimulationManager] Spacecraft render state: visible=${sc.visible}, children=${sc.children.length}, position=(${sc.position.x.toFixed(2)}, ${sc.position.y.toFixed(2)}, ${sc.position.z.toFixed(2)})`);
+                }
             }
             
             // Update phase
@@ -561,10 +574,15 @@ export class SimulationManager {
     updateComponents(deltaTime) {
         // Update camera
         this.cameraController.update(deltaTime, this.state.vehicleData);
-        
-        // Update entry vehicle effects
-        this.entryVehicle.update(this.state.currentTime, this.state.vehicleData, this.state.controls.bankAngle || 0);
-        
+
+        // Update entry vehicle effects - MUST pass camera for LOD updates!
+        this.entryVehicle.update(
+            this.state.currentTime,
+            this.state.vehicleData,
+            this.state.controls.bankAngle || 0,
+            this.cameraController.camera  // FIX: Pass camera for LOD updates
+        );
+
         // Update current planet
         if (this.currentPlanet) {
             this.currentPlanet.update(this.cameraController.camera, deltaTime, this.sceneManager.renderer);

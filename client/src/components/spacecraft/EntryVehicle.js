@@ -11,6 +11,7 @@ export class EntryVehicle {
     constructor(assetLoader = null) {
         this.assetLoader = assetLoader;
         this.group = new THREE.Group();
+        this.group.matrixAutoUpdate = true;
         this.vehicleLOD = null;
         this.gltfModel = null;  // Store loaded GLTF model
         this.modelMetadata = null;  // Store model metadata
@@ -131,6 +132,9 @@ export class EntryVehicle {
         } catch (error) {
             console.error('Failed to load GLTF model; spacecraft will remain hidden until a valid model is available:', error);
             this.useGLTF = false;
+            if (!this.vehicleLOD) {
+                this.createVehicleWithLOD();
+            }
         }
     }
 
@@ -141,6 +145,7 @@ export class EntryVehicle {
         const mediumDetail = model.clone(true);
         const lowDetail = model.clone(true);
 
+        this.applyHighDetailTweaks(highDetail);
         this.applyMediumDetailTweaks(mediumDetail);
         this.applyLowDetailTweaks(lowDetail);
 
@@ -151,6 +156,33 @@ export class EntryVehicle {
         this.group.add(this.vehicleLOD);
     }
 
+    applyHighDetailTweaks(object) {
+        object.traverse((child) => {
+            if (child.isMesh) {
+                // Extract base color from original material
+                let baseColor = new THREE.Color(0xcccccc);
+                const sourceMat = Array.isArray(child.material) ? child.material[0] : child.material;
+                if (sourceMat && sourceMat.color) {
+                    baseColor = sourceMat.color.clone();
+                }
+
+                // FORCE completely opaque material by replacing with MeshStandardMaterial
+                child.material = new THREE.MeshStandardMaterial({
+                    color: baseColor,
+                    metalness: 0.3,
+                    roughness: 0.7,
+                    transparent: false,
+                    opacity: 1.0,
+                    depthWrite: true,
+                    depthTest: true,
+                    side: THREE.DoubleSide,  // FIX: DoubleSide prevents culling when camera is close
+                    alphaTest: 0
+                });
+                child.material.needsUpdate = true;
+            }
+        });
+    }
+
     applyMediumDetailTweaks(object) {
         object.traverse((child) => {
             if (child.isMesh) {
@@ -159,6 +191,13 @@ export class EntryVehicle {
                         const clone = mat.clone();
                         clone.flatShading = true;
                         clone.shininess = Math.min(clone.shininess || 20, 10);
+                        // Force opaque rendering
+                        clone.transparent = false;
+                        clone.opacity = 1.0;
+                        clone.depthWrite = true;
+                        clone.depthTest = true;
+                        clone.alphaTest = 0;
+                        if (clone.alphaMap) clone.alphaMap = null;
                         clone.needsUpdate = true;
                         return clone;
                     });
@@ -166,6 +205,13 @@ export class EntryVehicle {
                     const clone = child.material.clone();
                     clone.flatShading = true;
                     clone.shininess = Math.min(clone.shininess || 20, 10);
+                    // Force opaque rendering
+                    clone.transparent = false;
+                    clone.opacity = 1.0;
+                    clone.depthWrite = true;
+                    clone.depthTest = true;
+                    clone.alphaTest = 0;
+                    if (clone.alphaMap) clone.alphaMap = null;
                     clone.needsUpdate = true;
                     child.material = clone;
                 }
@@ -184,7 +230,13 @@ export class EntryVehicle {
                 }
                 child.material = new THREE.MeshBasicMaterial({
                     color: baseColor,
-                    wireframe: false
+                    wireframe: false,
+                    transparent: false,
+                    opacity: 1.0,
+                    depthWrite: true,
+                    depthTest: true,
+                    alphaTest: 0,
+                    side: THREE.DoubleSide
                 });
                 child.castShadow = false;
                 child.receiveShadow = false;
@@ -329,14 +381,15 @@ export class EntryVehicle {
             blending: THREE.AdditiveBlending,
             transparent: true,
             depthWrite: false,
-            depthTest: false
+            depthTest: true
         });
         
         // Scale glow to match new spacecraft size
         const glowRadius = this.visualScales.glowRadius; // Slightly larger than spacecraft for glow effect
         const glowGeometry = new THREE.SphereGeometry(glowRadius, 16, 16);
         this.effects.heatGlow = new THREE.Mesh(glowGeometry, glowMaterial);
-        this.effects.heatGlow.renderOrder = 50; // on top of planet
+        this.effects.heatGlow.renderOrder = -1;
+        this.effects.heatGlow.visible = false;
         this.group.add(this.effects.heatGlow);
         
         // Plasma tail using particle system
@@ -349,11 +402,18 @@ export class EntryVehicle {
             if (child.isMesh && child.material) {
                 const mats = Array.isArray(child.material) ? child.material : [child.material];
                 mats.forEach(mat => {
-                    mat.depthWrite = true;
-                    mat.depthTest = true;
                     mat.transparent = false;
                     mat.opacity = 1.0;
-                    mat.side = THREE.DoubleSide;
+                    mat.alphaTest = 0;
+                    mat.depthWrite = true;
+                    mat.depthTest = true;
+                    mat.blending = THREE.NormalBlending;
+                    mat.premultipliedAlpha = false;
+                    mat.side = THREE.FrontSide;
+                    if ('transmission' in mat) mat.transmission = 0;
+                    if ('thickness' in mat) mat.thickness = 0;
+                    if ('ior' in mat) mat.ior = 1.0;
+                    mat.needsUpdate = true;
                 });
             }
         });
@@ -569,33 +629,57 @@ export class EntryVehicle {
         // Update heat effects based on altitude and velocity
         const altitude = vehicleData.altitude || 100;
         const velocity = vehicleData.velocityMagnitude || 0;
-        
+
         // Heat intensity calculation
-        const heatIntensity = altitude < 100 && altitude > 20 
-            ? (1 - altitude / 100) * (velocity / 5900) 
+        const heatIntensity = altitude < 100 && altitude > 20
+            ? (1 - altitude / 100) * (velocity / 5900)
             : 0;
-        
+
         // Update glow shader
         if (this.effects.heatGlow) {
             this.effects.heatGlow.material.uniforms.intensity.value = heatIntensity;
             this.effects.heatGlow.material.uniforms.time.value = time;
-            
+            this.effects.heatGlow.visible = heatIntensity > 0.01;
+
             // Change color based on heat
             const heatColor = new THREE.Color();
             heatColor.setHSL(0.05 - heatIntensity * 0.05, 1, 0.5);
             this.effects.heatGlow.material.uniforms.glowColor.value = heatColor;
         }
-        
+
         // Update plasma tail particles
         this.updatePlasmaTail(heatIntensity);
-        
+
         // Update thruster visibility
         if (this.thrusterMesh) {
             this.thrusterMesh.material.opacity = this.state.thrustersActive ? 0.8 : 0;
         }
-        
+
+        // Debug: Log LOD state periodically even if camera is null
+        if (!this._lodDebugCounter) this._lodDebugCounter = 0;
+        if (++this._lodDebugCounter % 120 === 0) {
+            console.log(`[EntryVehicle] Update called: camera=${camera ? 'present' : 'NULL'}, vehicleLOD=${this.vehicleLOD ? 'present' : 'NULL'}, modelLoaded=${this.state.modelLoaded}`);
+            if (this.vehicleLOD) {
+                console.log(`[EntryVehicle] LOD state: visible=${this.vehicleLOD.visible}, children=${this.vehicleLOD.children.length}, levels=${this.vehicleLOD.levels?.length || 0}`);
+                if (camera) {
+                    const distance = camera.position.distanceTo(this.group.position);
+                    console.log(`[EntryVehicle] Camera distance: ${distance.toFixed(4)}`);
+                }
+            }
+        }
+
         if (camera && this.vehicleLOD) {
             this.vehicleLOD.update(camera);
+        } else if (!camera) {
+            console.warn('[EntryVehicle] Camera is NULL - LOD not updating!');
+        } else if (!this.vehicleLOD) {
+            console.warn('[EntryVehicle] vehicleLOD is NULL - no spacecraft mesh!');
+        }
+
+        // Ensure spacecraft and LOD remain visible
+        if (this.vehicleLOD && !this.vehicleLOD.visible) {
+            console.warn('[EntryVehicle] LOD became invisible! Re-enabling.');
+            this.vehicleLOD.visible = true;
         }
     }
     
@@ -647,6 +731,26 @@ export class EntryVehicle {
     setPosition(position) {
         if (position?.isVector3) {
             this.group.position.copy(position);
+            this.group.updateMatrixWorld(true);  // CRITICAL FIX: Update world matrix for LOD distance calculation
+            if (this.vehicleLOD) {
+                this.vehicleLOD.updateMatrixWorld(true);
+            }
+
+            // Debug: Log position periodically (every 60 frames to avoid spam)
+            if (!this._positionLogCounter) this._positionLogCounter = 0;
+            this._positionLogCounter++;
+            if (this._positionLogCounter % 60 === 0) {
+                const distance = position.length();
+                const marsRadius = 33.9; // units (3390 km)
+                const altitude = (distance - marsRadius) * 100; // km
+                console.log(`[EntryVehicle] Position: x=${position.x.toFixed(4)}, y=${position.y.toFixed(4)}, z=${position.z.toFixed(4)}, distance=${distance.toFixed(4)}, altitude=${altitude.toFixed(2)} km, visible=${this.group.visible}`);
+            }
+
+            // Ensure spacecraft is always visible
+            if (!this.group.visible) {
+                console.warn('[EntryVehicle] Group became invisible! Re-enabling visibility.');
+                this.group.visible = true;
+            }
         }
     }
 
@@ -715,6 +819,7 @@ export class EntryVehicle {
 
         // Apply to spacecraft group
         this.group.quaternion.copy(this.attitude.quaternion);
+        this.group.updateMatrixWorld(true);  // CRITICAL FIX: Update world matrix for LOD distance calculation
     }
 
     /**
@@ -829,6 +934,7 @@ export class EntryVehicle {
                     this.useGLTF = true;
                     this.modelMetadata = primaryModel;
                     await this.loadGLTFModel(primaryModel.filename);
+                    this.applyMaterialFixes();
                 }
                 break;
             case 'backup':
@@ -838,6 +944,7 @@ export class EntryVehicle {
                     this.useGLTF = true;
                     this.modelMetadata = backupModel;
                     await this.loadGLTFModel(backupModel.filename);
+                    this.applyMaterialFixes();
                 }
                 break;
         }

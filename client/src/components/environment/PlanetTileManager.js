@@ -22,12 +22,12 @@ export class PlanetTileManager {
         this.tileCache = new Map(); // key -> tile
         this.textureCache = new Map(); // url -> texture
         this.lru = [];
-        this.maxTextures = 64;
+        this.maxTextures = 128; // Increased from 64 to cache more high-detail tiles
         this.loader = new THREE.TextureLoader();
         this.loader.crossOrigin = 'anonymous';
 
-        // Throttle tile requests to avoid flooding the network
-        this.maxConcurrentLoads = 10;
+        // Throttle tile requests to avoid flooding the network (increased for faster loading)
+        this.maxConcurrentLoads = 20;
         this.activeLoads = 0;
         this.loadQueue = [];
 
@@ -368,7 +368,8 @@ export class PlanetTileManager {
         // Apparent angular size from camera's perspective
         const apparentAngularSize = 2 * Math.atan2(tileArcSize / 2, dist);
         const screenSize = apparentAngularSize * pixelsPerRad;
-        const shouldSubdivide = screenSize > 120 && tile.z < this.maxLevel;
+        // Reduced threshold from 120 to 60 pixels - subdivide earlier for sharper tiles
+        const shouldSubdivide = screenSize > 60 && tile.z < this.maxLevel;
 
         if (shouldSubdivide) {
             if (!tile.children) {

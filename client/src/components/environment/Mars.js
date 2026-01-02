@@ -20,8 +20,8 @@ export class Mars {
         this.useTileLOD = this.renderMode === 'tile';
         this.tileBaseUrl = options.tileBaseUrl || 'https://trek.nasa.gov/tiles/Mars/EQ/corrected/Mars_Viking_MDIM21_ClrMosaic_global_232m';
         this.tileExtension = options.tileExtension || 'png';
-        // Lower maxTileLevel by default for faster first-paint; adjust via options if needed
-        this.maxTileLevel = options.maxTileLevel ?? 4;
+        // Increased maxTileLevel from 4 to 6 for higher detail tiles
+        this.maxTileLevel = options.maxTileLevel ?? 6;
         this.tileManager = null;
         this.marsJSBaseUrl = options.marsJSBaseUrl || '/assets/textures/MarsJS';
         
