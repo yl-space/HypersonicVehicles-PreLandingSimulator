@@ -34,9 +34,6 @@ export class Timeline {
     createDOM() {
         const html = `
             <div class="timeline-controls">
-                <button class="timeline-reset-button" id="timeline-reset" disabled>
-                    Reset
-                </button>
                 <button class="play-button" id="play-button">
                     <svg width="24" height="24" viewBox="0 0 24 24">
                         <path class="play-icon" d="M8 5v14l11-7z" fill="currentColor"></path>
@@ -44,6 +41,11 @@ export class Timeline {
                             <rect x="6" y="4" width="4" height="16" fill="currentColor"></rect>
                             <rect x="14" y="4" width="4" height="16" fill="currentColor"></rect>
                         </g>
+                    </svg>
+                </button>
+                <button class="timeline-reset-button" id="timeline-reset" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24">
+                        <path d="M12 5V2L8 6l4 4V7c2.76 0 5 2.24 5 5 0 2.21-1.79 4-4 4-1.38 0-2.6-.7-3.32-1.76l-1.66.96C9 17.91 10.39 19 12 19c3.31 0 6-2.69 6-6s-2.69-6-6-6z" fill="currentColor"></path>
                     </svg>
                 </button>
 
@@ -332,9 +334,10 @@ export class Timeline {
         if (!this.phaseData) return;
 
         this.phaseData.forEach(phase => {
-            const percentage = this.options.totalTime
+            let percentage = this.options.totalTime
                 ? (phase.time / this.options.totalTime) * 100
                 : 0;
+            percentage = Math.max(0, Math.min(percentage, 100));
             const marker = document.createElement('div');
             marker.className = 'timeline-marker';
             marker.style.left = `${percentage}%`;

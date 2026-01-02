@@ -6,8 +6,10 @@ export class Jupiter {
         // NASA Data: Jupiter radius = 69,911 km (11x Earth)
         // Scale: 1 unit = 100 km, but capped at 3x Earth for visibility
         this.radius = 191.34; // (6,378 * 3) / 100 = 3x Earth size for visibility
-        this.surface = null;
+        this.surfaceLOD = null;
+        this.lodMeshes = [];
         this.atmosphere = null;
+        this.textures = null;
         
         this.init();
     }
@@ -19,24 +21,49 @@ export class Jupiter {
     }
     
     createSurface() {
-        // Create Jupiter sphere with high detail
-        const geometry = new THREE.SphereGeometry(this.radius, 128, 64);
-        
-        // Load texture from assets
-        const textureLoader = new THREE.TextureLoader();
-        const jupiterTexture = textureLoader.load('/assets/textures/Jupiter/jupiter.jpg');
-        
-        const material = new THREE.MeshPhongMaterial({
-            map: jupiterTexture,
-            specular: new THREE.Color(0x111111),
-            shininess: 5
+        const loader = new THREE.TextureLoader();
+        this.textures = {
+            color: loader.load('/assets/textures/Jupiter/jupiter.jpg')
+        };
+
+        this.surfaceLOD = new THREE.LOD();
+        const levels = [
+            { segments: 128, distance: 0, detail: 'high' },
+            { segments: 72, distance: 180, detail: 'medium' },
+            { segments: 32, distance: 320, detail: 'low' }
+        ];
+
+        levels.forEach(level => {
+            const mesh = this.createSurfaceMesh(level);
+            this.surfaceLOD.addLevel(mesh, level.distance);
+            this.lodMeshes.push(mesh);
         });
-        
-        this.surface = new THREE.Mesh(geometry, material);
-        this.surface.receiveShadow = true;
-        this.surface.castShadow = true;
-        
-        this.group.add(this.surface);
+
+        this.group.add(this.surfaceLOD);
+    }
+
+    createSurfaceMesh({ segments, detail }) {
+        const geometry = new THREE.SphereGeometry(this.radius, segments, Math.max(segments / 2, 16));
+        const material = this.buildMaterial(detail);
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        return mesh;
+    }
+
+    buildMaterial(detail) {
+        if (detail === 'low') {
+            return new THREE.MeshBasicMaterial({
+                map: this.textures.color,
+                color: 0xffffff
+            });
+        }
+
+        return new THREE.MeshPhongMaterial({
+            map: this.textures.color,
+            specular: new THREE.Color(detail === 'high' ? 0x222222 : 0x111111),
+            shininess: detail === 'high' ? 8 : 2
+        });
     }
     
     createAtmosphere() {
@@ -45,6 +72,7 @@ export class Jupiter {
         
         const atmosphereMaterial = new THREE.ShaderMaterial({
             vertexShader: `
+                precision mediump float;
                 varying vec3 vNormal;
                 varying vec3 vPosition;
                 
@@ -55,6 +83,7 @@ export class Jupiter {
                 }
             `,
             fragmentShader: `
+                precision mediump float;
                 uniform vec3 viewVector;
                 uniform float c;
                 uniform float p;
@@ -122,6 +151,10 @@ export class Jupiter {
                 new THREE.Vector3().subVectors(camera.position, this.group.position);
             this.atmosphere.material.uniforms.time.value += deltaTime;
         }
+
+        if (this.surfaceLOD) {
+            this.surfaceLOD.update(camera);
+        }
         
         // No rotation - Jupiter remains stationary in J2000 reference frame
     }
@@ -135,10 +168,10 @@ export class Jupiter {
     }
     
     dispose() {
-        if (this.surface) {
-            this.surface.geometry.dispose();
-            this.surface.material.dispose();
-        }
+        this.lodMeshes.forEach(mesh => {
+            mesh.geometry.dispose();
+            mesh.material.dispose();
+        });
         
         if (this.atmosphere) {
             this.atmosphere.geometry.dispose();

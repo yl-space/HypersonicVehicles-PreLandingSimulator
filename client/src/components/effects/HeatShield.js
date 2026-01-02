@@ -16,9 +16,9 @@ export class HeatShield {
         
         for (let i = 0; i < particleCount; i++) {
             const i3 = i * 3;
-            positions[i3] = (Math.random() - 0.5) * 10;
-            positions[i3 + 1] = Math.random() * -5;
-            positions[i3 + 2] = (Math.random() - 0.5) * 10;
+            positions[i3] = (Math.random() - 0.5) * 0.0002; // ~20 m spread
+            positions[i3 + 1] = Math.random() * -0.0001;      // ~10 m trail
+            positions[i3 + 2] = (Math.random() - 0.5) * 0.0002;
             
             colors[i3] = 1;
             colors[i3 + 1] = Math.random() * 0.5;
@@ -29,7 +29,7 @@ export class HeatShield {
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         
         const material = new THREE.PointsMaterial({
-            size: 0.5,
+            size: 0.00005,
             vertexColors: true,
             transparent: true,
             opacity: 0.8,
@@ -53,8 +53,8 @@ export class HeatShield {
         
         const positions = this.particles.geometry.attributes.position.array;
         for (let i = 0; i < positions.length; i += 3) {
-            positions[i + 1] -= deltaTime * 20 * this.intensity;
-            if (positions[i + 1] < -10) {
+            positions[i + 1] -= deltaTime * 0.002 * this.intensity;
+            if (positions[i + 1] < -0.0002) {
                 positions[i + 1] = 0;
             }
         }

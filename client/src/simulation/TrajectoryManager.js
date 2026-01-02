@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 
 export class TrajectoryManager {
     constructor() {
@@ -22,6 +25,9 @@ export class TrajectoryManager {
         this.useInstancing = true;
         this.useLOD = true;
 
+        // Line2 material resolution (pixels)
+        this.lineResolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
+
         // Backend integration removed - now handled by TrajectoryService in SimulationManager
 
         this.init();
@@ -30,28 +36,36 @@ export class TrajectoryManager {
     init() {
         this.createTrajectoryVisualization();
         this.createPositionMarker();
+        this.updateLineResolution();
+        window.addEventListener('resize', () => this.updateLineResolution());
     }
     
     createTrajectoryVisualization() {
         // Use BufferGeometry for better performance
         this.pathGeometry = new THREE.BufferGeometry();
 
-        // Materials with increased visibility - thicker, more opaque lines
-        this.pastMaterial = new THREE.LineBasicMaterial({
-            color: 0xaaaaaa,  // Light gray for traveled path - more visible
-            linewidth: 3,     // Thicker line
-            opacity: 0.9,     // More opaque
-            transparent: true
+        // Materials with increased visibility (Line2 uses screen-space widths)
+        this.pastMaterial = new LineMaterial({
+            color: 0xffffff,  // Bright white for traveled path
+            linewidth: 8,     // pixels
+            opacity: 1.0,
+            transparent: true,
+            depthTest: false,
+            depthWrite: false,
+            toneMapped: false
         });
 
-        this.futureMaterial = new THREE.LineDashedMaterial({
-            color: 0xff3333,  // Bright red for future path - more visible
-            linewidth: 3,     // Thicker line
-            opacity: 0.9,     // More opaque
+        this.futureMaterial = new LineMaterial({
+            color: 0x6b1e1e,  // Maroon for future path
+            linewidth: 6,     // pixels
+            opacity: 0.9,
             transparent: true,
-            dashSize: 3,      // Larger dashes for visibility
-            gapSize: 1.5,     // Slightly larger gaps
-            scale: 1
+            dashed: true,
+            dashSize: 0.02,
+            gapSize: 0.01,
+            depthTest: false,
+            depthWrite: false,
+            toneMapped: false
         });
 
         // Pre-allocate buffer attributes for performance
@@ -59,20 +73,22 @@ export class TrajectoryManager {
         this.pastPositionBuffer = new Float32Array(maxPoints * 3);
         this.futurePositionBuffer = new Float32Array(maxPoints * 3);
 
-        // Create separate lines for past and future with pre-allocated buffers
-        const pastGeometry = new THREE.BufferGeometry();
-        pastGeometry.setAttribute('position', new THREE.BufferAttribute(this.pastPositionBuffer, 3));
-        pastGeometry.setDrawRange(0, 0); // Start with no points drawn
+        // Create separate lines for past and future with Line2 geometry
+        const pastGeometry = new LineGeometry();
+        pastGeometry.setPositions([0, 0, 0, 0, 0, 0]);
 
-        const futureGeometry = new THREE.BufferGeometry();
-        futureGeometry.setAttribute('position', new THREE.BufferAttribute(this.futurePositionBuffer, 3));
-        futureGeometry.setDrawRange(0, 0); // Start with no points drawn
+        const futureGeometry = new LineGeometry();
+        futureGeometry.setPositions([0, 0, 0, 0, 0, 0]);
 
-        this.pastLine = new THREE.Line(pastGeometry, this.pastMaterial);
-        this.pastLine.frustumCulled = true; // Enable frustum culling for performance
+        this.pastLine = new Line2(pastGeometry, this.pastMaterial);
+        this.pastLine.computeLineDistances();
+        this.pastLine.frustumCulled = false;
+        this.pastLine.renderOrder = 20;
 
-        this.futureLine = new THREE.Line(futureGeometry, this.futureMaterial);
-        this.futureLine.frustumCulled = true; // Enable frustum culling for performance
+        this.futureLine = new Line2(futureGeometry, this.futureMaterial);
+        this.futureLine.computeLineDistances();
+        this.futureLine.frustumCulled = false;
+        this.futureLine.renderOrder = 20;
 
         this.group.add(this.pastLine);
         this.group.add(this.futureLine);
@@ -85,7 +101,7 @@ export class TrajectoryManager {
     
     createInstancedPathPoints() {
         // Geometry for each point - minimal detail for performance
-        const pointGeometry = new THREE.SphereGeometry(0.02, 4, 2);
+        const pointGeometry = new THREE.SphereGeometry(0.00005, 4, 2);
         const pointMaterial = new THREE.MeshBasicMaterial({
             color: 0x00ffff,
             transparent: true,
@@ -120,7 +136,7 @@ export class TrajectoryManager {
     
     createPositionMarker() {
         // Position marker (invisible by default)
-        const markerGeometry = new THREE.SphereGeometry(0.005, 8, 8);
+        const markerGeometry = new THREE.SphereGeometry(0.00002, 8, 8);
         const markerMaterial = new THREE.MeshBasicMaterial({
             color: 0xff0000,
             transparent: true,
@@ -137,6 +153,11 @@ export class TrajectoryManager {
     setTrajectoryFromCSV(rows) {
         this.trajectoryData = [];
         let prevPosition = null;
+        const lastRow = rows?.length ? rows[rows.length - 1] : null;
+        const csvTotalTime = lastRow ? parseFloat(lastRow.Time || lastRow.time || this.totalTime) : this.totalTime;
+        if (Number.isFinite(csvTotalTime) && csvTotalTime > 0) {
+            this.totalTime = csvTotalTime;
+        }
         
         // Process CSV data
         for (let i = 0; i < rows.length; i++) {
@@ -270,22 +291,25 @@ export class TrajectoryManager {
             positions[i * 3 + 2] = point.position.z;
         }
 
-        const newGeometry = new THREE.BufferGeometry();
-        newGeometry.setAttribute(
-            'position',
-            new THREE.BufferAttribute(positions, 3)
-        );
-        newGeometry.computeBoundingSphere();
+        const newGeometry = new LineGeometry();
+        newGeometry.setPositions(positions);
 
-        this.referenceTrajectoryLine = new THREE.Line(
+        this.referenceTrajectoryLine = new Line2(
             newGeometry,
-            new THREE.LineBasicMaterial({
+            new LineMaterial({
                 color: 0x00ff00,  // Green for reference
                 opacity: 0.3,     // Lower opacity
                 transparent: true,
-                linewidth: 10
+                linewidth: 3,
+                depthTest: false,
+                depthWrite: false,
+                toneMapped: false
             })
         );
+        this.referenceTrajectoryLine.computeLineDistances();
+        this.referenceTrajectoryLine.frustumCulled = false;
+        this.referenceTrajectoryLine.renderOrder = 20;
+        this.updateLineResolution();
         
         this.referenceTrajectoryLine.visible = false; // Hidden by default
         this.group.add(this.referenceTrajectoryLine);
@@ -336,25 +360,26 @@ export class TrajectoryManager {
         }
 
         // Create new geometry for updated trajectory
-        const newGeometry = new THREE.BufferGeometry();
-        newGeometry.setAttribute(
-            'position',
-            new THREE.BufferAttribute(positions, 3)
-        );
-
-        // Compute bounding sphere for frustum culling
-        newGeometry.computeBoundingSphere();
+        const newGeometry = new LineGeometry();
+        newGeometry.setPositions(positions);
 
         // Create full trajectory line - more visible
-        this.trajectoryLine = new THREE.Line(
+        this.trajectoryLine = new Line2(
             newGeometry,
-            new THREE.LineBasicMaterial({
-                color: 0xffffff,  // White for full path
+            new LineMaterial({
+                color: 0x6b1e1e,  // Maroon for full path
                 opacity: 0.4,     // More visible
                 transparent: true,
-                linewidth: 2      // Thicker for visibility
+                linewidth: 5,     // pixels
+                depthTest: false,
+                depthWrite: false,
+                toneMapped: false
             })
         );
+        this.trajectoryLine.computeLineDistances();
+        this.trajectoryLine.frustumCulled = false;
+        this.trajectoryLine.renderOrder = 20;
+        this.updateLineResolution();
 
         this.group.add(this.trajectoryLine);
     }
@@ -420,22 +445,35 @@ export class TrajectoryManager {
             }
         }
 
+        const currentData = this.getDataAtTime(currentTime);
+        const hasOrigin = !!currentData?.position;
+        const originX = hasOrigin ? currentData.position.x : 0;
+        const originY = hasOrigin ? currentData.position.y : 0;
+        const originZ = hasOrigin ? currentData.position.z : 0;
+
+        // Floating-origin for the line buffers to reduce precision wobble at close zoom
+        if (this.pastLine) {
+            this.pastLine.position.set(originX, originY, originZ);
+        }
+        if (this.futureLine) {
+            this.futureLine.position.set(originX, originY, originZ);
+        }
+
         // Update past line using pre-allocated buffer
         let pastPointCount = 0;
         for (let i = 0; i <= currentIndex && pastPointCount * 3 < this.pastPositionBuffer.length - 3; i++) {
             const p = this.trajectoryData[i].position;
-            this.pastPositionBuffer[pastPointCount * 3] = p.x;
-            this.pastPositionBuffer[pastPointCount * 3 + 1] = p.y;
-            this.pastPositionBuffer[pastPointCount * 3 + 2] = p.z;
+            this.pastPositionBuffer[pastPointCount * 3] = p.x - originX;
+            this.pastPositionBuffer[pastPointCount * 3 + 1] = p.y - originY;
+            this.pastPositionBuffer[pastPointCount * 3 + 2] = p.z - originZ;
             pastPointCount++;
         }
 
-        const currentData = this.getDataAtTime(currentTime);
         if (currentData?.position) {
             if (pastPointCount * 3 < this.pastPositionBuffer.length - 3) {
-                this.pastPositionBuffer[pastPointCount * 3] = currentData.position.x;
-                this.pastPositionBuffer[pastPointCount * 3 + 1] = currentData.position.y;
-                this.pastPositionBuffer[pastPointCount * 3 + 2] = currentData.position.z;
+                this.pastPositionBuffer[pastPointCount * 3] = currentData.position.x - originX;
+                this.pastPositionBuffer[pastPointCount * 3 + 1] = currentData.position.y - originY;
+                this.pastPositionBuffer[pastPointCount * 3 + 2] = currentData.position.z - originZ;
                 pastPointCount++;
             }
 
@@ -446,34 +484,37 @@ export class TrajectoryManager {
         // Update future line using pre-allocated buffer
         let futurePointCount = 0;
         if (currentData?.position && futurePointCount * 3 < this.futurePositionBuffer.length - 3) {
-            this.futurePositionBuffer[futurePointCount * 3] = currentData.position.x;
-            this.futurePositionBuffer[futurePointCount * 3 + 1] = currentData.position.y;
-            this.futurePositionBuffer[futurePointCount * 3 + 2] = currentData.position.z;
+            this.futurePositionBuffer[futurePointCount * 3] = currentData.position.x - originX;
+            this.futurePositionBuffer[futurePointCount * 3 + 1] = currentData.position.y - originY;
+            this.futurePositionBuffer[futurePointCount * 3 + 2] = currentData.position.z - originZ;
             futurePointCount++;
         }
 
         for (let i = currentIndex + 1; i < this.trajectoryData.length && futurePointCount * 3 < this.futurePositionBuffer.length - 3; i++) {
             const p = this.trajectoryData[i].position;
-            this.futurePositionBuffer[futurePointCount * 3] = p.x;
-            this.futurePositionBuffer[futurePointCount * 3 + 1] = p.y;
-            this.futurePositionBuffer[futurePointCount * 3 + 2] = p.z;
+            this.futurePositionBuffer[futurePointCount * 3] = p.x - originX;
+            this.futurePositionBuffer[futurePointCount * 3 + 1] = p.y - originY;
+            this.futurePositionBuffer[futurePointCount * 3 + 2] = p.z - originZ;
             futurePointCount++;
         }
 
-        // Update geometries efficiently - just update draw range and mark for update
+        // Update geometries efficiently for Line2
         if (pastPointCount > 1) {
-            const pastPositionAttr = this.pastLine.geometry.getAttribute('position');
-            pastPositionAttr.needsUpdate = true;
-            this.pastLine.geometry.setDrawRange(0, pastPointCount);
-            this.pastLine.geometry.computeBoundingSphere();
+            const pastPositions = this.pastPositionBuffer.subarray(0, pastPointCount * 3);
+            this.pastLine.geometry.setPositions(pastPositions);
+            this.pastLine.computeLineDistances();
+            this.pastLine.visible = true;
+        } else if (this.pastLine) {
+            this.pastLine.visible = false;
         }
 
         if (futurePointCount > 1) {
-            const futurePositionAttr = this.futureLine.geometry.getAttribute('position');
-            futurePositionAttr.needsUpdate = true;
-            this.futureLine.geometry.setDrawRange(0, futurePointCount);
-            this.futureLine.geometry.computeBoundingSphere();
+            const futurePositions = this.futurePositionBuffer.subarray(0, futurePointCount * 3);
+            this.futureLine.geometry.setPositions(futurePositions);
             this.futureLine.computeLineDistances();
+            this.futureLine.visible = true;
+        } else if (this.futureLine) {
+            this.futureLine.visible = false;
         }
 
         // Update point visibility based on time
@@ -585,6 +626,17 @@ export class TrajectoryManager {
     setTrajectoryData(data) {
         if (Array.isArray(data)) {
             this.trajectoryData = data;
+            if (data.length > 0) {
+                let maxTime = 0;
+                for (const point of data) {
+                    if (Number.isFinite(point?.time) && point.time > maxTime) {
+                        maxTime = point.time;
+                    }
+                }
+                if (maxTime > 0) {
+                    this.totalTime = maxTime;
+                }
+            }
             // Store original data for reset functionality
             if (!this.originalTrajectoryData) {
                 this.originalTrajectoryData = data.map(pt => ({...pt, position: pt.position.clone()}));
@@ -648,6 +700,12 @@ export class TrajectoryManager {
                 ...pt,
                 position: pt.position.clone()
             }));
+            if (this.trajectoryData.length > 0) {
+                const lastTime = this.trajectoryData[this.trajectoryData.length - 1].time;
+                if (Number.isFinite(lastTime) && lastTime > 0) {
+                    this.totalTime = lastTime;
+                }
+            }
             // Rebuild visualization
             this.createOptimizedTrajectory();
             this.updateInstancedPoints();
@@ -719,6 +777,22 @@ export class TrajectoryManager {
         
         if (this.futureLine) {
             this.futureLine.material.opacity = 0.5 * (1 - progress * 0.5);
+        }
+    }
+
+    updateLineResolution() {
+        this.lineResolution.set(window.innerWidth, window.innerHeight);
+        if (this.pastMaterial?.resolution) {
+            this.pastMaterial.resolution.copy(this.lineResolution);
+        }
+        if (this.futureMaterial?.resolution) {
+            this.futureMaterial.resolution.copy(this.lineResolution);
+        }
+        if (this.trajectoryLine?.material?.resolution) {
+            this.trajectoryLine.material.resolution.copy(this.lineResolution);
+        }
+        if (this.referenceTrajectoryLine?.material?.resolution) {
+            this.referenceTrajectoryLine.material.resolution.copy(this.lineResolution);
         }
     }
 

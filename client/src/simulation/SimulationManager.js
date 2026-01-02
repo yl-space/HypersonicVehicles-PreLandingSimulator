@@ -148,12 +148,21 @@ export class SimulationManager {
     }
     
     async createSceneObjects() {
+        const maxAnisotropy = this.sceneManager.renderer?.capabilities?.getMaxAnisotropy?.() || 1;
+
         // Create stars background
         this.stars = new Stars();
         this.sceneManager.addToAllScenes(this.stars.getObject3D());
 
         // Create all planets
-        this.mars = new Mars();
+        this.mars = new Mars({
+            maxAnisotropy,
+            renderMode: 'tile', // now proxied via sim-server to avoid CORS
+            tileBaseUrl: 'http://localhost:8000/tiles/mars',
+            tileExtension: 'jpg',
+            maxTileLevel: 6, // keep tile loads lighter for faster visibility
+            marsJSBaseUrl: '/assets/textures/MarsJS'
+        });
         this.earth = new Earth();
         this.jupiter = new Jupiter();
 
@@ -177,6 +186,10 @@ export class SimulationManager {
 
         // Set camera target
         this.cameraController.setTarget(this.entryVehicle.getObject3D());
+        // Snap immediately to vehicle if we already have data
+        if (this.state.vehicleData) {
+            this.cameraController.snapToTarget(this.state.vehicleData);
+        }
     }
     
     initializeUI() {
@@ -334,13 +347,17 @@ export class SimulationManager {
         
         // Adjust camera for different planet sizes with smaller spacecraft (now properly scaled)
         const cameraDistances = {
-            mars: 0.1,    // Very close spacecraft-centric view for Mars
-            earth: 0.2,   // Close view for Earth
-            jupiter: 0.5  // Close view for Jupiter
+            mars: 0.00004,    // ~4 m
+            earth: 0.00005,   // ~5 m
+            jupiter: 0.00008  // ~8 m
         };
-        
+
         if (cameraDistances[planetName]) {
             this.cameraController.setDefaultDistance(cameraDistances[planetName]);
+            // Also snap immediately when switching planets
+            if (this.state.vehicleData) {
+                this.cameraController.snapToTarget(this.state.vehicleData);
+            }
         }
     }
     
@@ -408,13 +425,6 @@ export class SimulationManager {
 
             console.log('[SimulationManager] Trajectory data loaded successfully:', trajectoryData.length, 'points');
 
-            // Initialize spacecraft position to trajectory start (critical for camera positioning)
-            const startData = this.trajectoryManager.getDataAtTime(0);
-            if (startData && startData.position && this.entryVehicle) {
-                this.entryVehicle.setPosition(startData.position);
-                console.log('[SimulationManager] Spacecraft initialized at J2000 trajectory start:', startData.position);
-            }
-
         } catch (error) {
             console.error('[SimulationManager] Error loading data:', error);
             alert(`Failed to load trajectory: ${error.message}\n\nPlease ensure the sim-server is running on port 3001 (proxied through Express server).`);
@@ -479,15 +489,21 @@ export class SimulationManager {
     
     animate() {
         this.animationId = requestAnimationFrame(() => this.animate());
-        
-        const deltaTime = this.clock.getDelta();
-        
-        if (this.state.isPlaying) {
-            this.updateSimulation(deltaTime);
+
+        try {
+            const deltaTime = this.clock.getDelta();
+
+            if (this.state.isPlaying) {
+                this.updateSimulation(deltaTime);
+            }
+
+            this.updateComponents(deltaTime);
+            this.sceneManager.render(this.cameraController.camera);
+        } catch (error) {
+            console.error('[SimulationManager] Animation loop error:', error);
+            console.error('Stack trace:', error.stack);
+            // Don't stop the animation loop - just log the error
         }
-        
-        this.updateComponents(deltaTime);
-        this.sceneManager.render(this.cameraController.camera);
     }
     
     updateSimulation(deltaTime) {
@@ -535,6 +551,13 @@ export class SimulationManager {
                         this.state.controls.bankAngle || 0
                     );
                 }
+
+                // Debug: Log spacecraft rendering state periodically
+                if (!this._renderDebugCounter) this._renderDebugCounter = 0;
+                if (++this._renderDebugCounter % 60 === 0) {
+                    const sc = this.entryVehicle.getObject3D();
+                    console.log(`[SimulationManager] Spacecraft render state: visible=${sc.visible}, children=${sc.children.length}, position=(${sc.position.x.toFixed(2)}, ${sc.position.y.toFixed(2)}, ${sc.position.z.toFixed(2)})`);
+                }
             }
             
             // Update phase
@@ -551,13 +574,18 @@ export class SimulationManager {
     updateComponents(deltaTime) {
         // Update camera
         this.cameraController.update(deltaTime, this.state.vehicleData);
-        
-        // Update entry vehicle effects
-        this.entryVehicle.update(this.state.currentTime, this.state.vehicleData, this.state.controls.bankAngle || 0);
-        
+
+        // Update entry vehicle effects - MUST pass camera for LOD updates!
+        this.entryVehicle.update(
+            this.state.currentTime,
+            this.state.vehicleData,
+            this.state.controls.bankAngle || 0,
+            this.cameraController.camera  // FIX: Pass camera for LOD updates
+        );
+
         // Update current planet
         if (this.currentPlanet) {
-            this.currentPlanet.update(this.cameraController.camera, deltaTime);
+            this.currentPlanet.update(this.cameraController.camera, deltaTime, this.sceneManager.renderer);
         }
         
         // Update stars
@@ -621,6 +649,13 @@ export class SimulationManager {
     play() {
         this.state.isPlaying = true;
         this.clock.start();
+        // Force follow mode and snap to current state for close framing
+        this.cameraController.setMode('follow');
+        const currentData = this.trajectoryManager.getDataAtTime(this.state.currentTime || 0);
+        if (currentData) {
+            this.state.vehicleData = currentData;
+            this.cameraController.snapToTarget(currentData);
+        }
     }
     
     pause() {
@@ -948,6 +983,7 @@ export class SimulationManager {
         if (this.timeline) {
             this.timeline.setTime(0);
             this.timeline.setScrubbingEnabled(true);
+            this.timeline.setReplayAvailable(true);
         }
 
         this.seekTo(0);

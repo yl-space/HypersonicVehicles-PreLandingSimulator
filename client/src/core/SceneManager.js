@@ -57,9 +57,9 @@ export class SceneManager {
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1)); // Cap at 1 for better performance
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.0;
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.BasicShadowMap; // Changed from PCFSoftShadowMap for better performance
+        // Balanced exposure for Mars surface visibility
+        this.renderer.toneMappingExposure = 1.2;
+        this.renderer.shadowMap.enabled = false;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         
         // Enable modern features
@@ -75,7 +75,7 @@ export class SceneManager {
         this.camera = new THREE.PerspectiveCamera(
             50,
             aspect,
-            0.001,  // Very close near plane for small spacecraft (0.01 units)
+            0.000001,  // Extremely close near plane for meter-scale spacecraft (~0.1 m)
             10000   // Far plane for large scale scenes
         );
         
@@ -107,39 +107,21 @@ export class SceneManager {
     }
     
     createScenes() {
-        // Mars Scene with optimizations
+        // Mars Scene with bright, even lighting
         const marsScene = new THREE.Scene();
-        marsScene.background = new THREE.Color(0x000000); // Ensure black background
+        marsScene.background = null; // Allow starfield skybox to define the background
         
         // Use environment map for better lighting
         const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
         pmremGenerator.compileEquirectangularShader();
         
-        // Add lighting with modern shadow settings
-        const sunLight = new THREE.DirectionalLight(0xffffff, 3.0);
-        sunLight.position.set(100, 50, 75);
-        sunLight.castShadow = true;
-
-        // Reduced shadow settings for better performance
-        sunLight.shadow.mapSize.width = 1024;  // Reduced from 2048
-        sunLight.shadow.mapSize.height = 1024;  // Reduced from 2048
-        sunLight.shadow.camera.near = 0.5;
-        sunLight.shadow.camera.far = 500;
-        sunLight.shadow.camera.left = -100;
-        sunLight.shadow.camera.right = 100;
-        sunLight.shadow.camera.top = 100;
-        sunLight.shadow.camera.bottom = -100;
-        sunLight.shadow.bias = -0.0005;
-        sunLight.shadow.normalBias = 0.02;
-        
-        marsScene.add(sunLight);
-        
-        // Ambient lighting for fill
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+        // Uniform ambient/hemisphere lighting (no directional shadows)
+        // Strong ambient to eliminate dark hemispheres
+        const ambientLight = new THREE.AmbientLight(0xfff8e6, 1.0);
         marsScene.add(ambientLight);
-        
-        // Hemisphere light for sky/ground color
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d6e63, 0.5);
+
+        // Gentle hemisphere for subtle color variation without real shading
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffc592, 1.0);
         marsScene.add(hemiLight);
         
         // Create earth and jupiter scenes as placeholders
@@ -207,17 +189,8 @@ export class SceneManager {
     }
     
     updateLighting(altitude, phase) {
-        const sunLight = this.currentScene?.getObjectByProperty('type', 'DirectionalLight');
-        if (!sunLight) return;
-        
-        // Dynamic lighting based on altitude
-        const atmosphericAttenuation = Math.max(0.3, 1 - altitude / 200);
-        sunLight.intensity = 3.0 * atmosphericAttenuation;
-        
-        // Update shadows only when needed
-        if (phase === 0 || phase === 3) { // Entry or landing phases
-            this.renderer.shadowMap.needsUpdate = true;
-        }
+        // Lighting is static and uniform (no day/night cycle)
+        return;
     }
     
     render(camera) {

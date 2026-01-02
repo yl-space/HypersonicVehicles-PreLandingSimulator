@@ -32,7 +32,8 @@ export class DustEffects {
             // Distribute particles in a sphere around the vehicle
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos(2 * Math.random() - 1);
-            const radius = 20 + Math.random() * 50;
+            // Keep particles within tens of meters of the vehicle
+            const radius = 0.0001 + Math.random() * 0.0004;
             
             positions[i3] = radius * Math.sin(phi) * Math.cos(theta);
             positions[i3 + 1] = radius * Math.cos(phi);
@@ -43,7 +44,7 @@ export class DustEffects {
             colors[i3 + 1] = 0.6 + Math.random() * 0.2; // G
             colors[i3 + 2] = 0.3 + Math.random() * 0.2; // B
             
-            sizes[i] = 0.5 + Math.random() * 2;
+            sizes[i] = 0.00002 + Math.random() * 0.00004;
         }
         
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -51,7 +52,7 @@ export class DustEffects {
         geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
         
         const material = new THREE.PointsMaterial({
-            size: 2,
+            size: 0.00005,
             vertexColors: true,
             transparent: true,
             opacity: 0.6,
@@ -85,9 +86,9 @@ export class DustEffects {
         const positions = this.particles.geometry.attributes.position.array;
         for (let i = 0; i < positions.length; i += 3) {
             // Simple wind effect
-            positions[i] += Math.sin(Date.now() * 0.001 + i) * 0.1;
-            positions[i + 1] += Math.cos(Date.now() * 0.0015 + i) * 0.05;
-            positions[i + 2] += Math.sin(Date.now() * 0.0008 + i) * 0.08;
+            positions[i] += Math.sin(Date.now() * 0.001 + i) * 0.0002;
+            positions[i + 1] += Math.cos(Date.now() * 0.0015 + i) * 0.0001;
+            positions[i + 2] += Math.sin(Date.now() * 0.0008 + i) * 0.00016;
         }
         
         this.particles.geometry.attributes.position.needsUpdate = true;
