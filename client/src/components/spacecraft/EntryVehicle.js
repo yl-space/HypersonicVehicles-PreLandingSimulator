@@ -53,16 +53,17 @@ export class EntryVehicle {
 
         // Derived visual scales (meters mapped to scene units)
         this.visualScales = {
-            velocityVector: 3 / METERS_PER_UNIT,   // ~3 m
-            bankVector: 1.5 / METERS_PER_UNIT,     // ~1.5 m, keep bank arrow tight to craft
-            positionVector: 3 / METERS_PER_UNIT,   // ~3 m
-            label: 1.5 / METERS_PER_UNIT,          // ~1.5 m sprite width
-            glowRadius: 1.5 / METERS_PER_UNIT,       // ~1.5 m heat glow radius
+            // Vectors scaled to spacecraft size (shorter, more compact)
+            velocityVector: 2.5 / METERS_PER_UNIT,   // ~2.0 m (compact, spacecraft-scale)
+            bankVector: 2.5 / METERS_PER_UNIT,       // ~2.0 m
+            positionVector: 2.5 / METERS_PER_UNIT,   // ~2.0 m
+            label: 2 / METERS_PER_UNIT,            // larger labels for visibility
+            glowRadius: 2.5 / METERS_PER_UNIT,       // unchanged
             plasma: {
-                lateralSpread: 1.5 / METERS_PER_UNIT, // ~1.5 m sideways spread
-                spawnDepth: 8 / METERS_PER_UNIT,      // ~8 m tail depth
-                velocityJitter: 1 / METERS_PER_UNIT,  // ~1 m/frame drift
-                pointSize: 0.6 / METERS_PER_UNIT      // ~0.6 m particle size
+                lateralSpread: 2.0 / METERS_PER_UNIT,
+                spawnDepth: 8 / METERS_PER_UNIT,
+                velocityJitter: 1.2 / METERS_PER_UNIT,
+                pointSize: 1.2 / METERS_PER_UNIT
             }
         };
 
@@ -75,6 +76,7 @@ export class EntryVehicle {
         if (this.useGLTF && this.assetLoader) {
             try {
                 await this.loadGLTFModel();
+                this.applyMaterialFixes();
             } catch (error) {
                 console.error('Failed to load GLTF model during init:', error);
                 // If GLTF fails, keep no spacecraft rather than procedural cone
@@ -321,17 +323,35 @@ export class EntryVehicle {
             side: THREE.BackSide,
             blending: THREE.AdditiveBlending,
             transparent: true,
-            depthWrite: false
+            depthWrite: false,
+            depthTest: false
         });
         
         // Scale glow to match new spacecraft size
         const glowRadius = this.visualScales.glowRadius; // Slightly larger than spacecraft for glow effect
         const glowGeometry = new THREE.SphereGeometry(glowRadius, 16, 16);
         this.effects.heatGlow = new THREE.Mesh(glowGeometry, glowMaterial);
+        this.effects.heatGlow.renderOrder = 50; // on top of planet
         this.group.add(this.effects.heatGlow);
         
         // Plasma tail using particle system
         this.createPlasmaTail();
+    }
+
+    applyMaterialFixes() {
+        // Ensure spacecraft materials render solid (no unintended transparency or backface culling issues)
+        this.group.traverse((child) => {
+            if (child.isMesh && child.material) {
+                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                mats.forEach(mat => {
+                    mat.depthWrite = true;
+                    mat.depthTest = true;
+                    mat.transparent = false;
+                    mat.opacity = 1.0;
+                    mat.side = THREE.DoubleSide;
+                });
+            }
+        });
     }
     
     createPlasmaTail() {
@@ -374,105 +394,33 @@ export class EntryVehicle {
         this.group.add(this.effects.plasmaTail);
     }
     
-    // Large commented-out code block removed for clarity. Use version control to restore if needed.
-
-    createLocalCoordinateAxes() {
-        // Create axes helper for spacecraft body-fixed reference frame
-        // This shows the spacecraft's local coordinate system orientation
-        const axesGroup = new THREE.Group();
-        const axisLength = 0.00004; // ~4 m, matches vector scale
-
-        // Helper function to create text label
-        const createAxisLabel = (text, color) => {
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = 64;
-            canvas.height = 32;
-            context.font = 'bold 20px Arial';
-            context.fillStyle = color;
-            context.textAlign = 'center';
-            context.textBaseline = 'middle';
-            context.fillText(text, canvas.width / 2, canvas.height / 2);
-            const texture = new THREE.CanvasTexture(canvas);
-            const spriteMaterial = new THREE.SpriteMaterial({
-                map: texture,
-                transparent: true,
-                depthTest: false
-            });
-            const sprite = new THREE.Sprite(spriteMaterial);
-            sprite.scale.set(0.015, 0.0075, 1);
-            return sprite;
-        };
-
-        // X-axis (Red) - Right (Spacecraft body frame)
-        const xGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(0, 0, 0),
-            new THREE.Vector3(axisLength, 0, 0)
-        ]);
-        const xMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
-        const xAxis = new THREE.Line(xGeometry, xMaterial);
-        axesGroup.add(xAxis);
-
-        const xLabel = createAxisLabel('X (Right)', '#ff0000');
-        xLabel.position.set(axisLength + axisLength * 0.3, 0, 0);
-        axesGroup.add(xLabel);
-
-        // Y-axis (Green) - Up (Perpendicular to velocity, points "up" in body frame)
-        const yGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(0, 0, 0),
-            new THREE.Vector3(0, axisLength, 0)
-        ]);
-        const yMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 });
-        const yAxis = new THREE.Line(yGeometry, yMaterial);
-        axesGroup.add(yAxis);
-
-        const yLabel = createAxisLabel('Y (Up)', '#00ff00');
-        yLabel.position.set(0, axisLength + axisLength * 0.3, 0);
-        axesGroup.add(yLabel);
-
-        // Z-axis (Blue) - Forward (Points opposite to velocity direction)
-        const zGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(0, 0, 0),
-            new THREE.Vector3(0, 0, axisLength)
-        ]);
-        const zMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 2 });
-        const zAxis = new THREE.Line(zGeometry, zMaterial);
-        axesGroup.add(zAxis);
-
-        const zLabel = createAxisLabel('Z (Forward)', '#0000ff');
-        zLabel.position.set(0, 0, axisLength + axisLength * 0.3);
-        axesGroup.add(zLabel);
-
-        this.localAxes = axesGroup;
-        this.group.add(this.localAxes);
-    }
 
     createOrientationVectors() {
         // Create arrow helper for velocity vector
         const origin = new THREE.Vector3(0, 0, 0);
         const direction = new THREE.Vector3(0, -1, 0);
 
-        // Velocity vector (yellow)
+        // Velocity vector (yellow) - compact with prominent arrow head
         const velocityLength = this.visualScales.velocityVector;
-        this.velocityArrow = new THREE.ArrowHelper(direction, origin, velocityLength, 0xffff00, velocityLength * 0.25, velocityLength * 0.18);
-        this.velocityArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-        this.velocityArrow.line.material = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 });
+        this.velocityArrow = new THREE.ArrowHelper(direction, origin, velocityLength, 0xffd447);
+        this.velocityArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0xffd447 });
+        this.velocityArrow.line.material = new THREE.LineBasicMaterial({ color: 0xffd447, linewidth: 2 });
         this.velocityArrow.visible = false;
         this.velocityArrow.renderOrder = 999;
         this.group.add(this.velocityArrow);
 
-        // Bank angle vector (cyan)
+        // Bank angle vector (cyan) - compact with prominent arrow head
         const bankLength = this.visualScales.bankVector;
-        this.bankAngleArrow = new THREE.ArrowHelper(direction, origin, bankLength, 0x00ffff, bankLength * 0.18, bankLength * 0.12);
-        this.bankAngleArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0x00ffff });
-        this.bankAngleArrow.line.material = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 });
+        this.bankAngleArrow = new THREE.ArrowHelper(direction, origin, bankLength, 0x00c1ff);
+        this.bankAngleArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0x00c1ff });
+        this.bankAngleArrow.line.material = new THREE.LineBasicMaterial({ color: 0x00c1ff, linewidth: 2 });
         this.bankAngleArrow.visible = false;
         this.bankAngleArrow.renderOrder = 999;
         this.group.add(this.bankAngleArrow);
 
-        // Position vector (magenta)
+        // Position vector (magenta) - compact with prominent arrow head
         const posLength = this.visualScales.positionVector;
-        this.positionArrow = new THREE.ArrowHelper(direction, origin, posLength, 0xff00ff, posLength * 0.25, posLength * 0.18);
+        this.positionArrow = new THREE.ArrowHelper(direction, origin, posLength, 0xff00ff);
         this.positionArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0xff00ff });
         this.positionArrow.line.material = new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 2 });
         this.positionArrow.visible = false;
@@ -484,9 +432,9 @@ export class EntryVehicle {
         const createTextSprite = (text, color) => {
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
-            canvas.width = 128;
-            canvas.height = 32;
-            context.font = '16px Arial, sans-serif';
+            canvas.width = 256;
+            canvas.height = 64;
+            context.font = 'bold 28px Arial, sans-serif';
             context.fillStyle = color;
             context.textAlign = 'center';
             context.textBaseline = 'middle';
@@ -495,17 +443,19 @@ export class EntryVehicle {
             const spriteMaterial = new THREE.SpriteMaterial({
                 map: texture,
                 transparent: true,
-                alphaTest: 0.001
+                alphaTest: 0.001,
+                depthTest: false
             });
             const sprite = new THREE.Sprite(spriteMaterial);
-            sprite.scale.set(this.visualScales.label, this.visualScales.label * 0.35, 1);
+            sprite.scale.set(this.visualScales.label, this.visualScales.label * 0.25, 1);
             sprite.visible = false;
+            sprite.renderOrder = 1000;
             return sprite;
         };
 
-        this.vectorLabels.velocity = createTextSprite('Velocity/Direction', '#ffff00');
-        this.vectorLabels.lift = createTextSprite('Lift X Median Plane', '#00ffff');
-        this.vectorLabels.position = createTextSprite('Position/Height to Mars', '#ff00ff');
+        this.vectorLabels.velocity = createTextSprite('Velocity', '#ffd447');
+        this.vectorLabels.lift = createTextSprite('Lift', '#00c1ff');
+        this.vectorLabels.position = createTextSprite('Position', '#ff4fd8');
         this.group.add(this.vectorLabels.velocity);
         this.group.add(this.vectorLabels.lift);
         this.group.add(this.vectorLabels.position);
@@ -522,17 +472,16 @@ export class EntryVehicle {
         // ====================================================================================
         // VELOCITY VECTOR (Yellow): Shows actual direction of motion along trajectory
         // ====================================================================================
-        // Velocity is in WORLD space, transform to local space for display
         if (this.velocityArrow && velocity instanceof THREE.Vector3 && velocity.length() > 0.001) {
             const velocityDirection = velocity.clone().normalize();
-            // Transform from world to local space
+            // Transform from world space to spacecraft local space
             const localVelocityDir = velocityDirection.clone().applyQuaternion(spacecraftQuaternionInverse);
-
             const velocityLength = this.visualScales.velocityVector;
             this.velocityArrow.setDirection(localVelocityDir);
-            this.velocityArrow.setLength(velocityLength, velocityLength * 0.2, velocityLength * 0.15);
+            this.velocityArrow.setLength(velocityLength);
             if (this.vectorLabels.velocity) {
-                const labelPosition = localVelocityDir.clone().multiplyScalar(velocityLength + this.visualScales.label * 0.5);
+                // Position label at the arrow tip (slightly beyond for visibility)
+                const labelPosition = localVelocityDir.clone().multiplyScalar(velocityLength * 1.05);
                 this.vectorLabels.velocity.position.copy(labelPosition);
                 this.vectorLabels.velocity.visible = this.vectorsVisible;
             }
@@ -541,75 +490,36 @@ export class EntryVehicle {
         // ====================================================================================
         // POSITION VECTOR (Magenta): Shows radial direction from Mars center
         // ====================================================================================
-        // Position is in WORLD space, transform to local space for display
         if (this.positionArrow && position instanceof THREE.Vector3 && position.length() > 0.001) {
             const radialDirection = position.clone().normalize();
-            // Transform from world to local space
+            // Transform from world space to spacecraft local space
             const localRadialDir = radialDirection.clone().applyQuaternion(spacecraftQuaternionInverse);
 
             const posLength = this.visualScales.positionVector;
             this.positionArrow.setDirection(localRadialDir);
-            this.positionArrow.setLength(posLength, posLength * 0.2, posLength * 0.15);
+            this.positionArrow.setLength(posLength);
             if (this.vectorLabels.position) {
-                const labelPosition = localRadialDir.clone().multiplyScalar(posLength + this.visualScales.label * 0.5);
+                // Position label at the arrow tip (slightly beyond for visibility)
+                const labelPosition = localRadialDir.clone().multiplyScalar(posLength * 1.05);
                 this.vectorLabels.position.position.copy(labelPosition);
                 this.vectorLabels.position.visible = this.vectorsVisible;
             }
         }
 
         // ====================================================================================
-        // LIFT VECTOR (Cyan): Shows direction of aerodynamic lift force
+        // BANK VECTOR (Cyan): Shows spacecraft body-fixed "up" direction
         // ====================================================================================
-        // Lift is in WORLD space, transform to local space for display
-        if (this.bankAngleArrow && velocity.length() > 0.001 && position.length() > 0.001) {
-            const velocityNorm = velocity.clone().normalize();
-            const positionNorm = position.clone().normalize();
+        if (this.bankAngleArrow) {
+            // Body-fixed up direction (+Y in spacecraft frame)
+            // Since the arrow is a child of the group, use local coordinates directly
+            const spacecraftUpDir = new THREE.Vector3(0, 1, 0);
 
-            // Calculate orbital angular momentum vector: h = r × v
-            // This vector is perpendicular to the orbital plane
-            const angularMomentumVector = new THREE.Vector3();
-            angularMomentumVector.crossVectors(position, velocity);
-
-            // Handle edge case: velocity is radial (angular momentum near zero)
-            if (angularMomentumVector.length() < 0.001) {
-                // Pick arbitrary perpendicular direction
-                angularMomentumVector.crossVectors(velocityNorm, new THREE.Vector3(0, 1, 0));
-                if (angularMomentumVector.length() < 0.001) {
-                    angularMomentumVector.crossVectors(velocityNorm, new THREE.Vector3(1, 0, 0));
-                }
-            }
-            angularMomentumVector.normalize();
-
-            // Base lift direction at ZERO bank angle:
-            // Perpendicular to velocity, in the plane containing velocity and position
-            // Points "outward" from the trajectory curve (perpendicular to h and v)
-            let liftDirection = new THREE.Vector3();
-            liftDirection.crossVectors(angularMomentumVector, velocityNorm).normalize();
-
-            // Ensure lift points generally "up" (positive radial component)
-            // If it points down (toward Mars), flip it
-            if (liftDirection.dot(positionNorm) < 0) {
-                liftDirection.negate();
-            }
-
-            // Apply bank angle rotation around the velocity axis
-            // Positive bank angle rotates lift vector (when looking along velocity direction)
-            // This is how the spacecraft steers during atmospheric entry
-            if (Math.abs(bankAngle) > 0.001) {
-                const bankQuaternion = new THREE.Quaternion();
-                bankQuaternion.setFromAxisAngle(velocityNorm, THREE.MathUtils.degToRad(bankAngle));
-                liftDirection.applyQuaternion(bankQuaternion);
-            }
-
-            // Transform from world to local space
-            const localLiftDir = liftDirection.clone().applyQuaternion(spacecraftQuaternionInverse);
-
-            // Keep lift/bank vector at meter-scale (matches visualScales.bankVector)
             const bankLength = this.visualScales.bankVector;
-            this.bankAngleArrow.setDirection(localLiftDir);
-            this.bankAngleArrow.setLength(bankLength, bankLength * 0.2, bankLength * 0.15);
+            this.bankAngleArrow.setDirection(spacecraftUpDir);
+            this.bankAngleArrow.setLength(bankLength);
             if (this.vectorLabels.lift) {
-                const labelPosition = localLiftDir.clone().multiplyScalar(bankLength + this.visualScales.label * 0.5);
+                // Position label at the arrow tip (slightly beyond for visibility)
+                const labelPosition = spacecraftUpDir.clone().multiplyScalar(bankLength * 1.05);
                 this.vectorLabels.lift.position.copy(labelPosition);
                 this.vectorLabels.lift.visible = this.vectorsVisible;
             }

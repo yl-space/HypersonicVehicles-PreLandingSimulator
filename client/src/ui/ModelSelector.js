@@ -80,15 +80,15 @@ export class ModelSelector {
     }
 
     setupEventListeners() {
-        if (!this.selectEl) return;
-
-        this.selectEl.addEventListener('change', (event) => {
-            const value = event.target.value;
-            if (this.isSwitching) {
-                event.target.value = this.currentModel;
-                return;
-            }
-            this.selectModel(value);
+        // Attach click handlers to button elements
+        const buttons = this.element.querySelectorAll('.model-chip');
+        buttons.forEach(button => {
+            button.addEventListener('click', () => {
+                const modelId = button.dataset.model;
+                if (!this.isSwitching && modelId !== this.currentModel) {
+                    this.selectModel(modelId);
+                }
+            });
         });
     }
 
@@ -148,9 +148,13 @@ export class ModelSelector {
     }
 
     updateSelection(modelId) {
-        if (this.selectEl) {
-            this.selectEl.value = modelId;
-        }
+        // Update button states
+        const buttons = this.element.querySelectorAll('.model-chip');
+        buttons.forEach(button => {
+            const isSelected = button.dataset.model === modelId;
+            button.classList.toggle('active', isSelected);
+            button.setAttribute('aria-pressed', isSelected);
+        });
     }
 
     setStatus(message, state = 'ready') {

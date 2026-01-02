@@ -37,7 +37,7 @@ export class Stars {
                 map: faceTexture,
                 side: THREE.BackSide,
                 depthWrite: false,
-                depthTest: false,
+                depthTest: true, // keep stars in background; respect depth so they don't overlay everything
                 fog: false,
                 toneMapped: false,
                 transparent: true,
@@ -46,7 +46,7 @@ export class Stars {
         }
 
         const skybox = new THREE.Mesh(geometry, materials);
-        skybox.renderOrder = -1;
+        skybox.renderOrder = -10; // render early, behind everything
         this.group.add(skybox);
     }
 

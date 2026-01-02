@@ -49,10 +49,6 @@ export class Controls {
         const container = document.createElement('div');
         container.className = 'camera-controls';
         container.innerHTML = `
-            <div class="camera-controls-header">
-                <h3 class="control-label">CAMERA</h3>
-                <button class="panel-collapse-toggle" type="button" title="Collapse camera controls">▾</button>
-            </div>
             <div class="control-group">
                 <h3 class="control-label">CAMERA</h3>
                 <button class="camera-mode active" data-mode="FOLLOW">

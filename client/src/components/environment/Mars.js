@@ -74,7 +74,7 @@ export class Mars {
             map: colorMap,
             color: 0xffffff,
             side: THREE.DoubleSide,
-            toneMapped: false
+            toneMapped: true
         });
         material.color.multiplyScalar(1.6); // brighten unlit marsjs surface
 
