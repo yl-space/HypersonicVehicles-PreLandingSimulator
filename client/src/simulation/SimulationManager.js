@@ -149,6 +149,11 @@ export class SimulationManager {
     
     async createSceneObjects() {
         const maxAnisotropy = this.sceneManager.renderer?.capabilities?.getMaxAnisotropy?.() || 1;
+        const runtimeOrigin = window.location?.origin && window.location.origin !== 'null'
+            ? window.location.origin
+            : 'http://localhost:3001';
+        const backendBaseUrl = config.get('dataSource.backendUrl') || runtimeOrigin;
+        const marsTileBaseUrl = new URL('/sim/tiles/mars', backendBaseUrl).toString();
 
         // Create stars background
         this.stars = new Stars();
@@ -158,7 +163,7 @@ export class SimulationManager {
         this.mars = new Mars({
             maxAnisotropy,
             renderMode: 'tile', // now proxied via sim-server to avoid CORS
-            tileBaseUrl: 'http://localhost:8000/tiles/mars',
+            tileBaseUrl: marsTileBaseUrl,
             tileExtension: 'jpg',
             maxTileLevel: 6, // keep tile loads lighter for faster visibility
             marsJSBaseUrl: '/assets/textures/MarsJS'
