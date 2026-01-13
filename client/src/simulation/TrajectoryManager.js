@@ -47,23 +47,23 @@ export class TrajectoryManager {
         // Materials with increased visibility (Line2 uses screen-space widths)
         this.pastMaterial = new LineMaterial({
             color: 0xffffff,  // Bright white for traveled path
-            linewidth: 8,     // pixels
-            opacity: 1.0,
+            linewidth: 2.5,   // pixels
+            opacity: 0.95,
             transparent: true,
-            depthTest: false,
+            depthTest: true,
             depthWrite: false,
             toneMapped: false
         });
 
         this.futureMaterial = new LineMaterial({
             color: 0x6b1e1e,  // Maroon for future path
-            linewidth: 6,     // pixels
-            opacity: 0.9,
+            linewidth: 2.0,   // pixels
+            opacity: 0.85,
             transparent: true,
             dashed: true,
             dashSize: 0.02,
             gapSize: 0.01,
-            depthTest: false,
+            depthTest: true,
             depthWrite: false,
             toneMapped: false
         });
@@ -298,10 +298,10 @@ export class TrajectoryManager {
             newGeometry,
             new LineMaterial({
                 color: 0x00ff00,  // Green for reference
-                opacity: 0.3,     // Lower opacity
+                opacity: 0.5,     // Lower opacity
                 transparent: true,
-                linewidth: 3,
-                depthTest: false,
+                linewidth: 2.0,
+                depthTest: true,
                 depthWrite: false,
                 toneMapped: false
             })
@@ -368,10 +368,10 @@ export class TrajectoryManager {
             newGeometry,
             new LineMaterial({
                 color: 0x6b1e1e,  // Maroon for full path
-                opacity: 0.4,     // More visible
+                opacity: 0.55,    // More visible
                 transparent: true,
-                linewidth: 5,     // pixels
-                depthTest: false,
+                linewidth: 2.0,   // pixels
+                depthTest: true,
                 depthWrite: false,
                 toneMapped: false
             })
