@@ -111,12 +111,23 @@ const MARS_FEATURES = [
     { name: 'Acidalia Planitia', lat: 46.7, lon: -22.0, diameter: 0, type: 'PL' },
     { name: 'Chryse Planitia', lat: 28.4, lon: -40.0, diameter: 1600, type: 'PL' },
 
-    // Major Craters
+    // Major Craters - distributed across Mars
     { name: 'Gale Crater', lat: -5.4, lon: 137.8, diameter: 154, type: 'AA' },
     { name: 'Jezero Crater', lat: 18.38, lon: 77.58, diameter: 49, type: 'AA' },
     { name: 'Schiaparelli', lat: -2.77, lon: -16.75, diameter: 461, type: 'AA' },
     { name: 'Huygens', lat: -14.0, lon: -55.6, diameter: 467, type: 'AA' },
     { name: 'Newton', lat: -40.8, lon: -158.1, diameter: 287, type: 'AA' },
+    // Southern hemisphere craters (near Argyre region)
+    { name: 'Hooke', lat: -45.0, lon: 44.4, diameter: 138, type: 'AA' },
+    { name: 'Galle', lat: -51.0, lon: -31.0, diameter: 230, type: 'AA' },
+    { name: 'Lowell', lat: -52.0, lon: -81.0, diameter: 203, type: 'AA' },
+    { name: 'Liais', lat: -49.5, lon: 47.0, diameter: 130, type: 'AA' },
+    { name: 'Green', lat: -52.7, lon: 8.3, diameter: 184, type: 'AA' },
+    { name: 'Maraldi', lat: -62.0, lon: 32.0, diameter: 120, type: 'AA' },
+    { name: 'Barnard', lat: -61.5, lon: -61.5, diameter: 128, type: 'AA' },
+    // Hellas region craters
+    { name: 'Terby', lat: -28.0, lon: 74.0, diameter: 174, type: 'AA' },
+    { name: 'Iazu', lat: -34.8, lon: 83.5, diameter: 100, type: 'AA' },
 
     // Highland Regions
     { name: 'Syrtis Major', lat: 8.4, lon: 69.5, diameter: 1500, type: 'PM' },
@@ -421,20 +432,28 @@ export class MarsTerrainMarkers {
                 // 2. Within a reasonable surface distance
                 // 3. Relevant features (craters, landing sites, mountains, or large features)
 
-                const maxSurfaceDistance = this.marsRadius * 1.2; // ~4000 km - wide range for context
+                const maxSurfaceDistance = this.marsRadius * 1.5; // ~5000 km - wide range for context
                 const featureSize = marker.feature.diameter || 100;
 
-                // Show relevant features during descent:
-                // - Landing sites (LF) - always important for descent context
-                // - Mountains/volcanoes (MO) - major landmarks
-                // - Craters (AA) - descent targets like Gale Crater
-                // - Chasms (CH) - major landmarks
-                // - Any feature > 100km diameter
+                // Show all feature types that are relevant landmarks:
+                // - LF: Landing sites
+                // - MO: Mountains/volcanoes
+                // - AA: Craters
+                // - CH: Chasms/canyons
+                // - PL: Planitia (low plains/basins)
+                // - PM: Planum (high plains/plateaus)
+                // - VA: Vallis (valleys)
+                // - TE: Terra (highland regions)
+                // - Any feature > 50km diameter
                 const isRelevantFeature = marker.type === 'LF' ||
                                          marker.type === 'MO' ||
                                          marker.type === 'AA' ||
                                          marker.type === 'CH' ||
-                                         featureSize > 100;
+                                         marker.type === 'PL' ||
+                                         marker.type === 'PM' ||
+                                         marker.type === 'VA' ||
+                                         marker.type === 'TE' ||
+                                         featureSize > 50;
 
                 // Check visibility
                 isVisible = dotProduct > -0.4 && // On visible side (more permissive)
