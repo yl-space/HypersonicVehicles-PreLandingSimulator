@@ -11,6 +11,7 @@ import { Mars } from '../components/environment/Mars.js';
 import { Earth } from '../components/environment/Earth.js';
 import { Jupiter } from '../components/environment/Jupiter.js';
 import { Stars } from '../components/environment/Stars.js';
+import { MarsTerrainMarkers } from '../components/environment/MarsTerrainMarkers.js';
 import { TrajectoryManager } from './TrajectoryManager.js';
 import { PhaseController } from './PhaseController.js';
 import { Timeline } from '../ui/Timeline.js';
@@ -48,6 +49,7 @@ export class SimulationManager {
         this.jupiter = null;
         this.currentPlanet = null;
         this.stars = null;
+        this.marsTerrainMarkers = null;
 
         // UI components
         this.timeline = null;
@@ -171,9 +173,28 @@ export class SimulationManager {
         this.earth = new Earth();
         this.jupiter = new Jupiter();
 
+        // Create Mars terrain markers (craters, volcanoes, landing sites)
+        this.marsTerrainMarkers = new MarsTerrainMarkers({
+            marsRadius: this.mars.getRadius(),
+            maxVisibleFeatures: 200,
+            onFeatureHover: (feature) => {
+                if (feature) {
+                    console.log(`[SimulationManager] Hovering over: ${feature.name}`);
+                }
+            },
+            onFeatureClick: (feature) => {
+                if (feature) {
+                    console.log(`[SimulationManager] Clicked: ${feature.name} - ${feature.description || ''}`);
+                }
+            }
+        });
+
         // Start with Mars visible
         this.currentPlanet = this.mars;
         this.sceneManager.addToAllScenes(this.mars.getObject3D());
+
+        // Add terrain markers to scene
+        this.sceneManager.addToAllScenes(this.marsTerrainMarkers.getObject3D());
 
         // Create and initialize entry vehicle with asset loader for GLTF model support
         this.entryVehicle = new EntryVehicle(this.assetLoader);
@@ -596,6 +617,11 @@ export class SimulationManager {
         // Update stars
         if (this.stars) {
             this.stars.update(deltaTime);
+        }
+
+        // Update terrain markers visibility based on camera distance
+        if (this.marsTerrainMarkers && this.state.currentPlanet === 'mars') {
+            this.marsTerrainMarkers.update(this.cameraController.camera);
         }
 
         // Planet rotation removed - planets remain stationary in J2000 reference frame
@@ -1040,6 +1066,7 @@ export class SimulationManager {
         this.entryVehicle.dispose();
         this.trajectoryManager.dispose();
         if (this.mars) this.mars.dispose();
+        if (this.marsTerrainMarkers) this.marsTerrainMarkers.dispose();
         if (this.stars) this.stars.dispose();
         
         // Dispose UI

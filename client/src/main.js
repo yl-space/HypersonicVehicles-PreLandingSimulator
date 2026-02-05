@@ -4,6 +4,27 @@
 
 import { SimulationManager } from './simulation/SimulationManager.js';
 
+// Register Service Worker for tile caching
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', async () => {
+        try {
+            const registration = await navigator.serviceWorker.register('/sw-tiles.js', {
+                scope: '/'
+            });
+            console.log('[Main] Service Worker registered:', registration.scope);
+
+            // Check for updates periodically
+            setInterval(() => {
+                registration.update();
+            }, 60 * 60 * 1000); // Check every hour
+
+        } catch (error) {
+            console.warn('[Main] Service Worker registration failed:', error);
+            // Continue without service worker - tile caching will still work via IndexedDB
+        }
+    });
+}
+
 // Global app state
 window.MarsEDL = {
     simulation: null,
