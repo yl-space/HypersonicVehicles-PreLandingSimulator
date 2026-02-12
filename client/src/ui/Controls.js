@@ -66,9 +66,11 @@ export class Controls {
             </div>
             <div class="control-group">
                 <h3 class="control-label">REFERENCE TRAJECTORY</h3>
-                <button class="camera-mode" id="toggle-reference-traj" style="width: 100%; justify-content: center;">
-                    SHOW REFERENCE
-                </button>
+                <label class="toggle-switch" for="toggle-reference-traj">
+                    <input type="checkbox" id="toggle-reference-traj">
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label" id="ref-traj-label">Off</span>
+                </label>
             </div>
         `;
         
@@ -100,16 +102,14 @@ export class Controls {
             });
         });
 
-        const refBtn = container.querySelector('#toggle-reference-traj');
-        if (refBtn) {
-            refBtn.addEventListener('click', () => {
-                refBtn.classList.toggle('active');
-                const isActive = refBtn.classList.contains('active');
-                refBtn.textContent = isActive ? 'HIDE REFERENCE' : 'SHOW REFERENCE';
+        const refToggle = container.querySelector('#toggle-reference-traj');
+        const refLabel = container.querySelector('#ref-traj-label');
+        if (refToggle) {
+            refToggle.addEventListener('change', () => {
+                const isActive = refToggle.checked;
+                if (refLabel) refLabel.textContent = isActive ? 'On' : 'Off';
                 if (this.options.onToggleReference) {
                     this.options.onToggleReference(isActive);
-                } else {
-                    console.warn('[Controls] No onToggleReference callback provided');
                 }
             });
         }

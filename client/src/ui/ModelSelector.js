@@ -1,6 +1,7 @@
 /**
  * ModelSelector.js
- * Compact UI component for switching between spacecraft models
+ * Read-only display showing the selected vehicle and trajectory for the simulation.
+ * Vehicle selection is done in the startup dialog.
  */
 
 const MODEL_OPTIONS = [
@@ -20,6 +21,10 @@ const MODEL_OPTIONS = [
     }
 ];
 
+const TRAJECTORY_OPTIONS = {
+    'msl': 'MSL (Curiosity)'
+};
+
 export class ModelSelector {
     constructor(options = {}) {
         this.container = options.container || document.body;
@@ -29,84 +34,45 @@ export class ModelSelector {
 
         this.models = MODEL_OPTIONS;
         this.modelLookup = new Map(this.models.map(model => [model.id, model]));
-        this.currentModel = options.defaultModel || 'primary';
+        this.currentModel = options.defaultModel || (window.MarsEDL?.config?.vehicle || 'primary');
+        this.currentTrajectory = window.MarsEDL?.config?.trajectory || 'msl';
         this.isSwitching = false;
 
         this.element = null;
-        this.statusEl = null;
-        this.selectEl = null;
 
         this.init();
     }
 
     init() {
         this.createElement();
-        this.setupEventListeners();
         this.refreshAvailability();
-        this.updateSelection(this.currentModel);
-        this.setStatus(`${this.getModelLabel(this.currentModel)} ready`, 'ready');
     }
 
     createElement() {
         const wrapper = document.createElement('div');
-        wrapper.className = 'model-selector-compact';
+        wrapper.className = 'sim-info-display';
+
+        const vehicleLabel = this.getModelLabel(this.currentModel);
+        const trajectoryLabel = TRAJECTORY_OPTIONS[this.currentTrajectory] || this.currentTrajectory;
+
         wrapper.innerHTML = `
-            <div class="selector-header">
-                <span class="control-label">VEHICLE</span>
-                <span class="model-status" aria-live="polite">Select vehicle</span>
+            <h3 class="control-label">SIMULATION</h3>
+            <div class="sim-info-row">
+                <span class="sim-info-key">Vehicle</span>
+                <span class="sim-info-value" id="sim-info-vehicle">${vehicleLabel}</span>
             </div>
-            <div class="model-toggle" role="group" aria-label="Vehicle model">
-                ${this.models.map(model => `
-                    <button 
-                        type="button" 
-                        class="model-chip" 
-                        data-model="${model.id}"
-                        aria-pressed="${model.id === this.currentModel}"
-                        title="${model.description}">
-                        <span class="chip-label">${model.label}</span>
-                        <span class="chip-badge">${model.badge}</span>
-                    </button>
-                `).join('')}
+            <div class="sim-info-row">
+                <span class="sim-info-key">Trajectory</span>
+                <span class="sim-info-value" id="sim-info-trajectory">${trajectoryLabel}</span>
             </div>
         `;
 
         this.container.appendChild(wrapper);
         this.element = wrapper;
-        this.statusEl = wrapper.querySelector('.model-status');
-        this.selectEl = wrapper.querySelector('#spacecraft-dropdown');
-        if (this.selectEl) {
-            this.selectEl.value = this.currentModel;
-        }
-    }
-
-    setupEventListeners() {
-        // Attach click handlers to button elements
-        const buttons = this.element.querySelectorAll('.model-chip');
-        buttons.forEach(button => {
-            button.addEventListener('click', () => {
-                const modelId = button.dataset.model;
-                if (!this.isSwitching && modelId !== this.currentModel) {
-                    this.selectModel(modelId);
-                }
-            });
-        });
     }
 
     refreshAvailability() {
         this.hasAssetLoader = !!(this.entryVehicle && this.entryVehicle.assetLoader);
-        if (!this.selectEl) return;
-
-        Array.from(this.selectEl.options).forEach(option => {
-            const config = this.modelLookup.get(option.value);
-            const unavailable = config.requiresAssetLoader && !this.hasAssetLoader;
-            option.disabled = unavailable;
-            option.dataset.disabled = unavailable ? 'true' : 'false';
-        });
-
-        // If no asset loader, disable all (we require GLTF for both models)
-        if (!this.hasAssetLoader) {
-            this.setStatus('GLTF loader unavailable', 'error');
-        }
     }
 
     async selectModel(modelId) {
@@ -116,13 +82,10 @@ export class ModelSelector {
 
         const selected = this.modelLookup.get(modelId);
         if (selected.requiresAssetLoader && !this.hasAssetLoader) {
-            this.setStatus('GLTF loader unavailable', 'error');
             return;
         }
 
         this.isSwitching = true;
-        this.updateSelection(modelId);
-        this.setStatus(`Loading ${selected.label}...`, 'loading');
 
         try {
             if (this.entryVehicle && typeof this.entryVehicle.switchModel === 'function') {
@@ -130,42 +93,33 @@ export class ModelSelector {
             }
 
             this.currentModel = modelId;
-            if (this.selectEl) {
-                this.selectEl.value = modelId;
+
+            // Update display
+            const vehicleEl = this.element?.querySelector('#sim-info-vehicle');
+            if (vehicleEl) {
+                vehicleEl.textContent = selected.label;
             }
-            this.setStatus(`${selected.label} ready`, 'ready');
 
             if (this.onModelChange) {
                 this.onModelChange(modelId);
             }
         } catch (error) {
             console.error('Error switching model:', error);
-            this.setStatus(`Failed to load ${selected.label}`, 'error');
-            this.updateSelection(this.currentModel);
         } finally {
             this.isSwitching = false;
         }
     }
 
-    updateSelection(modelId) {
-        // Update button states
-        const buttons = this.element.querySelectorAll('.model-chip');
-        buttons.forEach(button => {
-            const isSelected = button.dataset.model === modelId;
-            button.classList.toggle('active', isSelected);
-            button.setAttribute('aria-pressed', isSelected);
-        });
-    }
-
-    setStatus(message, state = 'ready') {
-        if (!this.statusEl) return;
-
-        this.statusEl.textContent = message;
-        this.statusEl.dataset.state = state;
-    }
-
     getModelLabel(modelId) {
         return this.modelLookup.get(modelId)?.label || 'Spacecraft';
+    }
+
+    static getPrimaryModel() {
+        return MODEL_OPTIONS.find(m => m.id === 'primary');
+    }
+
+    static getBackupModel() {
+        return MODEL_OPTIONS.find(m => m.id === 'backup');
     }
 
     setEntryVehicle(entryVehicle) {

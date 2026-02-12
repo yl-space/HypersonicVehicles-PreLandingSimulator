@@ -270,73 +270,52 @@ export class SimulationManager {
     }
     
     addPlanetControls() {
-        if (document.getElementById('planet-controls')) return;
-        
-        const planetControls = document.createElement('div');
-        planetControls.id = 'planet-controls';
-        planetControls.style.cssText = `
+        if (document.getElementById('planet-indicator')) return;
+
+        const indicator = document.createElement('div');
+        indicator.id = 'planet-indicator';
+        indicator.style.cssText = `
             position: absolute;
-            top: 8px;
+            top: 10px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 100;
             display: flex;
-            gap: 10px;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 14px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(8px);
+            pointer-events: none;
         `;
 
-        const EARTH_DISABLED = true; // Temporarily disable Earth until fully implemented
-        
-        ['mars', 'earth'].forEach(planet => {
-            const btn = document.createElement('button');
-            btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''} ${planet === 'earth' && EARTH_DISABLED ? 'disabled' : ''}`;
-            btn.textContent = planet.charAt(0).toUpperCase() + planet.slice(1);
-            btn.style.cssText = `
-                padding: 10px 16px;
-                font-size: 14px;
-                background-color: rgba(255, 255, 255, 0.1);
-                color: white;
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                border-radius: 25px;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                backdrop-filter: blur(10px);
+        // Planet dot + label
+        const planetName = (window.MarsEDL?.config?.planet || 'mars');
+        const planetColors = { mars: '#c0392b', earth: '#2980b9', venus: '#f39c12', titan: '#e67e22' };
+        const dotColor = planetColors[planetName] || '#c0392b';
+
+        indicator.innerHTML = `
+            <span style="
+                width: 8px; height: 8px;
+                border-radius: 50%;
+                background: ${dotColor};
+                display: inline-block;
+                box-shadow: 0 0 6px ${dotColor};
+            "></span>
+            <span style="
+                font-size: 12px;
+                color: rgba(255, 255, 255, 0.7);
                 font-family: var(--font-ui);
-                text-transform: capitalize;
-            `;
-            
-            btn.addEventListener('mouseenter', () => {
-                if (!btn.classList.contains('active')) {
-                    btn.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-                }
-            });
-            
-            btn.addEventListener('mouseleave', () => {
-                if (!btn.classList.contains('active')) {
-                    btn.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                }
-            });
-            
-            btn.addEventListener('click', () => {
-                if (!btn.classList.contains('disabled')) {
-                    this.switchPlanet(planet);
-                }
-            });
-            planetControls.appendChild(btn);
-        });
-        
-        const style = document.createElement('style');
-        style.textContent = `
-            .planet-btn.active {
-                background-color: rgba(255, 107, 107, 0.5) !important;
-                border-color: rgba(255, 107, 107, 0.8) !important;
-                font-weight: 600;
-            }
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            ">${planetName}</span>
         `;
-        document.head.appendChild(style);
-        
+
         const uiOverlay = document.getElementById('ui-overlay');
         if (uiOverlay) {
-            uiOverlay.appendChild(planetControls);
+            uiOverlay.appendChild(indicator);
         }
     }
     

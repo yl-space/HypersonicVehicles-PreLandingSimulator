@@ -160,35 +160,44 @@ function showError(message) {
  * Show welcome dialog
  */
 function showWelcomeDialog() {
+    // Available simulation options (only show what's actually implemented)
+    const planets = [
+        { value: 'mars', label: 'Mars' }
+    ];
+    const trajectories = [
+        { value: 'msl', label: 'MSL (Curiosity) - Real Data' }
+    ];
+    const vehicles = [
+        { value: 'primary', label: 'Dragon' },
+        { value: 'backup', label: 'High-L/D System' }
+    ];
+
     const dialog = document.createElement('div');
     dialog.className = 'welcome-dialog';
     dialog.innerHTML = `
         <div class="dialog-overlay"></div>
         <div class="dialog-content">
-            <h2>Entry, Descent & Landing Simulation</h2>
-            <p>Configure and launch an EDL simulation with real trajectory data, interactive controls, and live telemetry.</p>
+            <h2>Hypersonic Flight Simulator</h2>
+            <p class="dialog-subtitle">FULL PHYSICS-BASED MODELING</p>
+            <p>Configure simulation parameters and launch.</p>
 
             <div class="dialog-inputs">
                 <div class="input-group">
                     <label for="sim-planet">Planet</label>
                     <select id="sim-planet">
-                        <option value="mars" selected>Mars</option>
-                        <option value="venus" disabled>Venus (Coming Soon)</option>
-                        <option value="titan" disabled>Titan (Coming Soon)</option>
+                        ${planets.map((p, i) => `<option value="${p.value}"${i === 0 ? ' selected' : ''}>${p.label}</option>`).join('')}
                     </select>
                 </div>
                 <div class="input-group">
                     <label for="sim-trajectory">Trajectory</label>
                     <select id="sim-trajectory">
-                        <option value="msl" selected>MSL (Curiosity) - Real Data</option>
-                        <option value="custom" disabled>Custom Upload (Coming Soon)</option>
+                        ${trajectories.map((t, i) => `<option value="${t.value}"${i === 0 ? ' selected' : ''}>${t.label}</option>`).join('')}
                     </select>
                 </div>
                 <div class="input-group">
                     <label for="sim-vehicle">Vehicle Type</label>
                     <select id="sim-vehicle">
-                        <option value="primary">Dragon (Primary)</option>
-                        <option value="backup">High-L/D System (Backup)</option>
+                        ${vehicles.map((v, i) => `<option value="${v.value}"${i === 0 ? ' selected' : ''}>${v.label}</option>`).join('')}
                     </select>
                 </div>
             </div>
@@ -211,10 +220,8 @@ function showWelcomeDialog() {
     `;
 
     document.body.appendChild(dialog);
-    // CSP-safe event handler
     const startBtn = document.getElementById('start-sim-btn');
     if (startBtn) startBtn.addEventListener('click', () => window.closeWelcomeDialog());
-    // Animate in
     setTimeout(() => {
         dialog.classList.add('visible');
     }, 100);
@@ -512,11 +519,19 @@ styles.textContent = `
     }
     
     .dialog-content h2 {
-        margin-bottom: 20px;
+        margin-bottom: 4px;
         font-size: 28px;
         color: #fff;
     }
-    
+
+    .dialog-subtitle {
+        font-size: 12px;
+        color: #888;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 16px;
+    }
+
     .dialog-content h3 {
         margin: 20px 0 10px;
         color: #f60;
