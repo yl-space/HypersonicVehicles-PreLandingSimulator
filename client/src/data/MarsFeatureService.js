@@ -224,10 +224,7 @@ export class MarsFeatureService {
      */
     async _fetchFromBackendProxy() {
         try {
-            const params = new URLSearchParams({
-                minDiameter: this.minDiameter.toString(),
-                rows: '1000'
-            });
+            const params = new URLSearchParams({});
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), this.apiTimeout);

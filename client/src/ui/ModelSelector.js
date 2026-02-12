@@ -13,9 +13,9 @@ const MODEL_OPTIONS = [
     },
     {
         id: 'backup',
-        label: 'Buran',
+        label: 'High-L/D system',
         badge: 'Backup',
-        description: 'Buran GLTF model',
+        description: 'High Lift-to-Drag ratio vehicle GLTF model',
         requiresAssetLoader: true
     }
 ];
