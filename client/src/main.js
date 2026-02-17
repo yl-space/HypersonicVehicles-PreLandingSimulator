@@ -248,9 +248,12 @@ window.closeWelcomeDialog = function() {
         window.MarsEDL.simulation.entryVehicle.switchModel(vehicle);
     }
 
-    // Update mode indicator to show SIMULATION
+    // Update mode indicator to show SIMULATION and collapse rate drawer
     if (window.MarsEDL.simulation) {
         window.MarsEDL.simulation.updateModeIndicator('SIMULATION');
+        if (window.MarsEDL.simulation.timeline) {
+            window.MarsEDL.simulation.timeline.setPlaybackMode(false);
+        }
     }
 
     dialog.classList.remove('visible');

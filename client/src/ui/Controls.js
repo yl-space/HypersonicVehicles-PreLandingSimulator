@@ -525,7 +525,10 @@ export class Controls {
     
     toggleVisibility() {
         this.isVisible = !this.isVisible;
-        
+
+        // Toggle right-side vignette with the panel
+        const canvasContainer = document.getElementById('canvas-container');
+
         if (this.isVisible) {
             // Show panel - slide in from right
             this.elements.cameraControls.classList.remove('slide-out');
@@ -533,6 +536,7 @@ export class Controls {
             this.elements.iconCollapse.style.display = 'block';
             this.elements.iconExpand.style.display = 'none';
             this.elements.cameraToggleIcon.title = 'Hide controls';
+            if (canvasContainer) canvasContainer.classList.remove('vignette-right-hidden');
         } else {
             // Hide panel - slide out to right
             this.elements.cameraControls.classList.remove('slide-in');
@@ -540,6 +544,7 @@ export class Controls {
             this.elements.iconCollapse.style.display = 'none';
             this.elements.iconExpand.style.display = 'block';
             this.elements.cameraToggleIcon.title = 'Show controls';
+            if (canvasContainer) canvasContainer.classList.add('vignette-right-hidden');
         }
     }
     

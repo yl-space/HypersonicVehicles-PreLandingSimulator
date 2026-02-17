@@ -1119,6 +1119,7 @@ export class SimulationManager {
         if (this.timeline) {
             this.timeline.setScrubbingEnabled(true);
             this.timeline.setReplayAvailable(true);
+            this.timeline.setPlaybackMode(true);
         }
 
         if (this.phaseInfo) {
