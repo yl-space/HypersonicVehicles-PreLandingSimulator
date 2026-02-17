@@ -320,15 +320,25 @@ export class MarsTerrainMarkers {
     highlightFeature(name) {
         this.markers.forEach(marker => {
             if (marker.feature.name === name) {
-                marker.mesh.material.emissive = new THREE.Color(0xFFFF00);
-                marker.group.scale.setScalar(2);
+                // Store original color before highlighting
+                if (!marker._origColor) {
+                    marker._origColor = marker.mesh.material.color.getHex();
+                }
+                marker.mesh.material.color.set(0xFFFF00);
+                marker.mesh.material.opacity = 1;
+                marker.group.scale.setScalar(1.5);
             }
         });
     }
 
     clearHighlights() {
         this.markers.forEach(marker => {
-            marker.mesh.material.emissive = new THREE.Color(0x000000);
+            if (marker._origColor != null) {
+                marker.mesh.material.color.set(marker._origColor);
+                marker.mesh.material.opacity = 0.85;
+                marker._origColor = null;
+            }
+            marker.group.scale.setScalar(1);
         });
     }
 

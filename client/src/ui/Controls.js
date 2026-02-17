@@ -413,7 +413,14 @@ export class Controls {
                         Orientation Vectors
                     </label>
                 </div>
-                
+
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="show-marker-info" checked>
+                        Marker Info on Hover
+                    </label>
+                </div>
+
                 <div class="setting-separator"></div>
                 
                 <div class="setting-item">
@@ -454,6 +461,7 @@ export class Controls {
             showEffects: container.querySelector('#show-effects'),
             showLandingSite: container.querySelector('#show-landing-site'),
             showVectors: container.querySelector('#show-vectors'),
+            showMarkerInfo: container.querySelector('#show-marker-info'),
             quality: container.querySelector('#quality-setting'),
             units: container.querySelector('#units-setting')
         };

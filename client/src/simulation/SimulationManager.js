@@ -81,6 +81,14 @@ export class SimulationManager {
         this.clock = new THREE.Clock();
         this.animationId = null;
 
+        // Marker tooltip state
+        this.markerTooltipsEnabled = true;
+        this.hoveredFeature = null;
+        this.markerTooltipEl = null;
+        this._markerRaycaster = new THREE.Raycaster();
+        this._markerMouse = new THREE.Vector2();
+        this._lastRaycastTime = 0;
+
         // Initialize control values and history from configuration
         this.initializeControls();
         
@@ -541,12 +549,15 @@ export class SimulationManager {
     setupEventListeners() {
         // Window resize
         window.addEventListener('resize', () => this.handleResize());
-        
-        // Mouse click for trajectory interaction - REMOVED
-        // this.sceneManager.renderer.domElement.addEventListener('click', (e) => this.onMouseClick(e));
-        
+
         // Keyboard controls
         window.addEventListener('keydown', (e) => this.handleKeyPress(e));
+
+        // Marker hover detection
+        this.createMarkerTooltip();
+        const canvas = this.sceneManager.renderer.domElement;
+        canvas.addEventListener('pointermove', (e) => this.handleMarkerHover(e));
+        canvas.addEventListener('pointerleave', () => this.hideMarkerTooltip());
     }
     
     handleKeyPress(event) {
@@ -919,8 +930,143 @@ export class SimulationManager {
                 this.entryVehicle.setVectorsVisible(setting.value);
             }
         }
+        if (setting.type === 'showMarkerInfo') {
+            this.markerTooltipsEnabled = setting.value;
+            if (!setting.value) this.hideMarkerTooltip();
+        }
     }
-    
+
+    // ── Marker Tooltip ──────────────────────────────────────────
+
+    createMarkerTooltip() {
+        const el = document.createElement('div');
+        el.className = 'marker-tooltip';
+        el.innerHTML = `
+            <div class="marker-tooltip-name"></div>
+            <span class="marker-tooltip-type"></span>
+            <div class="marker-tooltip-coords"></div>
+            <div class="marker-tooltip-desc"></div>
+            <div class="marker-tooltip-mission"></div>
+        `;
+        document.body.appendChild(el);
+        this.markerTooltipEl = el;
+    }
+
+    handleMarkerHover(event) {
+        if (!this.markerTooltipsEnabled || !this.marsTerrainMarkers) return;
+
+        // Throttle raycasting to ~60ms
+        const now = performance.now();
+        if (now - this._lastRaycastTime < 60) return;
+        this._lastRaycastTime = now;
+
+        // Store mouse position for tooltip placement
+        this._cursorX = event.clientX;
+        this._cursorY = event.clientY;
+
+        const canvas = this.sceneManager.renderer.domElement;
+        const rect = canvas.getBoundingClientRect();
+        this._markerMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this._markerMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        this._markerRaycaster.setFromCamera(this._markerMouse, this.cameraController.camera);
+        const feature = this.marsTerrainMarkers.getFeatureAtPosition(this._markerRaycaster);
+
+        if (feature) {
+            if (!this.hoveredFeature || this.hoveredFeature.name !== feature.name) {
+                this.hoveredFeature = feature;
+                this.marsTerrainMarkers.clearHighlights();
+                this.marsTerrainMarkers.highlightFeature(feature.name);
+                this.showMarkerTooltip(feature);
+            }
+            this.updateMarkerTooltipPosition();
+        } else if (this.hoveredFeature) {
+            this.hoveredFeature = null;
+            this.marsTerrainMarkers.clearHighlights();
+            this.hideMarkerTooltip();
+        }
+    }
+
+    showMarkerTooltip(feature) {
+        const el = this.markerTooltipEl;
+        if (!el) return;
+
+        const style = feature.style || {};
+        const colorHex = style.color != null
+            ? '#' + new THREE.Color(style.color).getHexString()
+            : '#ffffff';
+
+        el.querySelector('.marker-tooltip-name').textContent = feature.name;
+
+        const typeEl = el.querySelector('.marker-tooltip-type');
+        typeEl.textContent = style.label || feature.type || 'Feature';
+        typeEl.style.background = colorHex + '30';
+        typeEl.style.color = colorHex;
+        typeEl.style.border = `1px solid ${colorHex}50`;
+
+        const lat = feature.lat != null ? feature.lat.toFixed(2) : '—';
+        const lon = feature.lon != null ? feature.lon.toFixed(2) : '—';
+        el.querySelector('.marker-tooltip-coords').textContent = `${lat}\u00B0 N, ${lon}\u00B0 E`;
+
+        const descEl = el.querySelector('.marker-tooltip-desc');
+        if (feature.description && feature.description.length > 0) {
+            descEl.textContent = feature.description.length > 120
+                ? feature.description.slice(0, 117) + '...'
+                : feature.description;
+            descEl.style.display = '';
+        } else {
+            descEl.style.display = 'none';
+        }
+
+        const missionEl = el.querySelector('.marker-tooltip-mission');
+        if (feature.type === 'LF' && feature.mission) {
+            missionEl.innerHTML =
+                `<span>${feature.mission}</span>` +
+                (feature.year ? ` (${feature.year})` : '') +
+                (feature.agency ? `<br>${feature.agency}` : '') +
+                (feature.status ? ` &mdash; ${feature.status}` : '');
+            missionEl.style.display = '';
+        } else {
+            missionEl.style.display = 'none';
+        }
+
+        el.classList.add('visible');
+    }
+
+    hideMarkerTooltip() {
+        if (this.markerTooltipEl) {
+            this.markerTooltipEl.classList.remove('visible');
+        }
+    }
+
+    updateMarkerTooltipPosition() {
+        if (!this.markerTooltipEl || !this.hoveredFeature) return;
+
+        const tooltipRect = this.markerTooltipEl.getBoundingClientRect();
+        const offset = 16;
+        const cx = this._cursorX || 0;
+        const cy = this._cursorY || 0;
+
+        // Place to the right of cursor; flip left if near right edge
+        let left = cx + offset;
+        if (left + tooltipRect.width > window.innerWidth - 8) {
+            left = cx - offset - tooltipRect.width;
+        }
+
+        // Place below cursor; flip above if near bottom edge
+        let top = cy + offset;
+        if (top + tooltipRect.height > window.innerHeight - 8) {
+            top = cy - offset - tooltipRect.height;
+        }
+
+        // Clamp to viewport
+        left = Math.max(8, Math.min(left, window.innerWidth - tooltipRect.width - 8));
+        top = Math.max(8, Math.min(top, window.innerHeight - tooltipRect.height - 8));
+
+        this.markerTooltipEl.style.left = `${left}px`;
+        this.markerTooltipEl.style.top = `${top}px`;
+    }
+
     /**
      * Handle control adjustments from PhaseInfo telemetry buttons
      * @param {string} controlId - Control identifier

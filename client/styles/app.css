@@ -2128,3 +2128,79 @@ select:focus {
     opacity: 1;
     transform: translateX(-50%) translateY(-4px);
 }
+
+/* ===========================
+   Marker Tooltip
+   =========================== */
+.marker-tooltip {
+    position: fixed;
+    z-index: 200;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 14px 18px;
+    min-width: 180px;
+    max-width: 260px;
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    font-family: var(--font-ui);
+    color: #fff;
+}
+
+.marker-tooltip.visible {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.marker-tooltip-name {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    margin-bottom: 6px;
+}
+
+.marker-tooltip-type {
+    display: inline-block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.marker-tooltip-coords {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: var(--font-data);
+    margin-bottom: 6px;
+}
+
+.marker-tooltip-desc {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.65);
+    line-height: 1.4;
+    margin-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 6px;
+}
+
+.marker-tooltip-mission {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 6px;
+    line-height: 1.5;
+}
+
+.marker-tooltip-mission span {
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 500;
+}
