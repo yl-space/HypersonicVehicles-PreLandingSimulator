@@ -46,6 +46,31 @@ body {
     background: radial-gradient(ellipse at center, #0a0a0a 0%, #000000 100%);
 }
 
+/* Full-height left-side vignette - sits between 3D canvas and UI */
+#canvas-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 45%;
+    height: 100%;
+    background: linear-gradient(
+        to right,
+        rgba(0, 0, 0, 0.7) 0%,
+        rgba(0, 0, 0, 0.5) 25%,
+        rgba(0, 0, 0, 0.25) 50%,
+        rgba(0, 0, 0, 0.06) 80%,
+        rgba(0, 0, 0, 0) 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+    transition: opacity 0.4s ease;
+}
+
+#canvas-container.vignette-hidden::after {
+    opacity: 0;
+}
+
 /* ===========================
    Loading Screen
    =========================== */
@@ -1729,6 +1754,7 @@ select {
 #ui-overlay > * {
     pointer-events: auto;
 }
+
 
 /* ===========================
    Zoom Controls

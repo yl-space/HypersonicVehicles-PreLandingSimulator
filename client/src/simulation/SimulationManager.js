@@ -270,16 +270,87 @@ export class SimulationManager {
     }
     
     addPlanetControls() {
-        if (document.getElementById('planet-indicator')) return;
+        if (document.getElementById('top-status-bar')) return;
 
-        const indicator = document.createElement('div');
-        indicator.id = 'planet-indicator';
-        indicator.style.cssText = `
+        // Container for all top-center indicators
+        const topBar = document.createElement('div');
+        topBar.id = 'top-status-bar';
+        topBar.style.cssText = `
             position: absolute;
             top: 10px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        `;
+
+        // Back button - collapses to icon, expands with label on hover
+        const backBtn = document.createElement('button');
+        backBtn.id = 'back-to-setup';
+        backBtn.title = '';
+        backBtn.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 0;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(8px);
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.6);
+            transition: all 1.5s ease;
+            padding: 0 8px;
+            overflow: hidden;
+            white-space: nowrap;
+        `;
+        backBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            <span id="back-btn-label" style="
+                max-width: 0;
+                opacity: 0;
+                overflow: hidden;
+                transition: max-width 1.5s ease, opacity 1.5s ease, margin 1.5s ease;
+                font-size: 11px;
+                font-family: var(--font-ui);
+                letter-spacing: 0.3px;
+                margin-left: 0;
+            ">Modify Inputs</span>
+        `;
+        backBtn.addEventListener('mouseenter', () => {
+            backBtn.style.background = 'rgba(0, 0, 0, 0.6)';
+            backBtn.style.borderColor = 'rgba(255, 255, 255, 0.25)';
+            backBtn.style.color = 'rgba(255, 255, 255, 0.95)';
+            const label = backBtn.querySelector('#back-btn-label');
+            if (label) {
+                label.style.maxWidth = '200px';
+                label.style.opacity = '1';
+                label.style.marginLeft = '6px';
+            }
+        });
+        backBtn.addEventListener('mouseleave', () => {
+            backBtn.style.background = 'rgba(0, 0, 0, 0.4)';
+            backBtn.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+            backBtn.style.color = 'rgba(255, 255, 255, 0.6)';
+            const label = backBtn.querySelector('#back-btn-label');
+            if (label) {
+                label.style.maxWidth = '0';
+                label.style.opacity = '0';
+                label.style.marginLeft = '0';
+            }
+        });
+        backBtn.addEventListener('click', () => {
+            if (window.showStartupDialog) {
+                window.showStartupDialog();
+            }
+        });
+
+        // Planet indicator
+        const planetIndicator = document.createElement('div');
+        planetIndicator.id = 'planet-indicator';
+        planetIndicator.style.cssText = `
             display: flex;
             align-items: center;
             gap: 6px;
@@ -291,31 +362,61 @@ export class SimulationManager {
             pointer-events: none;
         `;
 
-        // Planet dot + label
         const planetName = (window.MarsEDL?.config?.planet || 'mars');
         const planetColors = { mars: '#c0392b', earth: '#2980b9', venus: '#f39c12', titan: '#e67e22' };
         const dotColor = planetColors[planetName] || '#c0392b';
 
-        indicator.innerHTML = `
-            <span style="
-                width: 8px; height: 8px;
-                border-radius: 50%;
-                background: ${dotColor};
-                display: inline-block;
-                box-shadow: 0 0 6px ${dotColor};
-            "></span>
-            <span style="
-                font-size: 12px;
-                color: rgba(255, 255, 255, 0.7);
-                font-family: var(--font-ui);
-                text-transform: uppercase;
-                letter-spacing: 1px;
-            ">${planetName}</span>
+        planetIndicator.innerHTML = `
+            <span style="width:8px;height:8px;border-radius:50%;background:${dotColor};display:inline-block;box-shadow:0 0 6px ${dotColor};"></span>
+            <span style="font-size:12px;color:rgba(255,255,255,0.7);font-family:var(--font-ui);text-transform:uppercase;letter-spacing:1px;">${planetName}</span>
         `;
+
+        // Mode indicator
+        const modeIndicator = document.createElement('div');
+        modeIndicator.id = 'mode-indicator';
+        modeIndicator.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 14px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(8px);
+            pointer-events: none;
+        `;
+
+        modeIndicator.innerHTML = `
+            <span id="mode-dot" style="width:8px;height:8px;border-radius:50%;background:#2ecc71;display:inline-block;box-shadow:0 0 6px #2ecc71;"></span>
+            <span id="mode-label" style="font-size:12px;color:rgba(255,255,255,0.7);font-family:var(--font-ui);text-transform:uppercase;letter-spacing:1px;">SIMULATION MODE</span>
+        `;
+
+        topBar.appendChild(backBtn);
+        topBar.appendChild(planetIndicator);
+        topBar.appendChild(modeIndicator);
 
         const uiOverlay = document.getElementById('ui-overlay');
         if (uiOverlay) {
-            uiOverlay.appendChild(indicator);
+            uiOverlay.appendChild(topBar);
+        }
+    }
+
+    /**
+     * Update the mode indicator (SIMULATION vs PLAYBACK)
+     */
+    updateModeIndicator(mode) {
+        const dot = document.getElementById('mode-dot');
+        const label = document.getElementById('mode-label');
+        if (!dot || !label) return;
+
+        if (mode === 'PLAYBACK') {
+            dot.style.background = '#3498db';
+            dot.style.boxShadow = '0 0 6px #3498db';
+            label.textContent = 'PLAYBACK';
+        } else {
+            dot.style.background = '#2ecc71';
+            dot.style.boxShadow = '0 0 6px #2ecc71';
+            label.textContent = 'SIMULATION';
         }
     }
     
@@ -1023,6 +1124,9 @@ export class SimulationManager {
         if (this.phaseInfo) {
             this.phaseInfo.setReplayMode(true);
         }
+
+        // Update mode indicator to PLAYBACK
+        this.updateModeIndicator('PLAYBACK');
 
         if (this.options.onSimulationComplete) {
             this.options.onSimulationComplete();
