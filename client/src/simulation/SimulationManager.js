@@ -11,6 +11,7 @@ import { Mars } from '../components/environment/Mars.js';
 import { Earth } from '../components/environment/Earth.js';
 import { Jupiter } from '../components/environment/Jupiter.js';
 import { Stars } from '../components/environment/Stars.js';
+import { MarsTerrainMarkers } from '../components/environment/MarsTerrainMarkers.js';
 import { TrajectoryManager } from './TrajectoryManager.js';
 import { PhaseController } from './PhaseController.js';
 import { Timeline } from '../ui/Timeline.js';
@@ -48,6 +49,7 @@ export class SimulationManager {
         this.jupiter = null;
         this.currentPlanet = null;
         this.stars = null;
+        this.marsTerrainMarkers = null;
 
         // UI components
         this.timeline = null;
@@ -78,6 +80,14 @@ export class SimulationManager {
         // Animation
         this.clock = new THREE.Clock();
         this.animationId = null;
+
+        // Marker tooltip state
+        this.markerTooltipsEnabled = true;
+        this.hoveredFeature = null;
+        this.markerTooltipEl = null;
+        this._markerRaycaster = new THREE.Raycaster();
+        this._markerMouse = new THREE.Vector2();
+        this._lastRaycastTime = 0;
 
         // Initialize control values and history from configuration
         this.initializeControls();
@@ -171,9 +181,28 @@ export class SimulationManager {
         this.earth = new Earth();
         this.jupiter = new Jupiter();
 
+        // Create Mars terrain markers (craters, volcanoes, landing sites)
+        this.marsTerrainMarkers = new MarsTerrainMarkers({
+            marsRadius: this.mars.getRadius(),
+            maxVisibleFeatures: 200,
+            onFeatureHover: (feature) => {
+                if (feature) {
+                    console.log(`[SimulationManager] Hovering over: ${feature.name}`);
+                }
+            },
+            onFeatureClick: (feature) => {
+                if (feature) {
+                    console.log(`[SimulationManager] Clicked: ${feature.name} - ${feature.description || ''}`);
+                }
+            }
+        });
+
         // Start with Mars visible
         this.currentPlanet = this.mars;
         this.sceneManager.addToAllScenes(this.mars.getObject3D());
+
+        // Add terrain markers to scene
+        this.sceneManager.addToAllScenes(this.marsTerrainMarkers.getObject3D());
 
         // Create and initialize entry vehicle with asset loader for GLTF model support
         this.entryVehicle = new EntryVehicle(this.assetLoader);
@@ -249,73 +278,153 @@ export class SimulationManager {
     }
     
     addPlanetControls() {
-        if (document.getElementById('planet-controls')) return;
-        
-        const planetControls = document.createElement('div');
-        planetControls.id = 'planet-controls';
-        planetControls.style.cssText = `
+        if (document.getElementById('top-status-bar')) return;
+
+        // Container for all top-center indicators
+        const topBar = document.createElement('div');
+        topBar.id = 'top-status-bar';
+        topBar.style.cssText = `
             position: absolute;
-            top: 8px;
+            top: 10px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 100;
             display: flex;
-            gap: 10px;
+            align-items: center;
+            gap: 8px;
         `;
 
-        const EARTH_DISABLED = true; // Temporarily disable Earth until fully implemented
-        
-        ['mars', 'earth'].forEach(planet => {
-            const btn = document.createElement('button');
-            btn.className = `planet-btn ${planet === 'mars' ? 'active' : ''} ${planet === 'earth' && EARTH_DISABLED ? 'disabled' : ''}`;
-            btn.textContent = planet.charAt(0).toUpperCase() + planet.slice(1);
-            btn.style.cssText = `
-                padding: 10px 16px;
-                font-size: 14px;
-                background-color: rgba(255, 255, 255, 0.1);
-                color: white;
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                border-radius: 25px;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                backdrop-filter: blur(10px);
-                font-family: var(--font-ui);
-                text-transform: capitalize;
-            `;
-            
-            btn.addEventListener('mouseenter', () => {
-                if (!btn.classList.contains('active')) {
-                    btn.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-                }
-            });
-            
-            btn.addEventListener('mouseleave', () => {
-                if (!btn.classList.contains('active')) {
-                    btn.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                }
-            });
-            
-            btn.addEventListener('click', () => {
-                if (!btn.classList.contains('disabled')) {
-                    this.switchPlanet(planet);
-                }
-            });
-            planetControls.appendChild(btn);
-        });
-        
-        const style = document.createElement('style');
-        style.textContent = `
-            .planet-btn.active {
-                background-color: rgba(255, 107, 107, 0.5) !important;
-                border-color: rgba(255, 107, 107, 0.8) !important;
-                font-weight: 600;
-            }
+        // Back button - collapses to icon, expands with label on hover
+        const backBtn = document.createElement('button');
+        backBtn.id = 'back-to-setup';
+        backBtn.title = '';
+        backBtn.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 0;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(8px);
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.6);
+            transition: all 1.5s ease;
+            padding: 0 8px;
+            overflow: hidden;
+            white-space: nowrap;
         `;
-        document.head.appendChild(style);
-        
+        backBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            <span id="back-btn-label" style="
+                max-width: 0;
+                opacity: 0;
+                overflow: hidden;
+                transition: max-width 1.5s ease, opacity 1.5s ease, margin 1.5s ease;
+                font-size: 11px;
+                font-family: var(--font-ui);
+                letter-spacing: 0.3px;
+                margin-left: 0;
+            ">Modify Inputs</span>
+        `;
+        backBtn.addEventListener('mouseenter', () => {
+            backBtn.style.background = 'rgba(0, 0, 0, 0.6)';
+            backBtn.style.borderColor = 'rgba(255, 255, 255, 0.25)';
+            backBtn.style.color = 'rgba(255, 255, 255, 0.95)';
+            const label = backBtn.querySelector('#back-btn-label');
+            if (label) {
+                label.style.maxWidth = '200px';
+                label.style.opacity = '1';
+                label.style.marginLeft = '6px';
+            }
+        });
+        backBtn.addEventListener('mouseleave', () => {
+            backBtn.style.background = 'rgba(0, 0, 0, 0.4)';
+            backBtn.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+            backBtn.style.color = 'rgba(255, 255, 255, 0.6)';
+            const label = backBtn.querySelector('#back-btn-label');
+            if (label) {
+                label.style.maxWidth = '0';
+                label.style.opacity = '0';
+                label.style.marginLeft = '0';
+            }
+        });
+        backBtn.addEventListener('click', () => {
+            if (window.showStartupDialog) {
+                window.showStartupDialog();
+            }
+        });
+
+        // Planet indicator
+        const planetIndicator = document.createElement('div');
+        planetIndicator.id = 'planet-indicator';
+        planetIndicator.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 14px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(8px);
+            pointer-events: none;
+        `;
+
+        const planetName = (window.MarsEDL?.config?.planet || 'mars');
+        const planetColors = { mars: '#c0392b', earth: '#2980b9', venus: '#f39c12', titan: '#e67e22' };
+        const dotColor = planetColors[planetName] || '#c0392b';
+
+        planetIndicator.innerHTML = `
+            <span style="width:8px;height:8px;border-radius:50%;background:${dotColor};display:inline-block;box-shadow:0 0 6px ${dotColor};"></span>
+            <span style="font-size:12px;color:rgba(255,255,255,0.7);font-family:var(--font-ui);text-transform:uppercase;letter-spacing:1px;">${planetName}</span>
+        `;
+
+        // Mode indicator
+        const modeIndicator = document.createElement('div');
+        modeIndicator.id = 'mode-indicator';
+        modeIndicator.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 14px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(8px);
+            pointer-events: none;
+        `;
+
+        modeIndicator.innerHTML = `
+            <span id="mode-dot" style="width:8px;height:8px;border-radius:50%;background:#2ecc71;display:inline-block;box-shadow:0 0 6px #2ecc71;"></span>
+            <span id="mode-label" style="font-size:12px;color:rgba(255,255,255,0.7);font-family:var(--font-ui);text-transform:uppercase;letter-spacing:1px;">SIMULATION MODE</span>
+        `;
+
+        topBar.appendChild(backBtn);
+        topBar.appendChild(planetIndicator);
+        topBar.appendChild(modeIndicator);
+
         const uiOverlay = document.getElementById('ui-overlay');
         if (uiOverlay) {
-            uiOverlay.appendChild(planetControls);
+            uiOverlay.appendChild(topBar);
+        }
+    }
+
+    /**
+     * Update the mode indicator (SIMULATION vs PLAYBACK)
+     */
+    updateModeIndicator(mode) {
+        const dot = document.getElementById('mode-dot');
+        const label = document.getElementById('mode-label');
+        if (!dot || !label) return;
+
+        if (mode === 'PLAYBACK') {
+            dot.style.background = '#3498db';
+            dot.style.boxShadow = '0 0 6px #3498db';
+            label.textContent = 'PLAYBACK';
+        } else {
+            dot.style.background = '#2ecc71';
+            dot.style.boxShadow = '0 0 6px #2ecc71';
+            label.textContent = 'SIMULATION';
         }
     }
     
@@ -440,12 +549,15 @@ export class SimulationManager {
     setupEventListeners() {
         // Window resize
         window.addEventListener('resize', () => this.handleResize());
-        
-        // Mouse click for trajectory interaction - REMOVED
-        // this.sceneManager.renderer.domElement.addEventListener('click', (e) => this.onMouseClick(e));
-        
+
         // Keyboard controls
         window.addEventListener('keydown', (e) => this.handleKeyPress(e));
+
+        // Marker hover detection
+        this.createMarkerTooltip();
+        const canvas = this.sceneManager.renderer.domElement;
+        canvas.addEventListener('pointermove', (e) => this.handleMarkerHover(e));
+        canvas.addEventListener('pointerleave', () => this.hideMarkerTooltip());
     }
     
     handleKeyPress(event) {
@@ -596,6 +708,11 @@ export class SimulationManager {
         // Update stars
         if (this.stars) {
             this.stars.update(deltaTime);
+        }
+
+        // Update terrain markers visibility based on camera distance
+        if (this.marsTerrainMarkers && this.state.currentPlanet === 'mars') {
+            this.marsTerrainMarkers.update(this.cameraController.camera);
         }
 
         // Planet rotation removed - planets remain stationary in J2000 reference frame
@@ -813,8 +930,143 @@ export class SimulationManager {
                 this.entryVehicle.setVectorsVisible(setting.value);
             }
         }
+        if (setting.type === 'showMarkerInfo') {
+            this.markerTooltipsEnabled = setting.value;
+            if (!setting.value) this.hideMarkerTooltip();
+        }
     }
-    
+
+    // ── Marker Tooltip ──────────────────────────────────────────
+
+    createMarkerTooltip() {
+        const el = document.createElement('div');
+        el.className = 'marker-tooltip';
+        el.innerHTML = `
+            <div class="marker-tooltip-name"></div>
+            <span class="marker-tooltip-type"></span>
+            <div class="marker-tooltip-coords"></div>
+            <div class="marker-tooltip-desc"></div>
+            <div class="marker-tooltip-mission"></div>
+        `;
+        document.body.appendChild(el);
+        this.markerTooltipEl = el;
+    }
+
+    handleMarkerHover(event) {
+        if (!this.markerTooltipsEnabled || !this.marsTerrainMarkers) return;
+
+        // Throttle raycasting to ~60ms
+        const now = performance.now();
+        if (now - this._lastRaycastTime < 60) return;
+        this._lastRaycastTime = now;
+
+        // Store mouse position for tooltip placement
+        this._cursorX = event.clientX;
+        this._cursorY = event.clientY;
+
+        const canvas = this.sceneManager.renderer.domElement;
+        const rect = canvas.getBoundingClientRect();
+        this._markerMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this._markerMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        this._markerRaycaster.setFromCamera(this._markerMouse, this.cameraController.camera);
+        const feature = this.marsTerrainMarkers.getFeatureAtPosition(this._markerRaycaster);
+
+        if (feature) {
+            if (!this.hoveredFeature || this.hoveredFeature.name !== feature.name) {
+                this.hoveredFeature = feature;
+                this.marsTerrainMarkers.clearHighlights();
+                this.marsTerrainMarkers.highlightFeature(feature.name);
+                this.showMarkerTooltip(feature);
+            }
+            this.updateMarkerTooltipPosition();
+        } else if (this.hoveredFeature) {
+            this.hoveredFeature = null;
+            this.marsTerrainMarkers.clearHighlights();
+            this.hideMarkerTooltip();
+        }
+    }
+
+    showMarkerTooltip(feature) {
+        const el = this.markerTooltipEl;
+        if (!el) return;
+
+        const style = feature.style || {};
+        const colorHex = style.color != null
+            ? '#' + new THREE.Color(style.color).getHexString()
+            : '#ffffff';
+
+        el.querySelector('.marker-tooltip-name').textContent = feature.name;
+
+        const typeEl = el.querySelector('.marker-tooltip-type');
+        typeEl.textContent = style.label || feature.type || 'Feature';
+        typeEl.style.background = colorHex + '30';
+        typeEl.style.color = colorHex;
+        typeEl.style.border = `1px solid ${colorHex}50`;
+
+        const lat = feature.lat != null ? feature.lat.toFixed(2) : '—';
+        const lon = feature.lon != null ? feature.lon.toFixed(2) : '—';
+        el.querySelector('.marker-tooltip-coords').textContent = `${lat}\u00B0 N, ${lon}\u00B0 E`;
+
+        const descEl = el.querySelector('.marker-tooltip-desc');
+        if (feature.description && feature.description.length > 0) {
+            descEl.textContent = feature.description.length > 120
+                ? feature.description.slice(0, 117) + '...'
+                : feature.description;
+            descEl.style.display = '';
+        } else {
+            descEl.style.display = 'none';
+        }
+
+        const missionEl = el.querySelector('.marker-tooltip-mission');
+        if (feature.type === 'LF' && feature.mission) {
+            missionEl.innerHTML =
+                `<span>${feature.mission}</span>` +
+                (feature.year ? ` (${feature.year})` : '') +
+                (feature.agency ? `<br>${feature.agency}` : '') +
+                (feature.status ? ` &mdash; ${feature.status}` : '');
+            missionEl.style.display = '';
+        } else {
+            missionEl.style.display = 'none';
+        }
+
+        el.classList.add('visible');
+    }
+
+    hideMarkerTooltip() {
+        if (this.markerTooltipEl) {
+            this.markerTooltipEl.classList.remove('visible');
+        }
+    }
+
+    updateMarkerTooltipPosition() {
+        if (!this.markerTooltipEl || !this.hoveredFeature) return;
+
+        const tooltipRect = this.markerTooltipEl.getBoundingClientRect();
+        const offset = 16;
+        const cx = this._cursorX || 0;
+        const cy = this._cursorY || 0;
+
+        // Place to the right of cursor; flip left if near right edge
+        let left = cx + offset;
+        if (left + tooltipRect.width > window.innerWidth - 8) {
+            left = cx - offset - tooltipRect.width;
+        }
+
+        // Place below cursor; flip above if near bottom edge
+        let top = cy + offset;
+        if (top + tooltipRect.height > window.innerHeight - 8) {
+            top = cy - offset - tooltipRect.height;
+        }
+
+        // Clamp to viewport
+        left = Math.max(8, Math.min(left, window.innerWidth - tooltipRect.width - 8));
+        top = Math.max(8, Math.min(top, window.innerHeight - tooltipRect.height - 8));
+
+        this.markerTooltipEl.style.left = `${left}px`;
+        this.markerTooltipEl.style.top = `${top}px`;
+    }
+
     /**
      * Handle control adjustments from PhaseInfo telemetry buttons
      * @param {string} controlId - Control identifier
@@ -1013,11 +1265,15 @@ export class SimulationManager {
         if (this.timeline) {
             this.timeline.setScrubbingEnabled(true);
             this.timeline.setReplayAvailable(true);
+            this.timeline.setPlaybackMode(true);
         }
 
         if (this.phaseInfo) {
             this.phaseInfo.setReplayMode(true);
         }
+
+        // Update mode indicator to PLAYBACK
+        this.updateModeIndicator('PLAYBACK');
 
         if (this.options.onSimulationComplete) {
             this.options.onSimulationComplete();
@@ -1040,6 +1296,7 @@ export class SimulationManager {
         this.entryVehicle.dispose();
         this.trajectoryManager.dispose();
         if (this.mars) this.mars.dispose();
+        if (this.marsTerrainMarkers) this.marsTerrainMarkers.dispose();
         if (this.stars) this.stars.dispose();
         
         // Dispose UI

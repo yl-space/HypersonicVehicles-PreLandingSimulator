@@ -12,6 +12,8 @@ import compression from 'compression';
 import multer from 'multer';
 import winston from 'winston';
 import proxy from 'express-http-proxy';
+import JSZip from 'jszip';
+import { XMLParser } from 'fast-xml-parser';
 
 // Import API routes
 import trajectoriesAPI from './api/trajectories.js';
@@ -55,7 +57,7 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://www.googletagmanager.com", "https://esm.sh", "https://cdn.jsdelivr.net"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             imgSrc: ["'self'", "data:", "blob:", "https:", "http://localhost:8000"],
-            connectSrc: ["'self'", "http://localhost:8000", "https://unpkg.com", "https://www.google-analytics.com", "https://esm.sh", "https://cdn.jsdelivr.net"],
+            connectSrc: ["'self'", "http://localhost:8000", "https://unpkg.com", "https://www.google-analytics.com", "https://esm.sh", "https://cdn.jsdelivr.net", "https://planetarynames.wr.usgs.gov"],
             fontSrc: ["'self'", "data:", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
             objectSrc: ["'none'"],
             mediaSrc: ["'self'"],
@@ -156,6 +158,261 @@ app.use('/sim', proxy(SIM_SERVER_URL, {
         });
     }
 }));
+
+// Mars features cache (refreshed daily from USGS official data)
+let marsFeatureCache = {
+    data: null,
+    lastFetched: null,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+};
+
+/**
+ * Fetch and parse official USGS Mars nomenclature data
+ * Source: https://planetarynames.wr.usgs.gov/GIS_Downloads
+ * Data is updated nightly by USGS
+ */
+async function fetchUSGSMarsData() {
+    const USGS_KMZ_URL = 'https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/MARS_nomenclature_center_pts.kmz';
+
+    logger.info('Fetching official USGS Mars nomenclature data...');
+
+    const response = await fetch(USGS_KMZ_URL, {
+        headers: {
+            'User-Agent': 'HSVL-Simulation/1.0 (Educational Mars Visualization)'
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch USGS data: ${response.status}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const zip = await JSZip.loadAsync(arrayBuffer);
+
+    // Find the KML file inside the KMZ
+    const kmlFile = Object.keys(zip.files).find(name => name.endsWith('.kml'));
+    if (!kmlFile) {
+        throw new Error('No KML file found in KMZ archive');
+    }
+
+    const kmlContent = await zip.files[kmlFile].async('string');
+
+    // Parse the KML XML
+    const parser = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: '@_'
+    });
+    const kmlData = parser.parse(kmlContent);
+
+    // Extract features from KML structure
+    const features = [];
+    const placemarks = extractPlacemarks(kmlData);
+
+    // Feature type mapping based on USGS nomenclature
+    const typeMap = {
+        'crater': 'AA', 'craters': 'AA',
+        'mons': 'MO', 'montes': 'MO',
+        'vallis': 'VA', 'valles': 'VA',
+        'chasma': 'CH', 'chasmata': 'CH',
+        'planitia': 'PL', 'planitiae': 'PL',
+        'planum': 'PM', 'plana': 'PM',
+        'tholus': 'TH', 'tholi': 'TH',
+        'patera': 'PA', 'paterae': 'PA',
+        'terra': 'TE', 'terrae': 'TE',
+        'fossa': 'FO', 'fossae': 'FO',
+        'dorsum': 'DO', 'dorsa': 'DO',
+        'labyrinthus': 'LA',
+        'mensa': 'ME', 'mensae': 'ME',
+        'scopulus': 'SC', 'scopuli': 'SC',
+        'catena': 'CA', 'catenae': 'CA',
+        'collis': 'CO', 'colles': 'CO',
+        'fluctus': 'FL', 'fluctūs': 'FL',
+        'rupes': 'RU', 'rupēs': 'RU',
+        'sulcus': 'SU', 'sulci': 'SU',
+        'undae': 'UN',
+        'vastitas': 'VS'
+    };
+
+    for (const placemark of placemarks) {
+        try {
+            const name = placemark.name || '';
+            const description = placemark.description || '';
+            const folder = placemark.folder || '';
+            const coordinates = placemark.coordinates;
+
+            if (!coordinates || !name) continue;
+
+            // Parse coordinates (KML format: lon,lat,altitude)
+            const [lonStr, latStr] = coordinates.split(',');
+            const lon = parseFloat(lonStr);
+            const lat = parseFloat(latStr);
+
+            if (isNaN(lat) || isNaN(lon)) continue;
+
+            // Determine feature type from folder name first, then name, then description
+            let type = null;
+            const folderLower = folder.toLowerCase();
+            const nameLower = name.toLowerCase();
+            const descLower = description.toLowerCase();
+
+            // Check folder name first (most reliable - USGS organizes by type)
+            for (const [keyword, code] of Object.entries(typeMap)) {
+                if (folderLower.includes(keyword)) {
+                    type = code;
+                    break;
+                }
+            }
+
+            // If not found in folder, check name and description
+            if (!type) {
+                for (const [keyword, code] of Object.entries(typeMap)) {
+                    if (nameLower.includes(keyword) || descLower.includes(keyword)) {
+                        type = code;
+                        break;
+                    }
+                }
+            }
+
+            // Default to Crater (AA) for unclassified features
+            // Craters are the most common feature type on Mars
+            if (!type) {
+                type = 'AA';
+            }
+
+            // Extract diameter from description if available
+            let diameter = 0;
+            const diamMatch = description.match(/diameter[:\s]*(\d+(?:\.\d+)?)/i);
+            if (diamMatch) {
+                diameter = parseFloat(diamMatch[1]);
+            }
+
+            features.push({
+                name,
+                lat,
+                lon,
+                diameter,
+                type,
+                description: description.replace(/<[^>]*>/g, '').trim(),
+                source: 'USGS/IAU Planetary Nomenclature'
+            });
+        } catch (e) {
+            // Skip malformed entries
+        }
+    }
+
+    logger.info(`Parsed ${features.length} features from USGS official data`);
+    return features;
+}
+
+/**
+ * Recursively extract placemarks from KML structure, preserving folder hierarchy
+ */
+function extractPlacemarks(obj, placemarks = [], currentFolder = '') {
+    if (!obj || typeof obj !== 'object') return placemarks;
+
+    // Track current folder name for feature type classification
+    let folderName = currentFolder;
+    if (obj.name && typeof obj.name === 'string') {
+        // Check if this is a folder (not a placemark)
+        if (obj.Folder || obj.Placemark) {
+            folderName = obj.name;
+        }
+    }
+
+    if (obj.Placemark) {
+        const pms = Array.isArray(obj.Placemark) ? obj.Placemark : [obj.Placemark];
+        for (const pm of pms) {
+            const placemark = {
+                name: pm.name || '',
+                description: pm.description || '',
+                folder: folderName // Store the parent folder name
+            };
+
+            // Extract coordinates from Point geometry
+            if (pm.Point && pm.Point.coordinates) {
+                placemark.coordinates = pm.Point.coordinates.toString().trim();
+            }
+
+            if (placemark.coordinates) {
+                placemarks.push(placemark);
+            }
+        }
+    }
+
+    // Recurse into nested Folders
+    if (obj.Folder) {
+        const folders = Array.isArray(obj.Folder) ? obj.Folder : [obj.Folder];
+        for (const folder of folders) {
+            extractPlacemarks(folder, placemarks, folder.name || folderName);
+        }
+    }
+
+    // Recurse into Document
+    if (obj.Document) {
+        extractPlacemarks(obj.Document, placemarks, folderName);
+    }
+
+    // Recurse into kml root
+    if (obj.kml) {
+        extractPlacemarks(obj.kml, placemarks, folderName);
+    }
+
+    return placemarks;
+}
+
+// Proxy to USGS Planetary Nomenclature (fetches official GIS data)
+app.get('/api/mars-features', async (req, res) => {
+    try {
+        const { minDiameter = 0 } = req.query;
+        const minDiam = parseFloat(minDiameter);
+
+        // Check cache validity
+        const now = Date.now();
+        if (!marsFeatureCache.data ||
+            !marsFeatureCache.lastFetched ||
+            (now - marsFeatureCache.lastFetched) > marsFeatureCache.maxAge) {
+
+            try {
+                marsFeatureCache.data = await fetchUSGSMarsData();
+                marsFeatureCache.lastFetched = now;
+            } catch (fetchError) {
+                logger.error('Failed to fetch USGS data:', fetchError);
+
+                // If we have stale cache data, use it
+                if (marsFeatureCache.data) {
+                    logger.info('Using stale cache data');
+                } else {
+                    throw fetchError;
+                }
+            }
+        }
+
+        // Filter by minimum diameter if specified
+        let features = marsFeatureCache.data || [];
+        if (minDiam > 0) {
+            features = features.filter(f => (f.diameter || 0) >= minDiam);
+        }
+
+        logger.info(`Returning ${features.length} Mars features (minDiameter: ${minDiam})`);
+        res.json({
+            success: true,
+            count: features.length,
+            source: 'USGS/IAU Planetary Nomenclature (Official)',
+            dataUrl: 'https://planetarynames.wr.usgs.gov/',
+            timestamp: new Date().toISOString(),
+            cacheAge: marsFeatureCache.lastFetched ? Math.round((now - marsFeatureCache.lastFetched) / 1000) : null,
+            features
+        });
+
+    } catch (error) {
+        logger.error('Error fetching Mars features:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            source: 'USGS/IAU Planetary Nomenclature'
+        });
+    }
+});
 
 // API Routes
 app.use('/api/trajectories', trajectoriesAPI);

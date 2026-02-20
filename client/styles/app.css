@@ -46,6 +46,56 @@ body {
     background: radial-gradient(ellipse at center, #0a0a0a 0%, #000000 100%);
 }
 
+/* Full-height left-side vignette - sits between 3D canvas and UI */
+#canvas-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 45%;
+    height: 100%;
+    background: linear-gradient(
+        to right,
+        rgba(0, 0, 0, 0.7) 0%,
+        rgba(0, 0, 0, 0.5) 25%,
+        rgba(0, 0, 0, 0.25) 50%,
+        rgba(0, 0, 0, 0.06) 80%,
+        rgba(0, 0, 0, 0) 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+    transition: opacity 0.4s ease;
+}
+
+#canvas-container.vignette-hidden::after {
+    opacity: 0;
+}
+
+/* Full-height right-side vignette - mirrors left vignette for right controls */
+#canvas-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 30%;
+    height: 100%;
+    background: linear-gradient(
+        to left,
+        rgba(0, 0, 0, 0.7) 0%,
+        rgba(0, 0, 0, 0.5) 25%,
+        rgba(0, 0, 0, 0.25) 50%,
+        rgba(0, 0, 0, 0.06) 80%,
+        rgba(0, 0, 0, 0) 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+    transition: opacity 0.4s ease;
+}
+
+#canvas-container.vignette-right-hidden::before {
+    opacity: 0;
+}
+
 /* ===========================
    Loading Screen
    =========================== */
@@ -243,6 +293,30 @@ body {
     align-items: center;
     gap: 16px;
     flex-direction: row;
+    overflow: visible;
+}
+
+/* Rate drawer - collapses behind timeline, expands upward in playback mode */
+.rate-drawer {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(100%);
+    opacity: 0;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(50px);
+    -webkit-backdrop-filter: blur(50px);
+    padding: 8px 16px;
+    border-radius: 12px 12px 0 0;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
+    z-index: -1;
+}
+
+.rate-drawer.expanded {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .timeline-controls {
@@ -704,11 +778,11 @@ body {
 
 .camera-controls {
     position: relative;
-    background: rgba(0, 0, 0, 0.35);
+    background: none;
     padding: 16px;
     border-radius: 10px;
-    backdrop-filter: blur(18px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: none;
+    border: none;
     width: 230px;
     display: flex;
     flex-direction: column;
@@ -783,6 +857,92 @@ body {
     color: #888;
     padding: 5px;
     font-family: var(--font-data);
+}
+
+/* Toggle switch for reference trajectory */
+.toggle-switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 6px 0;
+    user-select: none;
+}
+
+.toggle-switch input[type="checkbox"] {
+    display: none;
+}
+
+.toggle-slider {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    transition: all 0.25s ease;
+    flex-shrink: 0;
+}
+
+.toggle-slider::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transition: all 0.25s ease;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: rgba(255, 102, 0, 0.4);
+    border-color: rgba(255, 102, 0, 0.6);
+}
+
+.toggle-switch input:checked + .toggle-slider::after {
+    left: 20px;
+    background: #f60;
+    box-shadow: 0 0 6px rgba(255, 102, 0, 0.5);
+}
+
+.toggle-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+/* Simulation info display (replaces vehicle buttons) */
+.sim-info-display {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.sim-info-display .control-label {
+    margin-bottom: 8px;
+}
+
+.sim-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.sim-info-key {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sim-info-value {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 500;
 }
 
 .model-selector-compact {
@@ -1644,6 +1804,7 @@ select {
     pointer-events: auto;
 }
 
+
 /* ===========================
    Zoom Controls
    =========================== */
@@ -1966,4 +2127,80 @@ select:focus {
 .info-icon:focus .info-tooltip {
     opacity: 1;
     transform: translateX(-50%) translateY(-4px);
+}
+
+/* ===========================
+   Marker Tooltip
+   =========================== */
+.marker-tooltip {
+    position: fixed;
+    z-index: 200;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 14px 18px;
+    min-width: 180px;
+    max-width: 260px;
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    font-family: var(--font-ui);
+    color: #fff;
+}
+
+.marker-tooltip.visible {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.marker-tooltip-name {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    margin-bottom: 6px;
+}
+
+.marker-tooltip-type {
+    display: inline-block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.marker-tooltip-coords {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: var(--font-data);
+    margin-bottom: 6px;
+}
+
+.marker-tooltip-desc {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.65);
+    line-height: 1.4;
+    margin-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 6px;
+}
+
+.marker-tooltip-mission {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 6px;
+    line-height: 1.5;
+}
+
+.marker-tooltip-mission span {
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 500;
 }

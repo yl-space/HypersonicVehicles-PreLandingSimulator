@@ -958,7 +958,7 @@ export class EntryVehicle {
     static getAvailableModels() {
         return [
             { id: 'primary', name: 'Dragon Spacecraft (GLTF)', requiresAssetLoader: true },
-            { id: 'backup', name: 'Buran Spacecraft (GLTF)', requiresAssetLoader: true }
+            { id: 'backup', name: 'High-L/D System (GLTF)', requiresAssetLoader: true }
         ];
     }
 

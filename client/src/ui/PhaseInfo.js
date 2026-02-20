@@ -428,7 +428,10 @@ export class PhaseInfo {
     
     toggleVisibility() {
         this.isVisible = !this.isVisible;
-        
+
+        // Toggle left-side vignette with the panel
+        const canvasContainer = document.getElementById('canvas-container');
+
         if (this.isVisible) {
             // Show panel - slide in from left
             this.options.container.classList.remove('hidden');
@@ -438,6 +441,7 @@ export class PhaseInfo {
             this.elements.iconExpand.style.display = 'none';
             this.elements.toggleIcon.title = 'Hide panel';
             this.elements.swapIcon.style.display = 'flex';
+            if (canvasContainer) canvasContainer.classList.remove('vignette-hidden');
         } else {
             // Hide panel - slide out to left
             this.elements.contentWrapper.classList.remove('slide-in');
@@ -446,6 +450,7 @@ export class PhaseInfo {
             this.elements.iconExpand.style.display = 'block';
             this.elements.toggleIcon.title = 'Show panel';
             this.elements.swapIcon.style.display = 'none';
+            if (canvasContainer) canvasContainer.classList.add('vignette-hidden');
         }
     }
     

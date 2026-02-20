@@ -4,6 +4,27 @@
 
 import { SimulationManager } from './simulation/SimulationManager.js';
 
+// Register Service Worker for tile caching
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', async () => {
+        try {
+            const registration = await navigator.serviceWorker.register('/sw-tiles.js', {
+                scope: '/'
+            });
+            console.log('[Main] Service Worker registered:', registration.scope);
+
+            // Check for updates periodically
+            setInterval(() => {
+                registration.update();
+            }, 60 * 60 * 1000); // Check every hour
+
+        } catch (error) {
+            console.warn('[Main] Service Worker registration failed:', error);
+            // Continue without service worker - tile caching will still work via IndexedDB
+        }
+    });
+}
+
 // Global app state
 window.MarsEDL = {
     simulation: null,
@@ -62,10 +83,8 @@ async function init() {
         // Hide loading screen
         hideLoadingScreen();
 
-        // Show welcome dialog
-        if (!hasSeenWelcome()) {
-            showWelcomeDialog();
-        }
+        // Show welcome dialog (always show for user to configure simulation)
+        showWelcomeDialog();
         
         // Auto-play if specified
         if (getUrlParam('autoplay') === 'true') {
@@ -141,29 +160,48 @@ function showError(message) {
  * Show welcome dialog
  */
 function showWelcomeDialog() {
+    // Available simulation options (only show what's actually implemented)
+    const planets = [
+        { value: 'mars', label: 'Mars' }
+    ];
+    const trajectories = [
+        { value: 'msl', label: 'MSL (Curiosity) - Real Data' }
+    ];
+    const vehicles = [
+        { value: 'primary', label: 'Dragon' },
+        { value: 'backup', label: 'High-L/D System' }
+    ];
+
     const dialog = document.createElement('div');
     dialog.className = 'welcome-dialog';
     dialog.innerHTML = `
         <div class="dialog-overlay"></div>
         <div class="dialog-content">
-            <h2>Mars Entry, Descent & Landing Simulation</h2>
-            <p>Experience the "7 Minutes of Terror" as we simulate the Mars Science Laboratory's entry into the Martian atmosphere.</p>
-            
-            <div class="dialog-features">
-                <div class="feature">
-                    <strong>🚀 Real Trajectory Data</strong>
-                    <p>Based on actual MSL mission data</p>
+            <h2>Hypersonic Flight Simulator</h2>
+            <p class="dialog-subtitle">FULL PHYSICS-BASED MODELING</p>
+            <p>Configure simulation parameters and launch.</p>
+
+            <div class="dialog-inputs">
+                <div class="input-group">
+                    <label for="sim-planet">Planet</label>
+                    <select id="sim-planet">
+                        ${planets.map((p, i) => `<option value="${p.value}"${i === 0 ? ' selected' : ''}>${p.label}</option>`).join('')}
+                    </select>
                 </div>
-                <div class="feature">
-                    <strong>🎮 Interactive Controls</strong>
-                    <p>Multiple camera modes and playback controls</p>
+                <div class="input-group">
+                    <label for="sim-trajectory">Trajectory</label>
+                    <select id="sim-trajectory">
+                        ${trajectories.map((t, i) => `<option value="${t.value}"${i === 0 ? ' selected' : ''}>${t.label}</option>`).join('')}
+                    </select>
                 </div>
-                <div class="feature">
-                    <strong>📊 Live Telemetry</strong>
-                    <p>Real-time altitude, velocity, and phase data</p>
+                <div class="input-group">
+                    <label for="sim-vehicle">Vehicle Type</label>
+                    <select id="sim-vehicle">
+                        ${vehicles.map((v, i) => `<option value="${v.value}"${i === 0 ? ' selected' : ''}>${v.label}</option>`).join('')}
+                    </select>
                 </div>
             </div>
-            
+
             <div class="dialog-controls">
                 <h3>Controls:</h3>
                 <ul>
@@ -174,21 +212,16 @@ function showWelcomeDialog() {
                     <li><kbd>Mouse Wheel</kbd> - Zoom</li>
                 </ul>
             </div>
-            
+
             <div class="dialog-actions">
-                <button class="btn-primary" id="start-sim-btn">Start Simulation</button>
-                <label>
-                    <input type="checkbox" id="dont-show-again"> Don't show again
-                </label>
+                <button class="btn-primary" id="start-sim-btn">Launch Simulation</button>
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(dialog);
-    // CSP-safe event handler
     const startBtn = document.getElementById('start-sim-btn');
     if (startBtn) startBtn.addEventListener('click', () => window.closeWelcomeDialog());
-    // Animate in
     setTimeout(() => {
         dialog.classList.add('visible');
     }, 100);
@@ -199,12 +232,30 @@ function showWelcomeDialog() {
  */
 window.closeWelcomeDialog = function() {
     const dialog = document.querySelector('.welcome-dialog');
-    const dontShowAgain = document.getElementById('dont-show-again').checked;
-    
-    if (dontShowAgain) {
-        localStorage.setItem('MarsEDL_hideWelcome', 'true');
+
+    // Read user selections
+    const planet = document.getElementById('sim-planet')?.value || 'mars';
+    const trajectory = document.getElementById('sim-trajectory')?.value || 'msl';
+    const vehicle = document.getElementById('sim-vehicle')?.value || 'primary';
+
+    // Store selections in global config
+    window.MarsEDL.config.planet = planet;
+    window.MarsEDL.config.trajectory = trajectory;
+    window.MarsEDL.config.vehicle = vehicle;
+
+    // Apply vehicle selection if simulation is ready
+    if (window.MarsEDL.simulation && window.MarsEDL.simulation.entryVehicle) {
+        window.MarsEDL.simulation.entryVehicle.switchModel(vehicle);
     }
-    
+
+    // Update mode indicator to show SIMULATION and collapse rate drawer
+    if (window.MarsEDL.simulation) {
+        window.MarsEDL.simulation.updateModeIndicator('SIMULATION');
+        if (window.MarsEDL.simulation.timeline) {
+            window.MarsEDL.simulation.timeline.setPlaybackMode(false);
+        }
+    }
+
     dialog.classList.remove('visible');
     setTimeout(() => {
         dialog.remove();
@@ -213,11 +264,17 @@ window.closeWelcomeDialog = function() {
 };
 
 /**
- * Check if user has seen welcome
+ * Show startup dialog again (Back button handler)
  */
-function hasSeenWelcome() {
-    return localStorage.getItem('MarsEDL_hideWelcome') === 'true';
-}
+window.showStartupDialog = function() {
+    // Pause simulation
+    if (window.MarsEDL.simulation) {
+        window.MarsEDL.simulation.pause();
+    }
+
+    // Show the welcome dialog again
+    showWelcomeDialog();
+};
 
 /**
  * Show completion dialog
@@ -483,30 +540,92 @@ styles.textContent = `
     }
     
     .dialog-content h2 {
-        margin-bottom: 20px;
+        margin-bottom: 4px;
         font-size: 28px;
         color: #fff;
     }
-    
+
+    .dialog-subtitle {
+        font-size: 12px;
+        color: #888;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 16px;
+    }
+
     .dialog-content h3 {
         margin: 20px 0 10px;
         color: #f60;
         font-size: 18px;
     }
     
+    .dialog-inputs {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+        margin: 24px 0;
+    }
+
+    .input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .input-group label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #f60;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .input-group select {
+        padding: 10px 14px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 6px;
+        color: #fff;
+        font-size: 14px;
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23999' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+    }
+
+    .input-group select:hover {
+        border-color: rgba(255, 102, 0, 0.5);
+    }
+
+    .input-group select:focus {
+        outline: none;
+        border-color: #f60;
+        box-shadow: 0 0 0 2px rgba(255, 102, 0, 0.2);
+    }
+
+    .input-group select option {
+        background: #1a1a1a;
+        color: #fff;
+    }
+
+    .input-group select option:disabled {
+        color: #666;
+    }
+
     .dialog-features {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 20px;
         margin: 30px 0;
     }
-    
+
     .feature {
         padding: 20px;
         background: rgba(255, 255, 255, 0.05);
         border-radius: 8px;
     }
-    
+
     .feature strong {
         display: block;
         margin-bottom: 10px;
