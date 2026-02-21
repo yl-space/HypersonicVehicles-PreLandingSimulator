@@ -33,6 +33,19 @@ export class Timeline {
 
     createDOM() {
         const html = `
+            <div class="rate-drawer" id="rate-drawer">
+                <div class="playback-rate">
+                    <span class="rate-label">RATE</span>
+                    <div class="rate-buttons" id="rate-buttons">
+                        <button class="rate-button" data-rate="0.25">0.25</button>
+                        <button class="rate-button" data-rate="0.5">0.5</button>
+                        <button class="rate-button active" data-rate="1">1</button>
+                        <button class="rate-button" data-rate="2">2</button>
+                        <button class="rate-button" data-rate="3">3</button>
+                    </div>
+                    <span class="rate-label">SEC(S)/SEC</span>
+                </div>
+            </div>
             <div class="timeline-controls">
                 <button class="play-button" id="play-button">
                     <svg width="24" height="24" viewBox="0 0 24 24">
@@ -51,18 +64,6 @@ export class Timeline {
 
                 <div class="timeline-info">
                     <span class="current-time" id="current-time">Feb 18, 2021 03:48:41 pm</span>
-                    <span class="separator">|</span>
-                    <div class="playback-rate">
-                        <span class="rate-label">RATE</span>
-                        <div class="rate-buttons" id="rate-buttons">
-                            <button class="rate-button" data-rate="0.25">0.25</button>
-                            <button class="rate-button" data-rate="0.5">0.5</button>
-                            <button class="rate-button active" data-rate="1">1</button>
-                            <button class="rate-button" data-rate="2">2</button>
-                            <button class="rate-button" data-rate="3">3</button>
-                        </div>
-                        <span class="rate-label">SEC(S)/SEC</span>
-                    </div>
                 </div>
             </div>
 
@@ -87,6 +88,7 @@ export class Timeline {
             pauseIcon: this.options.container.querySelector('.pause-icon'),
             currentTime: this.options.container.querySelector('#current-time'),
             rateButtons: this.options.container.querySelector('#rate-buttons'),
+            rateDrawer: this.options.container.querySelector('#rate-drawer'),
             progressBar: this.options.container.querySelector('#timeline-progress-bar'),
             progress: this.options.container.querySelector('#timeline-progress'),
             handle: this.options.container.querySelector('#timeline-handle'),
@@ -411,5 +413,15 @@ export class Timeline {
     setReplayAvailable(isAvailable) {
         if (!this.elements.resetButton) return;
         this.elements.resetButton.disabled = !isAvailable;
+    }
+
+    /**
+     * Show or hide the rate drawer based on playback mode
+     * @param {boolean} isPlayback - true to expand the rate drawer, false to collapse
+     */
+    setPlaybackMode(isPlayback) {
+        if (this.elements.rateDrawer) {
+            this.elements.rateDrawer.classList.toggle('expanded', isPlayback);
+        }
     }
 }

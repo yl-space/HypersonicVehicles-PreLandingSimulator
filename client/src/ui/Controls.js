@@ -413,7 +413,14 @@ export class Controls {
                         Orientation Vectors
                     </label>
                 </div>
-                
+
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="show-marker-info" checked>
+                        Marker Info on Hover
+                    </label>
+                </div>
+
                 <div class="setting-separator"></div>
                 
                 <div class="setting-item">
@@ -454,6 +461,7 @@ export class Controls {
             showEffects: container.querySelector('#show-effects'),
             showLandingSite: container.querySelector('#show-landing-site'),
             showVectors: container.querySelector('#show-vectors'),
+            showMarkerInfo: container.querySelector('#show-marker-info'),
             quality: container.querySelector('#quality-setting'),
             units: container.querySelector('#units-setting')
         };
@@ -525,7 +533,10 @@ export class Controls {
     
     toggleVisibility() {
         this.isVisible = !this.isVisible;
-        
+
+        // Toggle right-side vignette with the panel
+        const canvasContainer = document.getElementById('canvas-container');
+
         if (this.isVisible) {
             // Show panel - slide in from right
             this.elements.cameraControls.classList.remove('slide-out');
@@ -533,6 +544,7 @@ export class Controls {
             this.elements.iconCollapse.style.display = 'block';
             this.elements.iconExpand.style.display = 'none';
             this.elements.cameraToggleIcon.title = 'Hide controls';
+            if (canvasContainer) canvasContainer.classList.remove('vignette-right-hidden');
         } else {
             // Hide panel - slide out to right
             this.elements.cameraControls.classList.remove('slide-in');
@@ -540,6 +552,7 @@ export class Controls {
             this.elements.iconCollapse.style.display = 'none';
             this.elements.iconExpand.style.display = 'block';
             this.elements.cameraToggleIcon.title = 'Show controls';
+            if (canvasContainer) canvasContainer.classList.add('vignette-right-hidden');
         }
     }
     
