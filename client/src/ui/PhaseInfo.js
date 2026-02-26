@@ -248,67 +248,17 @@ export class PhaseInfo {
         this.telemetryElements = {};
         this.controlButtons = {}; // Store button references for enabling/disabling
         
-        // Add dynamic control cells
+        // Add dynamic control cells (read-only — steppers live in the timeline bar)
         Object.keys(CONTROLS_CONFIG).forEach(controlId => {
             const config = CONTROLS_CONFIG[controlId];
             const cell = document.createElement('div');
             cell.className = 'telemetry-cell';
-            
-            // Check if this is a slider-type control (NUMBER or ANGLE)
-            const isSliderControl = config.type === 'number' || config.type === 'angle';
-            
-            if (isSliderControl) {
-                // Use left/right arrows for angles, up/down for numbers
-                const isAngle = config.type === 'angle';
-                
-                // Arrow SVGs based on control type
-                const decreaseArrow = isAngle 
-                    ? '<path d="M15 19l-7-7 7-7"/>'  // Left arrow
-                    : '<path d="M7 10l5 5 5-5z"/>';  // Down arrow
-                    
-                const increaseArrow = isAngle
-                    ? '<path d="M9 5l7 7-7 7"/>'     // Right arrow
-                    : '<path d="M7 14l5-5 5 5z"/>';  // Up arrow
-                
-                // Create cell with arrow buttons for slider controls
-                cell.innerHTML = `
-                    <span class="cell-label">${config.label}</span>
-                    <div class="cell-value-controls">
-                        <button class="cell-arrow-btn ${isAngle ? 'cell-arrow-left' : 'cell-arrow-down'}" data-control-id="${controlId}" data-direction="decrease" title="Decrease ${config.label}">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                                ${decreaseArrow}
-                            </svg>
-                        </button>
-                        <span class="cell-value" id="${controlId}-value">0.0${config.unit}</span>
-                        <button class="cell-arrow-btn ${isAngle ? 'cell-arrow-right' : 'cell-arrow-up'}" data-control-id="${controlId}" data-direction="increase" title="Increase ${config.label}">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                                ${increaseArrow}
-                            </svg>
-                        </button>
-                    </div>
-                `;
-                telemetryGrid.appendChild(cell);
-                
-                // Store element references
-                this.telemetryElements[controlId] = document.getElementById(`${controlId}-value`);
-                
-                // Store button references
-                const decreaseBtn = cell.querySelector('[data-direction="decrease"]');
-                const increaseBtn = cell.querySelector('[data-direction="increase"]');
-                this.controlButtons[controlId] = { decreaseBtn, increaseBtn };
-                
-                // Add event listeners for continuous hold
-                this.setupContinuousButton(decreaseBtn, controlId, 'decrease', config);
-                this.setupContinuousButton(increaseBtn, controlId, 'increase', config);
-            } else {
-                // Regular cell without buttons for non-slider controls
-                cell.innerHTML = `
-                    <span class="cell-label">${config.label}</span>
-                    <span class="cell-value" id="${controlId}-value">0.0${config.unit}</span>
-                `;
-                telemetryGrid.appendChild(cell);
-                this.telemetryElements[controlId] = document.getElementById(`${controlId}-value`);
-            }
+            cell.innerHTML = `
+                <span class="cell-label">${config.label}</span>
+                <span class="cell-value" id="${controlId}-value">0.0${config.unit}</span>
+            `;
+            telemetryGrid.appendChild(cell);
+            this.telemetryElements[controlId] = document.getElementById(`${controlId}-value`);
         });
         
         // Add Mach cell
