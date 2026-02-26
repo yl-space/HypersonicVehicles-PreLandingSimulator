@@ -27,8 +27,8 @@ const COLOR_MAJOR    = 0xffffff;  // standard grid lines
 const COLOR_SPECIAL  = 0xffffff;  // equator + prime meridian (same hue, higher opacity)
 
 // Opacities
-const OPACITY_MAJOR   = 0.14;  // regular grid lines
-const OPACITY_SPECIAL = 0.30;  // equator / prime meridian
+const OPACITY_MAJOR   = 0.30;  // regular grid lines
+const OPACITY_SPECIAL = 0.55;  // equator / prime meridian
 
 // Elevate lines 0.3 % above the surface to avoid z-fighting with tiles
 const SURFACE_OFFSET = 1.003;

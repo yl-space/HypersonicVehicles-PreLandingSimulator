@@ -311,12 +311,79 @@ body {
     border-radius: 12px 12px 0 0;
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
     z-index: -1;
+    /* Lay out all drawer content (rate + dividers + steppers) in one row */
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    white-space: nowrap;
 }
 
 .rate-drawer.expanded {
     transform: translateX(-50%) translateY(0);
     opacity: 1;
     pointer-events: auto;
+}
+
+/* ── Timeline control steppers (Bank Angle / AoA) ── */
+.timeline-ctrl-divider {
+    width: 1px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.2);
+    flex-shrink: 0;
+}
+
+.timeline-control-stepper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stepper-group {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.stepper-btn {
+    background: transparent;
+    border: none;
+    color: #fff;
+    padding: 3px 7px;
+    font-size: 13px;
+    font-family: var(--font-ui);
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s;
+    outline: none;
+}
+
+.stepper-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.stepper-btn:active {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.stepper-val {
+    padding: 3px 8px;
+    font-family: var(--font-data);
+    font-size: 11px;
+    color: #fff;
+    min-width: 46px;
+    text-align: center;
+    white-space: nowrap;
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+    border-right: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Disabled state for the whole stepper widget */
+.timeline-control-stepper.stepper-disabled {
+    opacity: 0.35;
+    pointer-events: none;
 }
 
 .timeline-controls {

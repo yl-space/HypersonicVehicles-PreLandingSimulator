@@ -7,6 +7,7 @@ export class Timeline {
             onPlayPause: () => {},
             onSpeedChange: null,
             onReset: () => {},
+            onControlAdjust: null,   // fn(controlId, delta) — called when a stepper button is clicked
             ...options
         };
 
@@ -44,6 +45,28 @@ export class Timeline {
                         <button class="rate-button" data-rate="3">3</button>
                     </div>
                     <span class="rate-label">SEC(S)/SEC</span>
+                </div>
+
+                <div class="timeline-ctrl-divider"></div>
+
+                <div class="timeline-control-stepper" id="bank-angle-stepper">
+                    <span class="rate-label">BANK</span>
+                    <div class="stepper-group">
+                        <button class="stepper-btn" data-control="bankAngle" data-delta="-5">‹</button>
+                        <span class="stepper-val" id="timeline-bank-val">0.0°</span>
+                        <button class="stepper-btn" data-control="bankAngle" data-delta="5">›</button>
+                    </div>
+                </div>
+
+                <div class="timeline-ctrl-divider"></div>
+
+                <div class="timeline-control-stepper" id="aoa-stepper">
+                    <span class="rate-label">AoA</span>
+                    <div class="stepper-group">
+                        <button class="stepper-btn" data-control="angleOfAttack" data-delta="-1">‹</button>
+                        <span class="stepper-val" id="timeline-aoa-val">-16.0°</span>
+                        <button class="stepper-btn" data-control="angleOfAttack" data-delta="1">›</button>
+                    </div>
                 </div>
             </div>
             <div class="timeline-controls">
@@ -97,7 +120,11 @@ export class Timeline {
             tooltipTime: this.options.container.querySelector('.tooltip-time'),
             tooltipPhase: this.options.container.querySelector('.tooltip-phase'),
             scrubber: this.options.container.querySelector('.timeline-track'),
-            resetButton: this.options.container.querySelector('#timeline-reset')
+            resetButton: this.options.container.querySelector('#timeline-reset'),
+            bankStepper: this.options.container.querySelector('#bank-angle-stepper'),
+            aoaStepper:  this.options.container.querySelector('#aoa-stepper'),
+            bankVal:     this.options.container.querySelector('#timeline-bank-val'),
+            aoaVal:      this.options.container.querySelector('#timeline-aoa-val'),
         };
 
         if (this.elements.handle) {
@@ -152,6 +179,17 @@ export class Timeline {
             if (event.key === ' ') {
                 event.preventDefault();
                 this.options.onPlayPause();
+            }
+        });
+
+        // Stepper button clicks — forward to SimulationManager via callback
+        this.elements.rateDrawer.addEventListener('click', (event) => {
+            const btn = event.target.closest('.stepper-btn');
+            if (!btn) return;
+            const controlId = btn.dataset.control;
+            const delta     = parseFloat(btn.dataset.delta);
+            if (controlId && !isNaN(delta) && typeof this.options.onControlAdjust === 'function') {
+                this.options.onControlAdjust(controlId, delta);
             }
         });
     }
@@ -425,5 +463,33 @@ export class Timeline {
             // Always keep expanded — speed control is available in both modes
             this.elements.rateDrawer.classList.add('expanded');
         }
+    }
+
+    /**
+     * Update a control stepper display value.
+     * @param {'bankAngle'|'angleOfAttack'} controlId
+     * @param {number} value - Current numeric value
+     */
+    setControlValue(controlId, value) {
+        const fixed = typeof value === 'number' ? value.toFixed(1) : '0.0';
+        if (controlId === 'bankAngle' && this.elements.bankVal) {
+            this.elements.bankVal.textContent = `${fixed}°`;
+        } else if (controlId === 'angleOfAttack' && this.elements.aoaVal) {
+            this.elements.aoaVal.textContent = `${fixed}°`;
+        }
+    }
+
+    /**
+     * Enable or disable the Bank Angle / AoA stepper buttons.
+     * @param {boolean} enabled
+     */
+    setControlSteppersEnabled(enabled) {
+        [this.elements.bankStepper, this.elements.aoaStepper].forEach(el => {
+            if (!el) return;
+            el.classList.toggle('stepper-disabled', !enabled);
+            el.querySelectorAll('.stepper-btn').forEach(btn => {
+                btn.disabled = !enabled;
+            });
+        });
     }
 }

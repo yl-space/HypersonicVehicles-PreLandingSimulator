@@ -243,7 +243,8 @@ export class SimulationManager {
             onTimeUpdate: (time) => this.seekTo(time),
             onPlayPause: () => this.togglePlayPause(),
             onSpeedChange: (speed) => this.setPlaybackSpeed(speed),
-            onReset: () => this.startPlaybackReplay(true)
+            onReset: () => this.startPlaybackReplay(true),
+            onControlAdjust: (controlId, delta) => this.handlePhaseInfoControlAdjust(controlId, delta)
         });
         this.timeline.setReplayAvailable(false);
         
@@ -740,6 +741,12 @@ export class SimulationManager {
         // Update UI
         this.timeline.update(this.state.currentTime, this.state.isPlaying);
 
+        // Keep timeline stepper displays in sync with current control values
+        if (this.timeline) {
+            this.timeline.setControlValue('bankAngle',      this.state.controls.bankAngle      ?? 0);
+            this.timeline.setControlValue('angleOfAttack',  this.state.controls.angleOfAttack  ?? -16);
+        }
+
         // Enhance vehicle data with attitude information for telemetry display
         const enhancedVehicleData = {
             ...this.state.vehicleData,
@@ -829,6 +836,9 @@ export class SimulationManager {
         this.state.playbackInitialized = false;
         if (this.controls) {
             this.controls.setControlsEnabled(true);
+        }
+        if (this.timeline) {
+            this.timeline.setControlSteppersEnabled(true);
         }
 
         // Store controls history for rerun (support both old and new format)
@@ -985,7 +995,7 @@ export class SimulationManager {
         const mouseX = event.clientX - rect.left;
         const mouseY = event.clientY - rect.top;
 
-        // Find the closest feature within a 5-mile (8.047 km) surface radius
+        // Find the closest feature within a 10-mile (16.093 km) surface radius
         // using depth-correct screen-space proximity projection
         const feature = this.marsTerrainMarkers.getFeatureNearPointer(
             this.cameraController.camera,
@@ -993,7 +1003,7 @@ export class SimulationManager {
             mouseY,
             rect.width,
             rect.height,
-            8.047   // 5 miles expressed in km
+            16.093  // 10 miles expressed in km
         );
 
         if (feature) {
@@ -1290,6 +1300,7 @@ export class SimulationManager {
             this.timeline.setScrubbingEnabled(true);
             this.timeline.setReplayAvailable(true);
             this.timeline.setPlaybackMode(true);
+            this.timeline.setControlSteppersEnabled(false);
         }
 
         if (this.phaseInfo) {
