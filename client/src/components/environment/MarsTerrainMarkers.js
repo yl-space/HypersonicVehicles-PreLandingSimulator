@@ -352,6 +352,68 @@ export class MarsTerrainMarkers {
     }
 
     /**
+     * Find the closest visible feature within a given surface distance of the
+     * mouse pointer, using camera-space projection for depth-correct proximity.
+     *
+     * The threshold is computed per-marker so that it corresponds to
+     * `maxSurfaceDistanceKm` (default 8.047 km = 5 miles) at the marker's
+     * actual depth.  A minimum of 15 CSS pixels is enforced so hovering still
+     * works comfortably when the planet is small on screen.
+     *
+     * @param {THREE.Camera} camera            – Active perspective camera
+     * @param {number}       mouseX            – Mouse X in canvas CSS pixels (from left)
+     * @param {number}       mouseY            – Mouse Y in canvas CSS pixels (from top)
+     * @param {number}       canvasW           – Canvas CSS width  in pixels
+     * @param {number}       canvasH           – Canvas CSS height in pixels
+     * @param {number}       [maxSurfaceDistanceKm=8.047]  – 5 miles in km
+     * @returns {object|null} Feature userData of the closest match, or null
+     */
+    getFeatureNearPointer(camera, mouseX, mouseY, canvasW, canvasH, maxSurfaceDistanceKm = 8.047) {
+        // Half vertical field-of-view in radians
+        const halfFovRad = (camera.fov || 60) * Math.PI / 180 / 2;
+
+        const tempVec = new THREE.Vector3();
+        let closestFeature  = null;
+        let closestPixelDist = Infinity;
+
+        for (const marker of this.markers) {
+            if (!marker.group.visible) continue;
+
+            // Project world position into NDC space [-1, 1]
+            tempVec.copy(marker.position).project(camera);
+
+            // Behind the camera or outside the depth range → skip
+            if (tempVec.z > 1) continue;
+
+            // NDC → canvas CSS pixels
+            const markerPxX = (tempVec.x  + 1) / 2 * canvasW;
+            const markerPxY = (-tempVec.y + 1) / 2 * canvasH;
+
+            const pixelDist = Math.sqrt(
+                (mouseX - markerPxX) ** 2 +
+                (mouseY - markerPxY) ** 2
+            );
+
+            // How many km correspond to one CSS pixel at this marker's depth?
+            // Scene scale: 1 scene unit = 100 km
+            // Vertical world height visible at depth D = 2 · D · tan(halfFov) scene units
+            // → kmPerPixel = (2 · D · tan(halfFov) · 100 km) / canvasH
+            const depthSceneUnits = camera.position.distanceTo(marker.position);
+            const kmPerPixel = (2 * depthSceneUnits * Math.tan(halfFovRad) * 100) / canvasH;
+
+            // Pixel radius that corresponds to maxSurfaceDistanceKm, min 15 px
+            const thresholdPixels = Math.max(15, maxSurfaceDistanceKm / kmPerPixel);
+
+            if (pixelDist <= thresholdPixels && pixelDist < closestPixelDist) {
+                closestPixelDist = pixelDist;
+                closestFeature   = marker.group.userData;
+            }
+        }
+
+        return closestFeature;
+    }
+
+    /**
      * Refresh features from API
      */
     async refreshFeatures() {

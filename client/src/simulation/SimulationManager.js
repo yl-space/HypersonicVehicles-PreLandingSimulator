@@ -12,6 +12,7 @@ import { Earth } from '../components/environment/Earth.js';
 import { Jupiter } from '../components/environment/Jupiter.js';
 import { Stars } from '../components/environment/Stars.js';
 import { MarsTerrainMarkers } from '../components/environment/MarsTerrainMarkers.js';
+import { MarsLatLonGrid } from '../components/environment/MarsLatLonGrid.js';
 import { TrajectoryManager } from './TrajectoryManager.js';
 import { PhaseController } from './PhaseController.js';
 import { Timeline } from '../ui/Timeline.js';
@@ -50,6 +51,7 @@ export class SimulationManager {
         this.currentPlanet = null;
         this.stars = null;
         this.marsTerrainMarkers = null;
+        this.marsLatLonGrid = null;
 
         // UI components
         this.timeline = null;
@@ -203,6 +205,13 @@ export class SimulationManager {
 
         // Add terrain markers to scene
         this.sceneManager.addToAllScenes(this.marsTerrainMarkers.getObject3D());
+
+        // Create latitude / longitude grid overlay (enabled by default, toggleable via Settings)
+        this.marsLatLonGrid = new MarsLatLonGrid({
+            marsRadius : this.mars.getRadius(),
+            visible    : true
+        });
+        this.sceneManager.addToAllScenes(this.marsLatLonGrid.getObject3D());
 
         // Create and initialize entry vehicle with asset loader for GLTF model support
         this.entryVehicle = new EntryVehicle(this.assetLoader);
@@ -934,6 +943,11 @@ export class SimulationManager {
             this.markerTooltipsEnabled = setting.value;
             if (!setting.value) this.hideMarkerTooltip();
         }
+        if (setting.type === 'showLatLonGrid') {
+            if (this.marsLatLonGrid) {
+                this.marsLatLonGrid.setVisible(setting.value);
+            }
+        }
     }
 
     // ── Marker Tooltip ──────────────────────────────────────────
@@ -955,22 +969,32 @@ export class SimulationManager {
     handleMarkerHover(event) {
         if (!this.markerTooltipsEnabled || !this.marsTerrainMarkers) return;
 
-        // Throttle raycasting to ~60ms
+        // Throttle to ~60 ms for performance
         const now = performance.now();
         if (now - this._lastRaycastTime < 60) return;
         this._lastRaycastTime = now;
 
-        // Store mouse position for tooltip placement
+        // Store cursor position for tooltip placement
         this._cursorX = event.clientX;
         this._cursorY = event.clientY;
 
         const canvas = this.sceneManager.renderer.domElement;
-        const rect = canvas.getBoundingClientRect();
-        this._markerMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        this._markerMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        const rect   = canvas.getBoundingClientRect();
 
-        this._markerRaycaster.setFromCamera(this._markerMouse, this.cameraController.camera);
-        const feature = this.marsTerrainMarkers.getFeatureAtPosition(this._markerRaycaster);
+        // Mouse position relative to the canvas in CSS pixels
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+
+        // Find the closest feature within a 5-mile (8.047 km) surface radius
+        // using depth-correct screen-space proximity projection
+        const feature = this.marsTerrainMarkers.getFeatureNearPointer(
+            this.cameraController.camera,
+            mouseX,
+            mouseY,
+            rect.width,
+            rect.height,
+            8.047   // 5 miles expressed in km
+        );
 
         if (feature) {
             if (!this.hoveredFeature || this.hoveredFeature.name !== feature.name) {

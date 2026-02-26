@@ -33,7 +33,7 @@ export class Timeline {
 
     createDOM() {
         const html = `
-            <div class="rate-drawer" id="rate-drawer">
+            <div class="rate-drawer expanded" id="rate-drawer">
                 <div class="playback-rate">
                     <span class="rate-label">RATE</span>
                     <div class="rate-buttons" id="rate-buttons">
@@ -416,12 +416,14 @@ export class Timeline {
     }
 
     /**
-     * Show or hide the rate drawer based on playback mode
-     * @param {boolean} isPlayback - true to expand the rate drawer, false to collapse
+     * The rate drawer is always visible in both simulation and playback modes.
+     * This method is kept for API compatibility but never collapses the drawer.
+     * @param {boolean} isPlayback - unused; drawer stays expanded regardless
      */
     setPlaybackMode(isPlayback) {
         if (this.elements.rateDrawer) {
-            this.elements.rateDrawer.classList.toggle('expanded', isPlayback);
+            // Always keep expanded — speed control is available in both modes
+            this.elements.rateDrawer.classList.add('expanded');
         }
     }
 }

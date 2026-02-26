@@ -421,6 +421,13 @@ export class Controls {
                     </label>
                 </div>
 
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="show-lat-lon-grid" checked>
+                        Latitude / Longitude Grid
+                    </label>
+                </div>
+
                 <div class="setting-separator"></div>
                 
                 <div class="setting-item">
@@ -462,6 +469,7 @@ export class Controls {
             showLandingSite: container.querySelector('#show-landing-site'),
             showVectors: container.querySelector('#show-vectors'),
             showMarkerInfo: container.querySelector('#show-marker-info'),
+            showLatLonGrid: container.querySelector('#show-lat-lon-grid'),
             quality: container.querySelector('#quality-setting'),
             units: container.querySelector('#units-setting')
         };
