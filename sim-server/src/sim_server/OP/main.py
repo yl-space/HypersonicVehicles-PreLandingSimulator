@@ -8,6 +8,35 @@ from src.sim_server.OP.coordinates import Cartesian_to_Spherical
 
 #secondary functions: I need to move them to seprate files and import for calrity probably
 
+def compute_total_heat_rate(states: np.ndarray, planet: dict, vehicle: dict) -> np.ndarray:
+    """Convective and radiative heat rate calculation
+    """
+    atmosphere_composition_constant = planet["atmosphere_composition_constant"]
+    nose_radius = vehicle["nose_radius"]
+
+    r = states[0]
+    h = r - planet["rp"]
+    altitudes_data = planet["atmosphere_model"].iloc[:,0]
+    rhos_data = planet["atmosphere_model"].iloc[:,3]
+    rho = np.interp(h, altitudes_data, rhos_data)
+
+    V = states[3]
+
+    q_c_dot = atmosphere_composition_constant * np.sqrt(rho / nose_radius) * (V ** 3)  # ref Girija2022
+
+    if 10000 <= V <= 12000:
+        q_r_dot = 3.07e-48 * (V ** 13.4) * (rho ** 1.2) * (nose_radius ** 0.49)
+    elif 8000 <= V < 10000:
+        q_r_dot = 1.22e-16 * (V ** 5.5) * (rho ** 1.2) * (nose_radius ** 0.49)
+    elif V < 8000:
+        q_r_dot = 3.33e-34 * (V ** 10) * (rho ** 1.2) * (nose_radius ** 0.49)
+    else:
+        raise ValueError("Velocity out of range for radiative heat rate calculation")
+
+    total_heat_rate = q_c_dot + q_r_dot
+
+    return total_heat_rate
+
 
 def make_event(ind: int, term: float):
     """Create a SciPy event function with terminal and direction attributes.
@@ -161,6 +190,11 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
     #np.savez("benchmark_DOP853_1e9_cartesian.npz", x_m=pos_inertial[:, 0], y_m=pos_inertial[:, 1], z_m=pos_inertial[:, 2], vx_m_s=vel_inertial[:, 0], vy_m_s=vel_inertial[:, 1], vz_m_s=vel_inertial[:, 2])
     # Return the results
 
+    # Aerothermal post-processing
+    total_heat_rate = np.zeros(len(states))
+    for i in range(len(states)):
+        total_heat_rate[i] = compute_total_heat_rate(states[i], planet, vehicle)
+
     if return_states:
         return {
             'time_s': time_array + init.get("start_time_s", 0.0),
@@ -234,6 +268,19 @@ def main(init=None, control=None):
     plt.title("r vs time")
     plt.grid(True)
     plt.legend(loc="best")
+    plt.show()
+
+    # FOR verification: Plot total heat rate vs time
+    total_heat_rate = np.zeros(len(results["states"]))
+    for i in range(len(results["states"])):
+        total_heat_rate[i] = compute_total_heat_rate(results["states"][i], planet, vehicle)
+
+    plt.figure()
+    plt.plot(results["time_s"], total_heat_rate, linewidth=1.5)
+    plt.xlabel("Time [s]")
+    plt.ylabel("Total heat rate [W/m^2]")
+    plt.title("Total heat rate vs time")
+    plt.grid(True)
     plt.show()
 
     # 3D plot of theta, phi and altitude 
