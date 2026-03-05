@@ -32,62 +32,124 @@ export class Timeline {
         this.setScrubbingEnabled(false);
     }
 
+    /**
+     * Build a single round-dial gauge SVG.
+     * @param {string} id        — unique prefix
+     * @param {string} label     — instrument label (e.g. "ALT")
+     * @param {string} unit      — unit text (e.g. "mi")
+     * @param {number} maxVal    — full-scale value
+     * @param {number} majorDiv  — number of major divisions
+     * @param {string} color     — accent color for needle + ticks
+     */
+    _gaugeHTML(id, label, unit, maxVal, majorDiv, color, size = 'main') {
+        const CX = 72;
+        const CY = 72;
+        const R = 56;
+        const START_ANGLE = -130;
+        const SWEEP = 260;
+
+        let ticks = '';
+        const minorPerMajor = 5;
+        const totalMinor = Math.max(1, majorDiv * minorPerMajor);
+        for (let i = 0; i <= totalMinor; i++) {
+            const angle = START_ANGLE + (SWEEP * i / totalMinor);
+            const rad = angle * Math.PI / 180;
+            const isMajor = i % minorPerMajor === 0;
+            const tickLength = isMajor ? 10 : 5;
+            const innerR = R - tickLength;
+            const x1 = CX + innerR * Math.cos(rad);
+            const y1 = CY + innerR * Math.sin(rad);
+            const x2 = CX + R * Math.cos(rad);
+            const y2 = CY + R * Math.sin(rad);
+
+            ticks += `<line class="${isMajor ? 'dial-tick-major' : 'dial-tick-minor'}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`;
+
+            if (isMajor) {
+                const value = Math.round((maxVal / majorDiv) * (i / minorPerMajor));
+                const labelR = R - 16;
+                const lx = CX + labelR * Math.cos(rad);
+                const ly = CY + labelR * Math.sin(rad);
+                ticks += `<text class="dial-scale-number" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="central">${value}</text>`;
+            }
+        }
+
+        return `
+            <div class="dial-gauge dial-gauge-${size}" id="dial-${id}">
+                <div class="dial-chassis">
+                    <svg viewBox="0 0 144 144" class="dial-svg" aria-hidden="true">
+                        <defs>
+                            <radialGradient id="dial-face-grad-${id}" cx="50%" cy="45%" r="65%">
+                                <stop offset="0%" stop-color="#10161c"/>
+                                <stop offset="65%" stop-color="#080c10"/>
+                                <stop offset="100%" stop-color="#020406"/>
+                            </radialGradient>
+                            <linearGradient id="dial-glare-grad-${id}" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="rgba(255,255,255,0.18)"/>
+                                <stop offset="60%" stop-color="rgba(255,255,255,0.03)"/>
+                                <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+                            </linearGradient>
+                        </defs>
+
+                        <circle class="dial-outer-ring" cx="${CX}" cy="${CY}" r="${R + 6}"/>
+                        <circle class="dial-inner-ring" cx="${CX}" cy="${CY}" r="${R + 2}"/>
+                        <circle class="dial-face" cx="${CX}" cy="${CY}" r="${R}" fill="url(#dial-face-grad-${id})"/>
+
+                        <g id="${id}-gyro" class="dial-gyro" style="transform-origin: ${CX}px ${CY}px; transform: rotate(0deg); transition: transform 0.12s ease-out;">
+                            <circle class="dial-gyro-ring" cx="${CX}" cy="${CY}" r="${R - 22}"/>
+                            <line class="dial-gyro-axis" x1="${CX - (R - 24)}" y1="${CY}" x2="${CX + (R - 24)}" y2="${CY}"/>
+                            <line class="dial-gyro-axis" x1="${CX}" y1="${CY - (R - 24)}" x2="${CX}" y2="${CY + (R - 24)}"/>
+                        </g>
+
+                        <g class="dial-scale">${ticks}</g>
+                        <line class="dial-reference-line" x1="${CX - R + 8}" y1="${CY}" x2="${CX + R - 8}" y2="${CY}"/>
+
+                        <g id="${id}-needle" class="dial-needle-group" style="transform-origin: ${CX}px ${CY}px; transform: rotate(${START_ANGLE}deg); transition: transform 0.12s ease-out;">
+                            <line class="dial-needle-tail" x1="${CX - 14}" y1="${CY}" x2="${CX - 2}" y2="${CY}"/>
+                            <line class="dial-needle-main" x1="${CX}" y1="${CY}" x2="${CX + R - 12}" y2="${CY}" stroke="${color}"/>
+                            <circle class="dial-needle-tip" cx="${CX + R - 12}" cy="${CY}" r="2.2" fill="${color}"/>
+                        </g>
+
+                        <circle class="dial-center-cap" cx="${CX}" cy="${CY}" r="6"/>
+                        <circle class="dial-center-core" cx="${CX}" cy="${CY}" r="2.8" fill="${color}"/>
+
+                        <rect class="dial-digital-window" x="${CX - 26}" y="${CY + 18}" width="52" height="16" rx="2.5"/>
+                        <text id="${id}-digital" class="dial-digital-value" x="${CX}" y="${CY + 30}" text-anchor="middle" fill="${color}">---</text>
+                        <text class="dial-unit-text" x="${CX}" y="${CY + 44}" text-anchor="middle">${unit || ''}</text>
+                        <ellipse class="dial-glare" cx="${CX - 10}" cy="${CY - 18}" rx="${R - 18}" ry="${R - 30}" fill="url(#dial-glare-grad-${id})"/>
+                    </svg>
+                    <span class="dial-label">${label}</span>
+                </div>
+            </div>
+        `;
+    }
+
     createDOM() {
+        const gauges = [
+            this._gaugeHTML('alt', 'ALT', 'mi', 80, 8, '#7dff8a', 'main'),
+            this._gaugeHTML('vel', 'VEL', 'x1000 mph', 13, 13, '#68d9ff', 'main'),
+            this._gaugeHTML('range', 'RNG', 'mi', 320, 8, '#ffad66', 'main'),
+        ];
+
+        const smallGauges = [
+            this._gaugeHTML('mach', 'MACH', '', 30, 6, '#ffd45b', 'aux'),
+            this._gaugeHTML('gforce', 'G', 'g', 10, 10, '#ff687c', 'aux'),
+        ];
+
         const html = `
             <div class="rate-drawer expanded cockpit-drawer" id="rate-drawer">
-                <!-- Sci-fi arc gauges -->
-                <div class="hud-gauge" id="hud-alt">
-                    <svg viewBox="0 0 80 50" class="hud-gauge-svg">
-                        <path class="hud-arc-bg" d="M 8 46 A 34 34 0 0 1 72 46"/>
-                        <path class="hud-arc-fill" id="hud-alt-arc" d="M 8 46 A 34 34 0 0 1 72 46"/>
-                    </svg>
-                    <div class="hud-gauge-readout">
-                        <span class="hud-gauge-value" id="cockpit-alt-val">---</span>
-                        <span class="hud-gauge-unit">mi</span>
+                <div class="cockpit-instrument-cluster">
+                    <div class="dial-panel">
+                        <div class="dial-row-main">
+                            ${gauges.join('')}
+                        </div>
+                        <div class="dial-row-aux">
+                            ${smallGauges.join('')}
+                            <div class="hud-mode-indicator" id="hud-mode-indicator">
+                                <span class="hud-mode-dot" id="hud-mode-dot"></span>
+                                <span class="hud-mode-label" id="hud-mode-label">SIMULATION</span>
+                            </div>
+                        </div>
                     </div>
-                    <span class="hud-gauge-label">ALT</span>
-                </div>
-
-                <div class="hud-gauge" id="hud-vel">
-                    <svg viewBox="0 0 80 50" class="hud-gauge-svg">
-                        <path class="hud-arc-bg" d="M 8 46 A 34 34 0 0 1 72 46"/>
-                        <path class="hud-arc-fill hud-arc-cyan" id="hud-vel-arc" d="M 8 46 A 34 34 0 0 1 72 46"/>
-                    </svg>
-                    <div class="hud-gauge-readout">
-                        <span class="hud-gauge-value" id="cockpit-vel-val">---</span>
-                        <span class="hud-gauge-unit">mph</span>
-                    </div>
-                    <span class="hud-gauge-label">VEL</span>
-                </div>
-
-                <div class="hud-gauge" id="hud-range">
-                    <svg viewBox="0 0 80 50" class="hud-gauge-svg">
-                        <path class="hud-arc-bg" d="M 8 46 A 34 34 0 0 1 72 46"/>
-                        <path class="hud-arc-fill hud-arc-orange" id="hud-range-arc" d="M 8 46 A 34 34 0 0 1 72 46"/>
-                    </svg>
-                    <div class="hud-gauge-readout">
-                        <span class="hud-gauge-value" id="cockpit-dist-val">---</span>
-                        <span class="hud-gauge-unit">mi</span>
-                    </div>
-                    <span class="hud-gauge-label">RANGE</span>
-                </div>
-
-                <!-- Compact readouts for Mach & G -->
-                <div class="hud-compact-group">
-                    <div class="hud-compact">
-                        <span class="hud-compact-label">MACH</span>
-                        <span class="hud-compact-value" id="cockpit-mach-val">---</span>
-                    </div>
-                    <div class="hud-compact">
-                        <span class="hud-compact-label">G</span>
-                        <span class="hud-compact-value" id="cockpit-g-val">---</span>
-                    </div>
-                </div>
-
-                <!-- Mode indicator -->
-                <div class="hud-mode-indicator" id="hud-mode-indicator">
-                    <span class="hud-mode-dot" id="hud-mode-dot"></span>
-                    <span class="hud-mode-label" id="hud-mode-label">SIMULATION</span>
                 </div>
 
                 <div class="cockpit-divider-thick"></div>
@@ -111,9 +173,9 @@ export class Timeline {
                 <div class="timeline-control-stepper" id="bank-angle-stepper">
                     <span class="rate-label">BANK</span>
                     <div class="stepper-group">
-                        <button class="stepper-btn" data-control="bankAngle" data-delta="-5">‹</button>
-                        <span class="stepper-val" id="timeline-bank-val">0.0°</span>
-                        <button class="stepper-btn" data-control="bankAngle" data-delta="5">›</button>
+                        <button class="stepper-btn" data-control="bankAngle" data-delta="-5">&#8249;</button>
+                        <span class="stepper-val" id="timeline-bank-val">0.0&deg;</span>
+                        <button class="stepper-btn" data-control="bankAngle" data-delta="5">&#8250;</button>
                     </div>
                 </div>
 
@@ -122,42 +184,43 @@ export class Timeline {
                 <div class="timeline-control-stepper" id="aoa-stepper">
                     <span class="rate-label">AoA</span>
                     <div class="stepper-group">
-                        <button class="stepper-btn" data-control="angleOfAttack" data-delta="-1">‹</button>
-                        <span class="stepper-val" id="timeline-aoa-val">-16.0°</span>
-                        <button class="stepper-btn" data-control="angleOfAttack" data-delta="1">›</button>
+                        <button class="stepper-btn" data-control="angleOfAttack" data-delta="-1">&#8249;</button>
+                        <span class="stepper-val" id="timeline-aoa-val">-16.0&deg;</span>
+                        <button class="stepper-btn" data-control="angleOfAttack" data-delta="1">&#8250;</button>
                     </div>
                 </div>
-            </div>
-            <div class="timeline-controls">
-                <button class="play-button" id="play-button">
-                    <svg width="24" height="24" viewBox="0 0 24 24">
-                        <path class="play-icon" d="M8 5v14l11-7z" fill="currentColor"></path>
-                        <g class="pause-icon" style="display: none;">
-                            <rect x="6" y="4" width="4" height="16" fill="currentColor"></rect>
-                            <rect x="14" y="4" width="4" height="16" fill="currentColor"></rect>
-                        </g>
-                    </svg>
-                </button>
-                <button class="timeline-reset-button" id="timeline-reset" disabled>
-                    <svg width="20" height="20" viewBox="0 0 24 24">
-                        <path d="M12 5V2L8 6l4 4V7c2.76 0 5 2.24 5 5 0 2.21-1.79 4-4 4-1.38 0-2.6-.7-3.32-1.76l-1.66.96C9 17.91 10.39 19 12 19c3.31 0 6-2.69 6-6s-2.69-6-6-6z" fill="currentColor"></path>
-                    </svg>
-                </button>
 
-                <div class="timeline-info">
-                    <span class="current-time" id="current-time">Feb 18, 2021 03:48:41 pm</span>
-                </div>
-            </div>
+                <!-- Timeline row (play, time, progress bar) -->
+                <div class="drawer-timeline-row">
+                    <div class="timeline-info">
+                        <span class="current-time" id="current-time">Feb 18, 2021 03:48:41 pm</span>
+                    </div>
+                    <button class="play-button" id="play-button">
+                        <svg width="24" height="24" viewBox="0 0 24 24">
+                            <path class="play-icon" d="M8 5v14l11-7z" fill="currentColor"></path>
+                            <g class="pause-icon" style="display: none;">
+                                <rect x="6" y="4" width="4" height="16" fill="currentColor"></rect>
+                                <rect x="14" y="4" width="4" height="16" fill="currentColor"></rect>
+                            </g>
+                        </svg>
+                    </button>
+                    <button class="timeline-reset-button" id="timeline-reset" disabled>
+                        <svg width="20" height="20" viewBox="0 0 24 24">
+                            <path d="M12 5V2L8 6l4 4V7c2.76 0 5 2.24 5 5 0 2.21-1.79 4-4 4-1.38 0-2.6-.7-3.32-1.76l-1.66.96C9 17.91 10.39 19 12 19c3.31 0 6-2.69 6-6s-2.69-6-6-6z" fill="currentColor"></path>
+                        </svg>
+                    </button>
 
-            <div class="timeline-progress-bar is-disabled" id="timeline-progress-bar" aria-disabled="true">
-                <div class="timeline-track">
-                    <div class="timeline-progress" id="timeline-progress"></div>
-                    <div class="timeline-handle" id="timeline-handle"></div>
-                    <div class="timeline-markers" id="timeline-markers"></div>
-                </div>
-                <div class="timeline-tooltip" id="timeline-tooltip">
-                    <span class="tooltip-time">00:00</span>
-                    <span class="tooltip-phase"></span>
+                    <div class="timeline-progress-bar is-disabled" id="timeline-progress-bar" aria-disabled="true">
+                        <div class="timeline-track">
+                            <div class="timeline-progress" id="timeline-progress"></div>
+                            <div class="timeline-handle" id="timeline-handle"></div>
+                            <div class="timeline-markers" id="timeline-markers"></div>
+                        </div>
+                        <div class="timeline-tooltip" id="timeline-tooltip">
+                            <span class="tooltip-time">00:00</span>
+                            <span class="tooltip-phase"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -184,15 +247,26 @@ export class Timeline {
             aoaStepper:  this.options.container.querySelector('#aoa-stepper'),
             bankVal:     this.options.container.querySelector('#timeline-bank-val'),
             aoaVal:      this.options.container.querySelector('#timeline-aoa-val'),
-            // HUD gauge readouts + arcs
-            cockpitAlt:   this.options.container.querySelector('#cockpit-alt-val'),
-            cockpitVel:   this.options.container.querySelector('#cockpit-vel-val'),
-            cockpitDist:  this.options.container.querySelector('#cockpit-dist-val'),
-            cockpitMach:  this.options.container.querySelector('#cockpit-mach-val'),
-            cockpitG:     this.options.container.querySelector('#cockpit-g-val'),
-            hudAltArc:    this.options.container.querySelector('#hud-alt-arc'),
-            hudVelArc:    this.options.container.querySelector('#hud-vel-arc'),
-            hudRangeArc:  this.options.container.querySelector('#hud-range-arc'),
+            altGauge:     this.options.container.querySelector('#dial-alt'),
+            velGauge:     this.options.container.querySelector('#dial-vel'),
+            rangeGauge:   this.options.container.querySelector('#dial-range'),
+            machGauge:    this.options.container.querySelector('#dial-mach'),
+            gGauge:       this.options.container.querySelector('#dial-gforce'),
+            altNeedle:    this.options.container.querySelector('#alt-needle'),
+            altGyro:      this.options.container.querySelector('#alt-gyro'),
+            altDigital:   this.options.container.querySelector('#alt-digital'),
+            velNeedle:    this.options.container.querySelector('#vel-needle'),
+            velGyro:      this.options.container.querySelector('#vel-gyro'),
+            velDigital:   this.options.container.querySelector('#vel-digital'),
+            rangeNeedle:  this.options.container.querySelector('#range-needle'),
+            rangeGyro:    this.options.container.querySelector('#range-gyro'),
+            rangeDigital: this.options.container.querySelector('#range-digital'),
+            machNeedle:   this.options.container.querySelector('#mach-needle'),
+            machGyro:     this.options.container.querySelector('#mach-gyro'),
+            machDigital:  this.options.container.querySelector('#mach-digital'),
+            gNeedle:      this.options.container.querySelector('#gforce-needle'),
+            gGyro:        this.options.container.querySelector('#gforce-gyro'),
+            gDigital:     this.options.container.querySelector('#gforce-digital'),
             modeDot:      this.options.container.querySelector('#hud-mode-dot'),
             modeLabel:    this.options.container.querySelector('#hud-mode-label'),
         };
@@ -543,9 +617,9 @@ export class Timeline {
     setControlValue(controlId, value) {
         const fixed = typeof value === 'number' ? value.toFixed(1) : '0.0';
         if (controlId === 'bankAngle' && this.elements.bankVal) {
-            this.elements.bankVal.textContent = `${fixed}°`;
+            this.elements.bankVal.textContent = `${fixed}\u00B0`;
         } else if (controlId === 'angleOfAttack' && this.elements.aoaVal) {
-            this.elements.aoaVal.textContent = `${fixed}°`;
+            this.elements.aoaVal.textContent = `${fixed}\u00B0`;
         }
     }
 
@@ -564,43 +638,80 @@ export class Timeline {
     }
 
     /**
-     * Update HUD gauge readouts with live telemetry.
+     * Rotate a dial needle to represent a 0–1 fraction of full scale.
+     * Sweep is 240° from –120° (min) to +120° (max).
+     */
+    _setNeedle(needleEl, fraction, gyroEl = null) {
+        if (!needleEl) return;
+        const START = -130;
+        const SWEEP = 260;
+        const clamped = Math.max(0, Math.min(1, fraction));
+        const angle = START + SWEEP * clamped;
+        needleEl.style.transform = `rotate(${angle}deg)`;
+
+        if (gyroEl) {
+            const gyroAngle = -18 + clamped * 36;
+            gyroEl.style.transform = `rotate(${gyroAngle}deg)`;
+        }
+    }
+
+    _setGaugeAlertState(gaugeEl, value, warnAt, dangerAt, mode = 'high') {
+        if (!gaugeEl) return;
+
+        gaugeEl.classList.remove('dial-warning', 'dial-danger');
+        if (typeof value !== 'number' || isNaN(value)) return;
+
+        const warning = mode === 'low' ? value <= warnAt : value >= warnAt;
+        const danger = mode === 'low' ? value <= dangerAt : value >= dangerAt;
+
+        if (danger) {
+            gaugeEl.classList.add('dial-danger');
+        } else if (warning) {
+            gaugeEl.classList.add('dial-warning');
+        }
+    }
+
+    /**
+     * Update cockpit dial gauges with live telemetry.
      * @param {object} data - { altitudeMiles, velocityMph, distanceMiles, mach, gForce }
      */
     setTelemetry(data) {
-        // The SVG arc has a total path length we use for dashoffset animation.
-        // Arc path "M 8 46 A 34 34 0 0 1 72 46" ≈ 106.8 length
-        const ARC_LEN = 106.8;
-
-        if (this.elements.cockpitAlt && data.altitudeMiles !== undefined) {
-            this.elements.cockpitAlt.textContent = data.altitudeMiles.toFixed(1);
-            // Altitude gauge: 0–82 mi (0–132 km entry interface)
-            const pct = Math.min(1, data.altitudeMiles / 82);
-            this._setArc(this.elements.hudAltArc, pct, ARC_LEN);
+        if (data.altitudeMiles !== undefined) {
+            this._setNeedle(this.elements.altNeedle, data.altitudeMiles / 80, this.elements.altGyro);
+            if (this.elements.altDigital) {
+                this.elements.altDigital.textContent = data.altitudeMiles.toFixed(1);
+            }
+            this._setGaugeAlertState(this.elements.altGauge, data.altitudeMiles, 12, 5, 'low');
         }
-        if (this.elements.cockpitVel && data.velocityMph !== undefined) {
-            this.elements.cockpitVel.textContent = Math.round(data.velocityMph).toLocaleString();
-            // Velocity gauge: 0–13,000 mph (entry speed)
-            const pct = Math.min(1, data.velocityMph / 13000);
-            this._setArc(this.elements.hudVelArc, pct, ARC_LEN);
+        if (data.velocityMph !== undefined) {
+            this._setNeedle(this.elements.velNeedle, data.velocityMph / 13000, this.elements.velGyro);
+            if (this.elements.velDigital) {
+                this.elements.velDigital.textContent = (data.velocityMph / 1000).toFixed(1);
+            }
+            this._setGaugeAlertState(this.elements.velGauge, data.velocityMph, 10000, 12000);
         }
-        if (this.elements.cockpitDist && data.distanceMiles !== undefined) {
-            this.elements.cockpitDist.textContent = data.distanceMiles.toFixed(1);
-            // Range gauge: 0–320 mi
-            const pct = Math.min(1, data.distanceMiles / 320);
-            this._setArc(this.elements.hudRangeArc, pct, ARC_LEN);
+        if (data.distanceMiles !== undefined) {
+            this._setNeedle(this.elements.rangeNeedle, data.distanceMiles / 320, this.elements.rangeGyro);
+            if (this.elements.rangeDigital) {
+                this.elements.rangeDigital.textContent = data.distanceMiles.toFixed(0);
+            }
+            this._setGaugeAlertState(this.elements.rangeGauge, data.distanceMiles, 20, 8, 'low');
         }
-        if (this.elements.cockpitMach && data.mach !== undefined) {
-            const mach = data.mach;
-            this.elements.cockpitMach.textContent = isNaN(mach) ? '0.0' : mach.toFixed(1);
-            this.elements.cockpitMach.classList.toggle('cockpit-danger', mach > 15);
-            this.elements.cockpitMach.classList.toggle('cockpit-warning', mach > 5 && mach <= 15);
+        if (data.mach !== undefined) {
+            const mach = isNaN(data.mach) ? 0 : data.mach;
+            this._setNeedle(this.elements.machNeedle, mach / 30, this.elements.machGyro);
+            if (this.elements.machDigital) {
+                this.elements.machDigital.textContent = mach.toFixed(1);
+            }
+            this._setGaugeAlertState(this.elements.machGauge, mach, 18, 24);
         }
-        if (this.elements.cockpitG && data.gForce !== undefined) {
-            const g = data.gForce;
-            this.elements.cockpitG.textContent = isNaN(g) ? '0.0' : `${g.toFixed(1)}g`;
-            this.elements.cockpitG.classList.toggle('cockpit-danger', g > 5);
-            this.elements.cockpitG.classList.toggle('cockpit-warning', g > 3 && g <= 5);
+        if (data.gForce !== undefined) {
+            const g = isNaN(data.gForce) ? 0 : data.gForce;
+            this._setNeedle(this.elements.gNeedle, g / 10, this.elements.gGyro);
+            if (this.elements.gDigital) {
+                this.elements.gDigital.textContent = g.toFixed(1);
+            }
+            this._setGaugeAlertState(this.elements.gGauge, g, 4, 6.5);
         }
     }
 
@@ -617,12 +728,5 @@ export class Timeline {
         if (this.elements.modeLabel) {
             this.elements.modeLabel.textContent = mode === 'PLAYBACK' ? 'PLAYBACK' : 'SIMULATION';
         }
-    }
-
-    /** Animate an SVG arc fill via stroke-dashoffset. */
-    _setArc(el, pct, arcLen) {
-        if (!el) return;
-        el.style.strokeDasharray  = `${arcLen}`;
-        el.style.strokeDashoffset = `${arcLen * (1 - pct)}`;
     }
 }
