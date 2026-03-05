@@ -34,7 +34,47 @@ export class Timeline {
 
     createDOM() {
         const html = `
-            <div class="rate-drawer expanded" id="rate-drawer">
+            <div class="rate-drawer expanded cockpit-drawer" id="rate-drawer">
+                <!-- Cockpit telemetry readouts -->
+                <div class="cockpit-instrument" id="cockpit-alt">
+                    <span class="cockpit-label">ALT</span>
+                    <span class="cockpit-value" id="cockpit-alt-val">---</span>
+                    <span class="cockpit-unit">mi</span>
+                </div>
+
+                <div class="cockpit-divider"></div>
+
+                <div class="cockpit-instrument" id="cockpit-vel">
+                    <span class="cockpit-label">VEL</span>
+                    <span class="cockpit-value" id="cockpit-vel-val">---</span>
+                    <span class="cockpit-unit">mph</span>
+                </div>
+
+                <div class="cockpit-divider"></div>
+
+                <div class="cockpit-instrument" id="cockpit-dist">
+                    <span class="cockpit-label">RANGE</span>
+                    <span class="cockpit-value" id="cockpit-dist-val">---</span>
+                    <span class="cockpit-unit">mi</span>
+                </div>
+
+                <div class="cockpit-divider"></div>
+
+                <div class="cockpit-instrument" id="cockpit-mach">
+                    <span class="cockpit-label">MACH</span>
+                    <span class="cockpit-value cockpit-value-warn" id="cockpit-mach-val">---</span>
+                </div>
+
+                <div class="cockpit-divider"></div>
+
+                <div class="cockpit-instrument" id="cockpit-gforce">
+                    <span class="cockpit-label">G</span>
+                    <span class="cockpit-value cockpit-value-warn" id="cockpit-g-val">---</span>
+                </div>
+
+                <div class="cockpit-divider-thick"></div>
+
+                <!-- Playback rate controls -->
                 <div class="playback-rate">
                     <span class="rate-label">RATE</span>
                     <div class="rate-buttons" id="rate-buttons">
@@ -44,11 +84,12 @@ export class Timeline {
                         <button class="rate-button" data-rate="2">2</button>
                         <button class="rate-button" data-rate="3">3</button>
                     </div>
-                    <span class="rate-label">SEC(S)/SEC</span>
+                    <span class="rate-label">SEC/S</span>
                 </div>
 
-                <div class="timeline-ctrl-divider"></div>
+                <div class="cockpit-divider-thick"></div>
 
+                <!-- Control steppers -->
                 <div class="timeline-control-stepper" id="bank-angle-stepper">
                     <span class="rate-label">BANK</span>
                     <div class="stepper-group">
@@ -58,7 +99,7 @@ export class Timeline {
                     </div>
                 </div>
 
-                <div class="timeline-ctrl-divider"></div>
+                <div class="cockpit-divider"></div>
 
                 <div class="timeline-control-stepper" id="aoa-stepper">
                     <span class="rate-label">AoA</span>
@@ -125,6 +166,12 @@ export class Timeline {
             aoaStepper:  this.options.container.querySelector('#aoa-stepper'),
             bankVal:     this.options.container.querySelector('#timeline-bank-val'),
             aoaVal:      this.options.container.querySelector('#timeline-aoa-val'),
+            // Cockpit instrument readouts
+            cockpitAlt:   this.options.container.querySelector('#cockpit-alt-val'),
+            cockpitVel:   this.options.container.querySelector('#cockpit-vel-val'),
+            cockpitDist:  this.options.container.querySelector('#cockpit-dist-val'),
+            cockpitMach:  this.options.container.querySelector('#cockpit-mach-val'),
+            cockpitG:     this.options.container.querySelector('#cockpit-g-val'),
         };
 
         if (this.elements.handle) {
@@ -491,5 +538,34 @@ export class Timeline {
                 btn.disabled = !enabled;
             });
         });
+    }
+
+    /**
+     * Update cockpit instrument readouts with live telemetry.
+     * @param {object} data - { altitudeMiles, velocityMph, distanceMiles, mach, gForce }
+     */
+    setTelemetry(data) {
+        if (this.elements.cockpitAlt && data.altitudeMiles !== undefined) {
+            this.elements.cockpitAlt.textContent = data.altitudeMiles.toFixed(1);
+        }
+        if (this.elements.cockpitVel && data.velocityMph !== undefined) {
+            this.elements.cockpitVel.textContent = Math.round(data.velocityMph).toLocaleString();
+        }
+        if (this.elements.cockpitDist && data.distanceMiles !== undefined) {
+            this.elements.cockpitDist.textContent = data.distanceMiles.toFixed(1);
+        }
+        if (this.elements.cockpitMach && data.mach !== undefined) {
+            const mach = data.mach;
+            this.elements.cockpitMach.textContent = isNaN(mach) ? '0.0' : mach.toFixed(1);
+            // Color code: green < 5, yellow 5-15, red > 15
+            this.elements.cockpitMach.classList.toggle('cockpit-danger', mach > 15);
+            this.elements.cockpitMach.classList.toggle('cockpit-warning', mach > 5 && mach <= 15);
+        }
+        if (this.elements.cockpitG && data.gForce !== undefined) {
+            const g = data.gForce;
+            this.elements.cockpitG.textContent = isNaN(g) ? '0.0' : `${g.toFixed(1)}g`;
+            this.elements.cockpitG.classList.toggle('cockpit-danger', g > 5);
+            this.elements.cockpitG.classList.toggle('cockpit-warning', g > 3 && g <= 5);
+        }
     }
 }
