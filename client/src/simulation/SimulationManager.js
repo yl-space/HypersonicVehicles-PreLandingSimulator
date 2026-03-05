@@ -13,6 +13,7 @@ import { Jupiter } from '../components/environment/Jupiter.js';
 import { Stars } from '../components/environment/Stars.js';
 import { MarsTerrainMarkers } from '../components/environment/MarsTerrainMarkers.js';
 import { MarsLatLonGrid } from '../components/environment/MarsLatLonGrid.js';
+import { Atmosphere } from '../components/environment/Atmosphere.js';
 import { TrajectoryManager } from './TrajectoryManager.js';
 import { PhaseController } from './PhaseController.js';
 import { Timeline } from '../ui/Timeline.js';
@@ -52,6 +53,7 @@ export class SimulationManager {
         this.stars = null;
         this.marsTerrainMarkers = null;
         this.marsLatLonGrid = null;
+        this.atmosphere = null;
 
         // UI components
         this.timeline = null;
@@ -90,6 +92,7 @@ export class SimulationManager {
         this._markerRaycaster = new THREE.Raycaster();
         this._markerMouse = new THREE.Vector2();
         this._lastRaycastTime = 0;
+        this._planetCenterWorld = new THREE.Vector3();
 
         // Initialize control values and history from configuration
         this.initializeControls();
@@ -198,6 +201,10 @@ export class SimulationManager {
                 }
             }
         });
+
+        // Atmospheric glow shell around Mars
+        this.atmosphere = new Atmosphere(this.mars.getRadius());
+        this.mars.getObject3D().add(this.atmosphere.getObject3D());
 
         // Start with Mars visible
         this.currentPlanet = this.mars;
@@ -431,6 +438,10 @@ export class SimulationManager {
         }
         
         this.state.currentPlanet = planetName;
+
+        if (this.atmosphere) {
+            this.atmosphere.getObject3D().visible = planetName === 'mars';
+        }
         
         // Update button states
         document.querySelectorAll('.planet-btn').forEach(btn => {
@@ -705,18 +716,13 @@ export class SimulationManager {
                 this.state.vehicleData.altitude,
                 this.state.currentPhase
             );
+        }
 
-            // Atmospheric tint: reddish aura intensifies as vehicle descends
-            // Starts at ~120 km (entry interface), full at ~8 km (near parachute deploy)
-            const altKm = this.state.vehicleData.altitude || 130;
-            const tintStart = 120; // km — faint glow begins
-            const tintFull  = 8;   // km — maximum red haze
-            const tint = altKm >= tintStart ? 0
-                       : altKm <= tintFull  ? 1
-                       : 1 - (altKm - tintFull) / (tintStart - tintFull);
-            // Exponential curve for more dramatic low-altitude effect
-            const tintCurved = tint * tint;
-            this.sceneManager.setAtmosphericTint(tintCurved * 0.85); // cap at 85% max
+        // Keep atmosphere anchored to Mars and adjust by spacecraft altitude.
+        if (this.atmosphere && this.mars) {
+            const altitudeKm = this.state.vehicleData?.altitude ?? 130;
+            this.mars.getObject3D().getWorldPosition(this._planetCenterWorld);
+            this.atmosphere.updateDynamics(altitudeKm, this._planetCenterWorld);
         }
         
         // Update UI
@@ -1335,6 +1341,7 @@ export class SimulationManager {
         this.entryVehicle.dispose();
         this.trajectoryManager.dispose();
         if (this.mars) this.mars.dispose();
+        if (this.atmosphere) this.atmosphere.dispose();
         if (this.marsTerrainMarkers) this.marsTerrainMarkers.dispose();
         if (this.stars) this.stars.dispose();
         

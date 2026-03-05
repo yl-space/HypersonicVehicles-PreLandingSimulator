@@ -2,54 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-
-/**
- * Atmospheric tint shader — overlays a reddish color wash that intensifies
- * as the spacecraft descends (controlled via the `intensity` uniform).
- */
-const AtmosphericTintShader = {
-    uniforms: {
-        tDiffuse:   { value: null },
-        intensity:  { value: 0.0 },       // 0 = no tint, 1 = full tint
-        tintColor:  { value: new THREE.Vector3(0.8, 0.25, 0.1) }, // Mars reddish-orange
-    },
-    vertexShader: /* glsl */`
-        varying vec2 vUv;
-        void main() {
-            vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-    `,
-    fragmentShader: /* glsl */`
-        uniform sampler2D tDiffuse;
-        uniform float intensity;
-        uniform vec3 tintColor;
-        varying vec2 vUv;
-        void main() {
-            vec4 color = texture2D(tDiffuse, vUv);
-            // Vignette: stronger tint at edges, weaker at center
-            vec2 center = vUv - 0.5;
-            float vignette = dot(center, center);           // 0 at center, 0.5 at corners
-
-            // Additive reddish glow (atmospheric scatter)
-            float glowStrength = intensity * (0.15 + vignette * 0.6);
-            color.rgb += tintColor * glowStrength;
-
-            // Multiplicative tint (deeper color shift)
-            float tintStrength = intensity * (0.4 + vignette * 1.8);
-            vec3 tinted = mix(color.rgb, color.rgb * tintColor * 1.5, tintStrength);
-
-            // Desaturate slightly at high intensity (dust haze)
-            float lum = dot(tinted, vec3(0.299, 0.587, 0.114));
-            float desatAmount = intensity * 0.2;
-            color.rgb = mix(tinted, vec3(lum) * tintColor * 1.3, desatAmount);
-
-            gl_FragColor = color;
-        }
-    `
-};
 
 export class SceneManager {
     constructor(container) {
@@ -148,25 +101,11 @@ export class SceneManager {
         // );
         // this.composer.addPass(smaaPass);
 
-        // Atmospheric tint pass — reddish wash controlled by altitude
-        this.atmosphericTintPass = new ShaderPass(AtmosphericTintShader);
-        this.composer.addPass(this.atmosphericTintPass);
-
         // Output pass for correct color space
         const outputPass = new OutputPass();
         this.composer.addPass(outputPass);
     }
 
-    /**
-     * Set the atmospheric tint intensity (0–1).
-     * Called by SimulationManager based on spacecraft altitude.
-     */
-    setAtmosphericTint(intensity) {
-        if (this.atmosphericTintPass) {
-            this.atmosphericTintPass.uniforms.intensity.value = Math.max(0, Math.min(1, intensity));
-        }
-    }
-    
     createScenes() {
         // Mars Scene with bright, even lighting
         const marsScene = new THREE.Scene();
