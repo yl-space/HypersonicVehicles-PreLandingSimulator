@@ -138,20 +138,7 @@ export class PhaseInfo {
                 <div class="telemetry-view" id="telemetry-view">
                     <h1 class="phase-title" id="phase-title">Entry Interface Point</h1>
                     
-                    <div class="telemetry">
-                        <div class="telemetry-item">
-                            <span class="telemetry-value" id="distance-value">307.92</span>
-                            <span class="telemetry-label">miles from landing site.</span>
-                        </div>
-                        <div class="telemetry-item">
-                            <span class="telemetry-label">Altitude:</span>
-                            <span class="telemetry-value" id="altitude-value">58.10 miles</span>
-                        </div>
-                        <div class="telemetry-item">
-                            <span class="telemetry-label">Velocity:</span>
-                            <span class="telemetry-value" id="velocity-value">11,984.75 mph</span>
-                        </div>
-                    </div>
+                    <!-- Distance/altitude/velocity moved to HUD cockpit gauges -->
                     
                     <div class="phase-description" id="phase-description">
                         The spacecraft enters the Martian atmosphere, drastically slowing it down while also heating it up.
@@ -718,13 +705,9 @@ export class PhaseInfo {
         
         // Update telemetry with proper NaN and velocity handling
         if (vehicleData) {
-            // Distance - handle NaN
+            // Distance & altitude computed for internal use (display moved to HUD gauges)
             const distanceMiles = (vehicleData.distanceToLanding || 0) * 0.621371;
-            this.elements.distance.textContent = isNaN(distanceMiles) ? '0.00' : distanceMiles.toFixed(2);
-            
-            // Altitude - handle NaN
             const altitudeMiles = (vehicleData.altitude || 0) * 0.621371;
-            this.elements.altitude.textContent = isNaN(altitudeMiles) ? '0.00 miles' : `${altitudeMiles.toFixed(2)} miles`;
             
             // Velocity - handle different formats (Vector3, scalar, or velocityMagnitude)
             let velocityValue = 0;
@@ -749,7 +732,6 @@ export class PhaseInfo {
             }
             
             const velocityMph = velocityValue * 0.621371;
-            this.elements.velocity.textContent = isNaN(velocityMph) ? '0 mph' : `${Math.round(velocityMph).toLocaleString()} mph`;
             
             // Additional telemetry (including dynamic controls)
             this.updateAdditionalTelemetry(vehicleData, phase, controls);

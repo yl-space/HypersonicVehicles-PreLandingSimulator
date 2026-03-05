@@ -324,53 +324,127 @@ body {
     pointer-events: auto;
 }
 
-/* ── Cockpit instrument panel ── */
+/* ── Cockpit HUD drawer ── */
 .cockpit-drawer {
-    background: rgba(5, 8, 5, 0.65) !important;
-    border: 1px solid rgba(100, 120, 100, 0.25);
+    background: rgba(5, 8, 12, 0.75) !important;
+    border: 1px solid rgba(80, 160, 255, 0.15);
     border-bottom: none;
-    box-shadow: inset 0 1px 0 rgba(100, 255, 100, 0.04),
-                0 -2px 20px rgba(0, 0, 0, 0.6);
+    box-shadow: inset 0 1px 0 rgba(80, 200, 255, 0.06),
+                0 -4px 24px rgba(0, 0, 0, 0.7);
+    padding: 10px 20px !important;
+    gap: 16px !important;
 }
 
-.cockpit-instrument {
+/* ── HUD arc gauges ── */
+.hud-gauge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    width: 80px;
+}
+
+.hud-gauge-svg {
+    width: 80px;
+    height: 50px;
+    overflow: visible;
+}
+
+.hud-arc-bg {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.08);
+    stroke-width: 4;
+    stroke-linecap: round;
+}
+
+.hud-arc-fill {
+    fill: none;
+    stroke: #33ff66;
+    stroke-width: 4;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 4px rgba(51, 255, 102, 0.5));
+    transition: stroke-dashoffset 0.15s ease-out;
+}
+
+.hud-arc-cyan {
+    stroke: #00d4ff;
+    filter: drop-shadow(0 0 4px rgba(0, 212, 255, 0.5));
+}
+
+.hud-arc-orange {
+    stroke: #ff6600;
+    filter: drop-shadow(0 0 4px rgba(255, 102, 0, 0.5));
+}
+
+.hud-gauge-readout {
     display: flex;
     align-items: baseline;
-    gap: 4px;
-    padding: 2px 6px;
+    gap: 3px;
+    margin-top: -6px;
 }
 
-.cockpit-label {
+.hud-gauge-value {
+    font-family: 'Courier New', Consolas, monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #e0e0e0;
+    text-shadow: 0 0 4px rgba(255, 255, 255, 0.15);
+    letter-spacing: 0.5px;
+}
+
+.hud-gauge-unit {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    color: rgba(180, 200, 220, 0.5);
+    letter-spacing: 0.5px;
+}
+
+.hud-gauge-label {
     font-family: var(--font-ui);
     font-size: 9px;
     font-weight: 600;
     letter-spacing: 1.5px;
-    color: rgba(180, 200, 180, 0.6);
+    color: rgba(180, 200, 220, 0.5);
     text-transform: uppercase;
+    margin-top: 2px;
 }
 
-.cockpit-value {
+/* ── Compact Mach / G readouts ── */
+.hud-compact-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 4px 8px;
+    border-left: 1px solid rgba(80, 160, 255, 0.12);
+}
+
+.hud-compact {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.hud-compact-label {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: rgba(180, 200, 220, 0.5);
+    text-transform: uppercase;
+    min-width: 32px;
+}
+
+.hud-compact-value {
     font-family: 'Courier New', Consolas, monospace;
     font-size: 14px;
     font-weight: 700;
-    color: #33ff66;
-    text-shadow: 0 0 6px rgba(51, 255, 102, 0.35);
-    min-width: 50px;
+    color: #e0e0e0;
+    text-shadow: 0 0 4px rgba(255, 255, 255, 0.15);
+    min-width: 40px;
     text-align: right;
-    letter-spacing: 0.5px;
 }
 
-.cockpit-value-warn {
-    min-width: 36px;
-}
-
-.cockpit-unit {
-    font-family: var(--font-ui);
-    font-size: 9px;
-    color: rgba(180, 200, 180, 0.45);
-    letter-spacing: 0.5px;
-}
-
+/* ── Warning / danger states ── */
 .cockpit-warning {
     color: #ffcc00 !important;
     text-shadow: 0 0 6px rgba(255, 204, 0, 0.4) !important;
@@ -384,16 +458,44 @@ body {
 .cockpit-divider {
     width: 1px;
     height: 22px;
-    background: rgba(100, 200, 100, 0.12);
+    background: rgba(80, 160, 255, 0.12);
     flex-shrink: 0;
 }
 
 .cockpit-divider-thick {
-    width: 2px;
-    height: 26px;
-    background: rgba(100, 200, 100, 0.2);
+    width: 1px;
+    height: 30px;
+    background: rgba(80, 160, 255, 0.15);
     flex-shrink: 0;
-    margin: 0 4px;
+    margin: 0 2px;
+}
+
+/* ── Mode indicator (inside timeline drawer) ── */
+.hud-mode-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-left: 1px solid rgba(80, 160, 255, 0.12);
+}
+
+.hud-mode-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #2ecc71;
+    box-shadow: 0 0 6px #2ecc71;
+    flex-shrink: 0;
+}
+
+.hud-mode-label {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: rgba(180, 200, 220, 0.5);
+    text-transform: uppercase;
+    white-space: nowrap;
 }
 
 /* ── Timeline control steppers (Bank Angle / AoA) ── */

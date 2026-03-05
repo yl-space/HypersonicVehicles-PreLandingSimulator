@@ -35,41 +35,59 @@ export class Timeline {
     createDOM() {
         const html = `
             <div class="rate-drawer expanded cockpit-drawer" id="rate-drawer">
-                <!-- Cockpit telemetry readouts -->
-                <div class="cockpit-instrument" id="cockpit-alt">
-                    <span class="cockpit-label">ALT</span>
-                    <span class="cockpit-value" id="cockpit-alt-val">---</span>
-                    <span class="cockpit-unit">mi</span>
+                <!-- Sci-fi arc gauges -->
+                <div class="hud-gauge" id="hud-alt">
+                    <svg viewBox="0 0 80 50" class="hud-gauge-svg">
+                        <path class="hud-arc-bg" d="M 8 46 A 34 34 0 0 1 72 46"/>
+                        <path class="hud-arc-fill" id="hud-alt-arc" d="M 8 46 A 34 34 0 0 1 72 46"/>
+                    </svg>
+                    <div class="hud-gauge-readout">
+                        <span class="hud-gauge-value" id="cockpit-alt-val">---</span>
+                        <span class="hud-gauge-unit">mi</span>
+                    </div>
+                    <span class="hud-gauge-label">ALT</span>
                 </div>
 
-                <div class="cockpit-divider"></div>
-
-                <div class="cockpit-instrument" id="cockpit-vel">
-                    <span class="cockpit-label">VEL</span>
-                    <span class="cockpit-value" id="cockpit-vel-val">---</span>
-                    <span class="cockpit-unit">mph</span>
+                <div class="hud-gauge" id="hud-vel">
+                    <svg viewBox="0 0 80 50" class="hud-gauge-svg">
+                        <path class="hud-arc-bg" d="M 8 46 A 34 34 0 0 1 72 46"/>
+                        <path class="hud-arc-fill hud-arc-cyan" id="hud-vel-arc" d="M 8 46 A 34 34 0 0 1 72 46"/>
+                    </svg>
+                    <div class="hud-gauge-readout">
+                        <span class="hud-gauge-value" id="cockpit-vel-val">---</span>
+                        <span class="hud-gauge-unit">mph</span>
+                    </div>
+                    <span class="hud-gauge-label">VEL</span>
                 </div>
 
-                <div class="cockpit-divider"></div>
-
-                <div class="cockpit-instrument" id="cockpit-dist">
-                    <span class="cockpit-label">RANGE</span>
-                    <span class="cockpit-value" id="cockpit-dist-val">---</span>
-                    <span class="cockpit-unit">mi</span>
+                <div class="hud-gauge" id="hud-range">
+                    <svg viewBox="0 0 80 50" class="hud-gauge-svg">
+                        <path class="hud-arc-bg" d="M 8 46 A 34 34 0 0 1 72 46"/>
+                        <path class="hud-arc-fill hud-arc-orange" id="hud-range-arc" d="M 8 46 A 34 34 0 0 1 72 46"/>
+                    </svg>
+                    <div class="hud-gauge-readout">
+                        <span class="hud-gauge-value" id="cockpit-dist-val">---</span>
+                        <span class="hud-gauge-unit">mi</span>
+                    </div>
+                    <span class="hud-gauge-label">RANGE</span>
                 </div>
 
-                <div class="cockpit-divider"></div>
-
-                <div class="cockpit-instrument" id="cockpit-mach">
-                    <span class="cockpit-label">MACH</span>
-                    <span class="cockpit-value cockpit-value-warn" id="cockpit-mach-val">---</span>
+                <!-- Compact readouts for Mach & G -->
+                <div class="hud-compact-group">
+                    <div class="hud-compact">
+                        <span class="hud-compact-label">MACH</span>
+                        <span class="hud-compact-value" id="cockpit-mach-val">---</span>
+                    </div>
+                    <div class="hud-compact">
+                        <span class="hud-compact-label">G</span>
+                        <span class="hud-compact-value" id="cockpit-g-val">---</span>
+                    </div>
                 </div>
 
-                <div class="cockpit-divider"></div>
-
-                <div class="cockpit-instrument" id="cockpit-gforce">
-                    <span class="cockpit-label">G</span>
-                    <span class="cockpit-value cockpit-value-warn" id="cockpit-g-val">---</span>
+                <!-- Mode indicator -->
+                <div class="hud-mode-indicator" id="hud-mode-indicator">
+                    <span class="hud-mode-dot" id="hud-mode-dot"></span>
+                    <span class="hud-mode-label" id="hud-mode-label">SIMULATION</span>
                 </div>
 
                 <div class="cockpit-divider-thick"></div>
@@ -166,12 +184,17 @@ export class Timeline {
             aoaStepper:  this.options.container.querySelector('#aoa-stepper'),
             bankVal:     this.options.container.querySelector('#timeline-bank-val'),
             aoaVal:      this.options.container.querySelector('#timeline-aoa-val'),
-            // Cockpit instrument readouts
+            // HUD gauge readouts + arcs
             cockpitAlt:   this.options.container.querySelector('#cockpit-alt-val'),
             cockpitVel:   this.options.container.querySelector('#cockpit-vel-val'),
             cockpitDist:  this.options.container.querySelector('#cockpit-dist-val'),
             cockpitMach:  this.options.container.querySelector('#cockpit-mach-val'),
             cockpitG:     this.options.container.querySelector('#cockpit-g-val'),
+            hudAltArc:    this.options.container.querySelector('#hud-alt-arc'),
+            hudVelArc:    this.options.container.querySelector('#hud-vel-arc'),
+            hudRangeArc:  this.options.container.querySelector('#hud-range-arc'),
+            modeDot:      this.options.container.querySelector('#hud-mode-dot'),
+            modeLabel:    this.options.container.querySelector('#hud-mode-label'),
         };
 
         if (this.elements.handle) {
@@ -541,23 +564,35 @@ export class Timeline {
     }
 
     /**
-     * Update cockpit instrument readouts with live telemetry.
+     * Update HUD gauge readouts with live telemetry.
      * @param {object} data - { altitudeMiles, velocityMph, distanceMiles, mach, gForce }
      */
     setTelemetry(data) {
+        // The SVG arc has a total path length we use for dashoffset animation.
+        // Arc path "M 8 46 A 34 34 0 0 1 72 46" ≈ 106.8 length
+        const ARC_LEN = 106.8;
+
         if (this.elements.cockpitAlt && data.altitudeMiles !== undefined) {
             this.elements.cockpitAlt.textContent = data.altitudeMiles.toFixed(1);
+            // Altitude gauge: 0–82 mi (0–132 km entry interface)
+            const pct = Math.min(1, data.altitudeMiles / 82);
+            this._setArc(this.elements.hudAltArc, pct, ARC_LEN);
         }
         if (this.elements.cockpitVel && data.velocityMph !== undefined) {
             this.elements.cockpitVel.textContent = Math.round(data.velocityMph).toLocaleString();
+            // Velocity gauge: 0–13,000 mph (entry speed)
+            const pct = Math.min(1, data.velocityMph / 13000);
+            this._setArc(this.elements.hudVelArc, pct, ARC_LEN);
         }
         if (this.elements.cockpitDist && data.distanceMiles !== undefined) {
             this.elements.cockpitDist.textContent = data.distanceMiles.toFixed(1);
+            // Range gauge: 0–320 mi
+            const pct = Math.min(1, data.distanceMiles / 320);
+            this._setArc(this.elements.hudRangeArc, pct, ARC_LEN);
         }
         if (this.elements.cockpitMach && data.mach !== undefined) {
             const mach = data.mach;
             this.elements.cockpitMach.textContent = isNaN(mach) ? '0.0' : mach.toFixed(1);
-            // Color code: green < 5, yellow 5-15, red > 15
             this.elements.cockpitMach.classList.toggle('cockpit-danger', mach > 15);
             this.elements.cockpitMach.classList.toggle('cockpit-warning', mach > 5 && mach <= 15);
         }
@@ -567,5 +602,27 @@ export class Timeline {
             this.elements.cockpitG.classList.toggle('cockpit-danger', g > 5);
             this.elements.cockpitG.classList.toggle('cockpit-warning', g > 3 && g <= 5);
         }
+    }
+
+    /**
+     * Update the mode indicator in the HUD drawer.
+     * @param {'SIMULATION'|'PLAYBACK'} mode
+     */
+    setMode(mode) {
+        if (this.elements.modeDot) {
+            const color = mode === 'PLAYBACK' ? '#3498db' : '#2ecc71';
+            this.elements.modeDot.style.background = color;
+            this.elements.modeDot.style.boxShadow = `0 0 6px ${color}`;
+        }
+        if (this.elements.modeLabel) {
+            this.elements.modeLabel.textContent = mode === 'PLAYBACK' ? 'PLAYBACK' : 'SIMULATION';
+        }
+    }
+
+    /** Animate an SVG arc fill via stroke-dashoffset. */
+    _setArc(el, pct, arcLen) {
+        if (!el) return;
+        el.style.strokeDasharray  = `${arcLen}`;
+        el.style.strokeDashoffset = `${arcLen * (1 - pct)}`;
     }
 }

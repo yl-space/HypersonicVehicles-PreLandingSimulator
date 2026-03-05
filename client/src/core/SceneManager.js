@@ -32,8 +32,20 @@ const AtmosphericTintShader = {
             // Vignette: stronger tint at edges, weaker at center
             vec2 center = vUv - 0.5;
             float vignette = dot(center, center);           // 0 at center, 0.5 at corners
-            float tintStrength = intensity * (0.3 + vignette * 1.4);
-            color.rgb = mix(color.rgb, color.rgb * tintColor, tintStrength);
+
+            // Additive reddish glow (atmospheric scatter)
+            float glowStrength = intensity * (0.15 + vignette * 0.6);
+            color.rgb += tintColor * glowStrength;
+
+            // Multiplicative tint (deeper color shift)
+            float tintStrength = intensity * (0.4 + vignette * 1.8);
+            vec3 tinted = mix(color.rgb, color.rgb * tintColor * 1.5, tintStrength);
+
+            // Desaturate slightly at high intensity (dust haze)
+            float lum = dot(tinted, vec3(0.299, 0.587, 0.114));
+            float desatAmount = intensity * 0.2;
+            color.rgb = mix(tinted, vec3(lum) * tintColor * 1.3, desatAmount);
+
             gl_FragColor = color;
         }
     `

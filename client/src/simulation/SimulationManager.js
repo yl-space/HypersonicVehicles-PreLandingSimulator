@@ -389,29 +389,8 @@ export class SimulationManager {
             <span style="font-size:12px;color:rgba(255,255,255,0.7);font-family:var(--font-ui);text-transform:uppercase;letter-spacing:1px;">${planetName}</span>
         `;
 
-        // Mode indicator
-        const modeIndicator = document.createElement('div');
-        modeIndicator.id = 'mode-indicator';
-        modeIndicator.style.cssText = `
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 5px 14px;
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            backdrop-filter: blur(8px);
-            pointer-events: none;
-        `;
-
-        modeIndicator.innerHTML = `
-            <span id="mode-dot" style="width:8px;height:8px;border-radius:50%;background:#2ecc71;display:inline-block;box-shadow:0 0 6px #2ecc71;"></span>
-            <span id="mode-label" style="font-size:12px;color:rgba(255,255,255,0.7);font-family:var(--font-ui);text-transform:uppercase;letter-spacing:1px;">SIMULATION MODE</span>
-        `;
-
         topBar.appendChild(backBtn);
         topBar.appendChild(planetIndicator);
-        topBar.appendChild(modeIndicator);
 
         const uiOverlay = document.getElementById('ui-overlay');
         if (uiOverlay) {
@@ -423,18 +402,8 @@ export class SimulationManager {
      * Update the mode indicator (SIMULATION vs PLAYBACK)
      */
     updateModeIndicator(mode) {
-        const dot = document.getElementById('mode-dot');
-        const label = document.getElementById('mode-label');
-        if (!dot || !label) return;
-
-        if (mode === 'PLAYBACK') {
-            dot.style.background = '#3498db';
-            dot.style.boxShadow = '0 0 6px #3498db';
-            label.textContent = 'PLAYBACK';
-        } else {
-            dot.style.background = '#2ecc71';
-            dot.style.boxShadow = '0 0 6px #2ecc71';
-            label.textContent = 'SIMULATION';
+        if (this.timeline) {
+            this.timeline.setMode(mode);
         }
     }
     
@@ -738,14 +707,16 @@ export class SimulationManager {
             );
 
             // Atmospheric tint: reddish aura intensifies as vehicle descends
-            // Full tint at ~10 km altitude, starts fading in below ~80 km
+            // Starts at ~120 km (entry interface), full at ~8 km (near parachute deploy)
             const altKm = this.state.vehicleData.altitude || 130;
-            const tintStart = 80;  // km — start fading in
-            const tintFull  = 10;  // km — maximum intensity
+            const tintStart = 120; // km — faint glow begins
+            const tintFull  = 8;   // km — maximum red haze
             const tint = altKm >= tintStart ? 0
                        : altKm <= tintFull  ? 1
                        : 1 - (altKm - tintFull) / (tintStart - tintFull);
-            this.sceneManager.setAtmosphericTint(tint * 0.55); // cap at 55% max
+            // Exponential curve for more dramatic low-altitude effect
+            const tintCurved = tint * tint;
+            this.sceneManager.setAtmosphericTint(tintCurved * 0.85); // cap at 85% max
         }
         
         // Update UI
