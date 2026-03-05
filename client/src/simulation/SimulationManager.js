@@ -736,6 +736,16 @@ export class SimulationManager {
                 this.state.vehicleData.altitude,
                 this.state.currentPhase
             );
+
+            // Atmospheric tint: reddish aura intensifies as vehicle descends
+            // Full tint at ~10 km altitude, starts fading in below ~80 km
+            const altKm = this.state.vehicleData.altitude || 130;
+            const tintStart = 80;  // km — start fading in
+            const tintFull  = 10;  // km — maximum intensity
+            const tint = altKm >= tintStart ? 0
+                       : altKm <= tintFull  ? 1
+                       : 1 - (altKm - tintFull) / (tintStart - tintFull);
+            this.sceneManager.setAtmosphericTint(tint * 0.55); // cap at 55% max
         }
         
         // Update UI
@@ -745,6 +755,29 @@ export class SimulationManager {
         if (this.timeline) {
             this.timeline.setControlValue('bankAngle',      this.state.controls.bankAngle      ?? 0);
             this.timeline.setControlValue('angleOfAttack',  this.state.controls.angleOfAttack  ?? -16);
+
+            // Feed cockpit instrument readouts
+            if (this.state.vehicleData) {
+                const vd = this.state.vehicleData;
+                let velocity = 0;
+                if (typeof vd.velocityMagnitude === 'number' && !isNaN(vd.velocityMagnitude)) {
+                    velocity = vd.velocityMagnitude;
+                } else if (vd.velocity && typeof vd.velocity.length === 'function') {
+                    velocity = vd.velocity.length() * 100000;
+                }
+                const altKm = vd.altitude || 0;
+                const soundSpeed = Math.max(150, 240 - altKm * 0.5);
+                const mach = velocity / soundSpeed;
+                const gForce = Math.min(velocity / 5000, 8);
+
+                this.timeline.setTelemetry({
+                    altitudeMiles:  altKm * 0.621371,
+                    velocityMph:    velocity * 0.621371,
+                    distanceMiles:  (vd.distanceToLanding || 0) * 0.621371,
+                    mach,
+                    gForce,
+                });
+            }
         }
 
         // Enhance vehicle data with attitude information for telemetry display
