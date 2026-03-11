@@ -22,6 +22,9 @@ export class Timeline {
 
         this.activePointerId = null;
         this.phaseData = null;
+        // Cached attitude values for smooth rendering
+        this._bankDeg = 0;
+        this._aoaDeg = -16;
 
         this.init();
     }
@@ -33,128 +36,202 @@ export class Timeline {
     }
 
     /**
-     * Build a single round-dial gauge SVG.
-     * @param {string} id        — unique prefix
-     * @param {string} label     — instrument label (e.g. "ALT")
-     * @param {string} unit      — unit text (e.g. "mi")
-     * @param {number} maxVal    — full-scale value
-     * @param {number} majorDiv  — number of major divisions
-     * @param {string} color     — accent color for needle + ticks
+     * Build the SVG artificial horizon (attitude indicator).
+     * The horizon rotates with bank angle and translates with pitch (AoA).
      */
-    _gaugeHTML(id, label, unit, maxVal, majorDiv, color, size = 'main') {
-        const CX = 72;
-        const CY = 72;
-        const R = 56;
-        const START_ANGLE = -130;
-        const SWEEP = 260;
+    _buildAttitudeIndicator() {
+        const CX = 150, CY = 150, R = 115;
+        const PPD = 3.2; // pixels per degree of pitch
 
-        let ticks = '';
-        const minorPerMajor = 5;
-        const totalMinor = Math.max(1, majorDiv * minorPerMajor);
-        for (let i = 0; i <= totalMinor; i++) {
-            const angle = START_ANGLE + (SWEEP * i / totalMinor);
-            const rad = angle * Math.PI / 180;
-            const isMajor = i % minorPerMajor === 0;
-            const tickLength = isMajor ? 10 : 5;
-            const innerR = R - tickLength;
-            const x1 = CX + innerR * Math.cos(rad);
-            const y1 = CY + innerR * Math.sin(rad);
-            const x2 = CX + R * Math.cos(rad);
-            const y2 = CY + R * Math.sin(rad);
+        // ── Bank-angle scale ticks (fixed on bezel) ──
+        const bankAngles = [
+            { deg: 0,    len: 14, sw: 2.5 },
+            { deg: 10,   len: 6,  sw: 1 },   { deg: -10,   len: 6,  sw: 1 },
+            { deg: 20,   len: 6,  sw: 1 },   { deg: -20,   len: 6,  sw: 1 },
+            { deg: 30,   len: 12, sw: 2 },   { deg: -30,   len: 12, sw: 2 },
+            { deg: 45,   len: 6,  sw: 1 },   { deg: -45,   len: 6,  sw: 1 },
+            { deg: 60,   len: 12, sw: 2 },   { deg: -60,   len: 12, sw: 2 },
+            { deg: 90,   len: 14, sw: 2.5 }, { deg: -90,   len: 14, sw: 2.5 },
+            { deg: 120,  len: 12, sw: 2 },   { deg: -120,  len: 12, sw: 2 },
+            { deg: 150,  len: 6,  sw: 1 },   { deg: -150,  len: 6,  sw: 1 },
+            { deg: 180,  len: 14, sw: 2.5 },
+        ];
+        let bankTicks = '';
+        bankAngles.forEach(({ deg, len, sw }) => {
+            const rad = (deg - 90) * Math.PI / 180;
+            const x1 = CX + (R - 1) * Math.cos(rad);
+            const y1 = CY + (R - 1) * Math.sin(rad);
+            const x2 = CX + (R + len) * Math.cos(rad);
+            const y2 = CY + (R + len) * Math.sin(rad);
+            const isMajor = Math.abs(deg) % 30 === 0;
+            const opacity = isMajor ? 0.85 : 0.6;
+            const color = Math.abs(deg) >= 90 ? `rgba(255,200,100,${opacity})` : `rgba(255,255,255,${opacity})`;
+            bankTicks += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-width="${sw}"/>`;
+        });
 
-            ticks += `<line class="${isMajor ? 'dial-tick-major' : 'dial-tick-minor'}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`;
+        // ── Pitch ladder lines (move with the horizon) ──
+        let pitchLines = '';
+        for (let deg = -90; deg <= 90; deg += 5) {
+            if (deg === 0) continue;
+            const y = CY - deg * PPD;
+            const absDeg = Math.abs(deg);
+            const isMajor = deg % 10 === 0;
 
+            let halfW;
+            if (absDeg % 30 === 0) {
+                halfW = 40;
+            } else if (isMajor) {
+                halfW = 30;
+            } else {
+                halfW = 15;
+            }
+
+            const gap = 6;
+            const sw = isMajor ? 1.5 : 1;
+            const color = deg > 0 ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.55)';
+            const dashAttr = deg < 0 ? ' stroke-dasharray="4,3"' : '';
+
+            // Left segment
+            pitchLines += `<line x1="${CX - halfW}" y1="${y}" x2="${CX - gap}" y2="${y}" stroke="${color}" stroke-width="${sw}"${dashAttr}/>`;
+            // Right segment
+            pitchLines += `<line x1="${CX + gap}" y1="${y}" x2="${CX + halfW}" y2="${y}" stroke="${color}" stroke-width="${sw}"${dashAttr}/>`;
+            // Degree labels on major lines
             if (isMajor) {
-                const value = Math.round((maxVal / majorDiv) * (i / minorPerMajor));
-                const labelR = R - 16;
-                const lx = CX + labelR * Math.cos(rad);
-                const ly = CY + labelR * Math.sin(rad);
-                ticks += `<text class="dial-scale-number" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="central">${value}</text>`;
+                pitchLines += `<text x="${CX - halfW - 6}" y="${y + 3.5}" fill="white" font-size="9" font-family="'Courier New',monospace" text-anchor="end" opacity="0.7">${absDeg}</text>`;
+                pitchLines += `<text x="${CX + halfW + 6}" y="${y + 3.5}" fill="white" font-size="9" font-family="'Courier New',monospace" text-anchor="start" opacity="0.7">${absDeg}</text>`;
             }
         }
 
         return `
-            <div class="dial-gauge dial-gauge-${size}" id="dial-${id}">
-                <div class="dial-chassis">
-                    <svg viewBox="0 0 144 144" class="dial-svg" aria-hidden="true">
-                        <defs>
-                            <radialGradient id="dial-face-grad-${id}" cx="50%" cy="45%" r="65%">
-                                <stop offset="0%" stop-color="#10161c"/>
-                                <stop offset="65%" stop-color="#080c10"/>
-                                <stop offset="100%" stop-color="#020406"/>
-                            </radialGradient>
-                            <linearGradient id="dial-glare-grad-${id}" x1="0" y1="0" x2="1" y2="1">
-                                <stop offset="0%" stop-color="rgba(255,255,255,0.18)"/>
-                                <stop offset="60%" stop-color="rgba(255,255,255,0.03)"/>
-                                <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
-                            </linearGradient>
-                        </defs>
+            <svg viewBox="0 0 300 300" class="attitude-svg" aria-label="Attitude Indicator">
+                <defs>
+                    <clipPath id="ai-clip">
+                        <circle cx="${CX}" cy="${CY}" r="${R}"/>
+                    </clipPath>
+                    <radialGradient id="ai-bezel-grad" cx="50%" cy="40%" r="60%">
+                        <stop offset="0%" stop-color="#3a3a3a"/>
+                        <stop offset="100%" stop-color="#1a1a1a"/>
+                    </radialGradient>
+                    <linearGradient id="mars-sky" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%"   stop-color="#1a0a08"/>
+                        <stop offset="30%"  stop-color="#3d1f1a"/>
+                        <stop offset="65%"  stop-color="#c4836a"/>
+                        <stop offset="85%"  stop-color="#d4a083"/>
+                        <stop offset="100%" stop-color="#e8c4a0"/>
+                    </linearGradient>
+                    <linearGradient id="mars-ground" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%"   stop-color="#a0522d"/>
+                        <stop offset="20%"  stop-color="#8b3a1a"/>
+                        <stop offset="50%"  stop-color="#6b2a12"/>
+                        <stop offset="100%" stop-color="#3a150a"/>
+                    </linearGradient>
+                </defs>
 
-                        <circle class="dial-outer-ring" cx="${CX}" cy="${CY}" r="${R + 6}"/>
-                        <circle class="dial-inner-ring" cx="${CX}" cy="${CY}" r="${R + 2}"/>
-                        <circle class="dial-face" cx="${CX}" cy="${CY}" r="${R}" fill="url(#dial-face-grad-${id})"/>
+                <!-- Bezel ring -->
+                <circle cx="${CX}" cy="${CY}" r="${R + 8}" fill="url(#ai-bezel-grad)" stroke="#555" stroke-width="1.5"/>
+                <circle cx="${CX}" cy="${CY}" r="${R + 1}" fill="none" stroke="#222" stroke-width="2"/>
 
-                        <g id="${id}-gyro" class="dial-gyro" style="transform-origin: ${CX}px ${CY}px; transform: rotate(0deg); transition: transform 0.12s ease-out;">
-                            <circle class="dial-gyro-ring" cx="${CX}" cy="${CY}" r="${R - 22}"/>
-                            <line class="dial-gyro-axis" x1="${CX - (R - 24)}" y1="${CY}" x2="${CX + (R - 24)}" y2="${CY}"/>
-                            <line class="dial-gyro-axis" x1="${CX}" y1="${CY - (R - 24)}" x2="${CX}" y2="${CY + (R - 24)}"/>
+                <!-- Bank-angle scale ticks (fixed) -->
+                ${bankTicks}
+
+                <!-- Fixed reference triangle at top (index mark) -->
+                <polygon points="${CX},${CY - R + 2} ${CX - 7},${CY - R - 10} ${CX + 7},${CY - R - 10}" fill="#e8a830" opacity="0.9"/>
+
+                <!-- Attitude ball (clipped to circle, rotates for bank) -->
+                <g clip-path="url(#ai-clip)">
+                    <g id="ai-bank-rotate" style="transform-origin: ${CX}px ${CY}px; transition: transform 0.1s ease-out;">
+                        <g id="ai-pitch-translate" style="transition: transform 0.1s ease-out;">
+                            <!-- Sky -->
+                            <rect x="-100" y="${CY - 500}" width="500" height="500" fill="url(#mars-sky)"/>
+                            <!-- Ground -->
+                            <rect x="-100" y="${CY}" width="500" height="500" fill="url(#mars-ground)"/>
+                            <!-- Horizon line -->
+                            <line x1="-100" y1="${CY}" x2="400" y2="${CY}" stroke="#e8c4a0" stroke-width="2.5"/>
+                            <!-- Sub-horizon accent line -->
+                            <line x1="-100" y1="${CY + 1.5}" x2="400" y2="${CY + 1.5}" stroke="rgba(60,20,10,0.5)" stroke-width="1"/>
+
+                            <!-- Pitch ladder -->
+                            ${pitchLines}
                         </g>
 
-                        <g class="dial-scale">${ticks}</g>
-                        <line class="dial-reference-line" x1="${CX - R + 8}" y1="${CY}" x2="${CX + R - 8}" y2="${CY}"/>
+                        <!-- Rotating bank pointer (triangle at top, inside clip) -->
+                        <polygon points="${CX},${CY - R + 5} ${CX - 6},${CY - R + 15} ${CX + 6},${CY - R + 15}" fill="white" opacity="0.85"/>
+                    </g>
+                </g>
 
-                        <g id="${id}-needle" class="dial-needle-group" style="transform-origin: ${CX}px ${CY}px; transform: rotate(${START_ANGLE}deg); transition: transform 0.12s ease-out;">
-                            <line class="dial-needle-tail" x1="${CX - 14}" y1="${CY}" x2="${CX - 2}" y2="${CY}"/>
-                            <line class="dial-needle-main" x1="${CX}" y1="${CY}" x2="${CX + R - 12}" y2="${CY}" stroke="${color}"/>
-                            <circle class="dial-needle-tip" cx="${CX + R - 12}" cy="${CY}" r="2.2" fill="${color}"/>
-                        </g>
+                <!-- Fixed aircraft reference symbol -->
+                <line x1="${CX - 55}" y1="${CY}" x2="${CX - 18}" y2="${CY}" stroke="#e8a830" stroke-width="3.5" stroke-linecap="round"/>
+                <line x1="${CX + 18}" y1="${CY}" x2="${CX + 55}" y2="${CY}" stroke="#e8a830" stroke-width="3.5" stroke-linecap="round"/>
+                <line x1="${CX - 18}" y1="${CY}" x2="${CX - 18}" y2="${CY + 8}" stroke="#e8a830" stroke-width="3.5" stroke-linecap="round"/>
+                <line x1="${CX + 18}" y1="${CY}" x2="${CX + 18}" y2="${CY + 8}" stroke="#e8a830" stroke-width="3.5" stroke-linecap="round"/>
+                <rect x="${CX - 3}" y="${CY - 2}" width="6" height="4" fill="#e8a830" rx="1"/>
 
-                        <circle class="dial-center-cap" cx="${CX}" cy="${CY}" r="6"/>
-                        <circle class="dial-center-core" cx="${CX}" cy="${CY}" r="2.8" fill="${color}"/>
+                <!-- Digital readout windows on the AI face -->
+                <!-- Bank angle (top) -->
+                <rect x="${CX - 22}" y="${CY - R + 18}" width="44" height="15" rx="2" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+                <text id="ai-bank-text" x="${CX}" y="${CY - R + 29}" text-anchor="middle" fill="#e8a830" font-size="10" font-family="'Courier New',monospace">0.0\u00B0</text>
 
-                        <rect class="dial-digital-window" x="${CX - 26}" y="${CY + 18}" width="52" height="16" rx="2.5"/>
-                        <text id="${id}-digital" class="dial-digital-value" x="${CX}" y="${CY + 30}" text-anchor="middle" fill="${color}">---</text>
-                        <text class="dial-unit-text" x="${CX}" y="${CY + 44}" text-anchor="middle">${unit || ''}</text>
-                        <ellipse class="dial-glare" cx="${CX - 10}" cy="${CY - 18}" rx="${R - 18}" ry="${R - 30}" fill="url(#dial-glare-grad-${id})"/>
-                    </svg>
-                    <span class="dial-label">${label}</span>
-                </div>
-            </div>
+                <!-- AoA (bottom) -->
+                <rect x="${CX - 22}" y="${CY + R - 33}" width="44" height="15" rx="2" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+                <text id="ai-aoa-text" x="${CX}" y="${CY + R - 22}" text-anchor="middle" fill="#33ccff" font-size="10" font-family="'Courier New',monospace">-16.0\u00B0</text>
+
+                <!-- Subtle glass glare -->
+                <ellipse cx="${CX - 15}" cy="${CY - 30}" rx="${R - 30}" ry="${R - 55}" fill="rgba(255,255,255,0.04)"/>
+            </svg>
         `;
     }
 
     createDOM() {
-        const gauges = [
-            this._gaugeHTML('alt', 'ALT', 'mi', 80, 8, '#7dff8a', 'main'),
-            this._gaugeHTML('vel', 'VEL', 'x1000 mph', 13, 13, '#68d9ff', 'main'),
-            this._gaugeHTML('range', 'RNG', 'mi', 320, 8, '#ffad66', 'main'),
-        ];
+        const ai = this._buildAttitudeIndicator();
 
-        const smallGauges = [
-            this._gaugeHTML('mach', 'MACH', '', 30, 6, '#ffd45b', 'aux'),
-            this._gaugeHTML('gforce', 'G', 'g', 10, 10, '#ff687c', 'aux'),
-        ];
-
-        const html = `
-            <div class="rate-drawer expanded cockpit-drawer" id="rate-drawer">
-                <div class="cockpit-instrument-cluster">
-                    <div class="dial-panel">
-                        <div class="dial-row-main">
-                            ${gauges.join('')}
-                        </div>
-                        <div class="dial-row-aux">
-                            ${smallGauges.join('')}
-                            <div class="hud-mode-indicator" id="hud-mode-indicator">
-                                <span class="hud-mode-dot" id="hud-mode-dot"></span>
-                                <span class="hud-mode-label" id="hud-mode-label">SIMULATION</span>
-                            </div>
-                        </div>
-                    </div>
+        // ── Floating PFD panel (independent of timeline container) ──
+        this._pfdPanel = document.createElement('div');
+        this._pfdPanel.id = 'pfd-panel';
+        this._pfdPanel.className = 'pfd-panel';
+        this._pfdPanel.innerHTML = `
+            <div class="ai-container">
+                ${ai}
+            </div>
+            <div class="flight-data-panel">
+                <div class="fd-item">
+                    <span class="fd-label">ALT</span>
+                    <span class="fd-value" id="fd-alt">---</span>
+                    <span class="fd-unit">mi</span>
                 </div>
+                <div class="fd-item">
+                    <span class="fd-label">VEL</span>
+                    <span class="fd-value" id="fd-vel">---</span>
+                    <span class="fd-unit">mph</span>
+                </div>
+                <div class="fd-item">
+                    <span class="fd-label">RNG</span>
+                    <span class="fd-value" id="fd-range">---</span>
+                    <span class="fd-unit">mi</span>
+                </div>
+                <div class="fd-divider"></div>
+                <div class="fd-item">
+                    <span class="fd-label">MACH</span>
+                    <span class="fd-value" id="fd-mach">---</span>
+                    <span class="fd-unit"></span>
+                </div>
+                <div class="fd-item">
+                    <span class="fd-label">G</span>
+                    <span class="fd-value" id="fd-g">---</span>
+                    <span class="fd-unit"></span>
+                </div>
+                <div class="fd-divider"></div>
+                <div class="hud-mode-indicator" id="hud-mode-indicator">
+                    <span class="hud-mode-dot" id="hud-mode-dot"></span>
+                    <span class="hud-mode-label" id="hud-mode-label">SIMULATION</span>
+                </div>
+            </div>
+        `;
+        const overlay = document.getElementById('ui-overlay') || document.body;
+        overlay.appendChild(this._pfdPanel);
 
-                <div class="cockpit-divider-thick"></div>
-
-                <!-- Playback rate controls -->
+        // ── Timeline container (original rate drawer + controls + progress bar) ──
+        const html = `
+            <div class="rate-drawer expanded" id="rate-drawer">
                 <div class="playback-rate">
                     <span class="rate-label">RATE</span>
                     <div class="rate-buttons" id="rate-buttons">
@@ -164,12 +241,11 @@ export class Timeline {
                         <button class="rate-button" data-rate="2">2</button>
                         <button class="rate-button" data-rate="3">3</button>
                     </div>
-                    <span class="rate-label">SEC/S</span>
+                    <span class="rate-label">SEC(S)/SEC</span>
                 </div>
 
-                <div class="cockpit-divider-thick"></div>
+                <div class="timeline-ctrl-divider"></div>
 
-                <!-- Control steppers -->
                 <div class="timeline-control-stepper" id="bank-angle-stepper">
                     <span class="rate-label">BANK</span>
                     <div class="stepper-group">
@@ -179,7 +255,7 @@ export class Timeline {
                     </div>
                 </div>
 
-                <div class="cockpit-divider"></div>
+                <div class="timeline-ctrl-divider"></div>
 
                 <div class="timeline-control-stepper" id="aoa-stepper">
                     <span class="rate-label">AoA</span>
@@ -189,38 +265,37 @@ export class Timeline {
                         <button class="stepper-btn" data-control="angleOfAttack" data-delta="1">&#8250;</button>
                     </div>
                 </div>
+            </div>
+            <div class="timeline-controls">
+                <button class="play-button" id="play-button">
+                    <svg width="24" height="24" viewBox="0 0 24 24">
+                        <path class="play-icon" d="M8 5v14l11-7z" fill="currentColor"></path>
+                        <g class="pause-icon" style="display: none;">
+                            <rect x="6" y="4" width="4" height="16" fill="currentColor"></rect>
+                            <rect x="14" y="4" width="4" height="16" fill="currentColor"></rect>
+                        </g>
+                    </svg>
+                </button>
+                <button class="timeline-reset-button" id="timeline-reset" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24">
+                        <path d="M12 5V2L8 6l4 4V7c2.76 0 5 2.24 5 5 0 2.21-1.79 4-4 4-1.38 0-2.6-.7-3.32-1.76l-1.66.96C9 17.91 10.39 19 12 19c3.31 0 6-2.69 6-6s-2.69-6-6-6z" fill="currentColor"></path>
+                    </svg>
+                </button>
 
-                <!-- Timeline row (play, time, progress bar) -->
-                <div class="drawer-timeline-row">
-                    <div class="timeline-info">
-                        <span class="current-time" id="current-time">Feb 18, 2021 03:48:41 pm</span>
-                    </div>
-                    <button class="play-button" id="play-button">
-                        <svg width="24" height="24" viewBox="0 0 24 24">
-                            <path class="play-icon" d="M8 5v14l11-7z" fill="currentColor"></path>
-                            <g class="pause-icon" style="display: none;">
-                                <rect x="6" y="4" width="4" height="16" fill="currentColor"></rect>
-                                <rect x="14" y="4" width="4" height="16" fill="currentColor"></rect>
-                            </g>
-                        </svg>
-                    </button>
-                    <button class="timeline-reset-button" id="timeline-reset" disabled>
-                        <svg width="20" height="20" viewBox="0 0 24 24">
-                            <path d="M12 5V2L8 6l4 4V7c2.76 0 5 2.24 5 5 0 2.21-1.79 4-4 4-1.38 0-2.6-.7-3.32-1.76l-1.66.96C9 17.91 10.39 19 12 19c3.31 0 6-2.69 6-6s-2.69-6-6-6z" fill="currentColor"></path>
-                        </svg>
-                    </button>
+                <div class="timeline-info">
+                    <span class="current-time" id="current-time">Feb 18, 2021 03:48:41 pm</span>
+                </div>
+            </div>
 
-                    <div class="timeline-progress-bar is-disabled" id="timeline-progress-bar" aria-disabled="true">
-                        <div class="timeline-track">
-                            <div class="timeline-progress" id="timeline-progress"></div>
-                            <div class="timeline-handle" id="timeline-handle"></div>
-                            <div class="timeline-markers" id="timeline-markers"></div>
-                        </div>
-                        <div class="timeline-tooltip" id="timeline-tooltip">
-                            <span class="tooltip-time">00:00</span>
-                            <span class="tooltip-phase"></span>
-                        </div>
-                    </div>
+            <div class="timeline-progress-bar is-disabled" id="timeline-progress-bar" aria-disabled="true">
+                <div class="timeline-track">
+                    <div class="timeline-progress" id="timeline-progress"></div>
+                    <div class="timeline-handle" id="timeline-handle"></div>
+                    <div class="timeline-markers" id="timeline-markers"></div>
+                </div>
+                <div class="timeline-tooltip" id="timeline-tooltip">
+                    <span class="tooltip-time">00:00</span>
+                    <span class="tooltip-phase"></span>
                 </div>
             </div>
         `;
@@ -247,28 +322,19 @@ export class Timeline {
             aoaStepper:  this.options.container.querySelector('#aoa-stepper'),
             bankVal:     this.options.container.querySelector('#timeline-bank-val'),
             aoaVal:      this.options.container.querySelector('#timeline-aoa-val'),
-            altGauge:     this.options.container.querySelector('#dial-alt'),
-            velGauge:     this.options.container.querySelector('#dial-vel'),
-            rangeGauge:   this.options.container.querySelector('#dial-range'),
-            machGauge:    this.options.container.querySelector('#dial-mach'),
-            gGauge:       this.options.container.querySelector('#dial-gforce'),
-            altNeedle:    this.options.container.querySelector('#alt-needle'),
-            altGyro:      this.options.container.querySelector('#alt-gyro'),
-            altDigital:   this.options.container.querySelector('#alt-digital'),
-            velNeedle:    this.options.container.querySelector('#vel-needle'),
-            velGyro:      this.options.container.querySelector('#vel-gyro'),
-            velDigital:   this.options.container.querySelector('#vel-digital'),
-            rangeNeedle:  this.options.container.querySelector('#range-needle'),
-            rangeGyro:    this.options.container.querySelector('#range-gyro'),
-            rangeDigital: this.options.container.querySelector('#range-digital'),
-            machNeedle:   this.options.container.querySelector('#mach-needle'),
-            machGyro:     this.options.container.querySelector('#mach-gyro'),
-            machDigital:  this.options.container.querySelector('#mach-digital'),
-            gNeedle:      this.options.container.querySelector('#gforce-needle'),
-            gGyro:        this.options.container.querySelector('#gforce-gyro'),
-            gDigital:     this.options.container.querySelector('#gforce-digital'),
-            modeDot:      this.options.container.querySelector('#hud-mode-dot'),
-            modeLabel:    this.options.container.querySelector('#hud-mode-label'),
+            // Attitude indicator (in floating PFD panel)
+            aiBankRotate:    this._pfdPanel.querySelector('#ai-bank-rotate'),
+            aiPitchTranslate: this._pfdPanel.querySelector('#ai-pitch-translate'),
+            aiBankText:      this._pfdPanel.querySelector('#ai-bank-text'),
+            aiAoaText:       this._pfdPanel.querySelector('#ai-aoa-text'),
+            // Flight data readouts (in floating PFD panel)
+            fdAlt:    this._pfdPanel.querySelector('#fd-alt'),
+            fdVel:    this._pfdPanel.querySelector('#fd-vel'),
+            fdRange:  this._pfdPanel.querySelector('#fd-range'),
+            fdMach:   this._pfdPanel.querySelector('#fd-mach'),
+            fdG:      this._pfdPanel.querySelector('#fd-g'),
+            modeDot:  this._pfdPanel.querySelector('#hud-mode-dot'),
+            modeLabel: this._pfdPanel.querySelector('#hud-mode-label'),
         };
 
         if (this.elements.handle) {
@@ -609,18 +675,50 @@ export class Timeline {
         }
     }
 
+    // ── Attitude indicator updates ──
+
     /**
-     * Update a control stepper display value.
+     * Update the attitude indicator from bank angle or angle of attack.
+     * Called by SimulationManager via setControlValue().
+     */
+    _updateAttitude() {
+        const PPD = 3.2; // pixels per degree of pitch (matches SVG build)
+
+        // Rotate the entire sky/ground by bank angle
+        if (this.elements.aiBankRotate) {
+            this.elements.aiBankRotate.style.transform = `rotate(${-this._bankDeg}deg)`;
+        }
+
+        // Translate the pitch ladder (positive AoA = nose up = horizon drops = translateY positive)
+        if (this.elements.aiPitchTranslate) {
+            const offset = this._aoaDeg * PPD;
+            this.elements.aiPitchTranslate.style.transform = `translateY(${offset}px)`;
+        }
+
+        // Update digital readouts on the AI face
+        if (this.elements.aiBankText) {
+            this.elements.aiBankText.textContent = `${this._bankDeg.toFixed(1)}\u00B0`;
+        }
+        if (this.elements.aiAoaText) {
+            this.elements.aiAoaText.textContent = `${this._aoaDeg.toFixed(1)}\u00B0`;
+        }
+    }
+
+    /**
+     * Update a control stepper display value + drive the attitude indicator.
      * @param {'bankAngle'|'angleOfAttack'} controlId
      * @param {number} value - Current numeric value
      */
     setControlValue(controlId, value) {
         const fixed = typeof value === 'number' ? value.toFixed(1) : '0.0';
-        if (controlId === 'bankAngle' && this.elements.bankVal) {
-            this.elements.bankVal.textContent = `${fixed}\u00B0`;
-        } else if (controlId === 'angleOfAttack' && this.elements.aoaVal) {
-            this.elements.aoaVal.textContent = `${fixed}\u00B0`;
+        if (controlId === 'bankAngle') {
+            if (this.elements.bankVal) this.elements.bankVal.textContent = `${fixed}\u00B0`;
+            this._bankDeg = typeof value === 'number' ? value : 0;
+        } else if (controlId === 'angleOfAttack') {
+            if (this.elements.aoaVal) this.elements.aoaVal.textContent = `${fixed}\u00B0`;
+            this._aoaDeg = typeof value === 'number' ? value : -16;
         }
+        this._updateAttitude();
     }
 
     /**
@@ -637,88 +735,39 @@ export class Timeline {
         });
     }
 
-    /**
-     * Rotate a dial needle to represent a 0–1 fraction of full scale.
-     * Sweep is 240° from –120° (min) to +120° (max).
-     */
-    _setNeedle(needleEl, fraction, gyroEl = null) {
-        if (!needleEl) return;
-        const START = -130;
-        const SWEEP = 260;
-        const clamped = Math.max(0, Math.min(1, fraction));
-        const angle = START + SWEEP * clamped;
-        needleEl.style.transform = `rotate(${angle}deg)`;
-
-        if (gyroEl) {
-            const gyroAngle = -18 + clamped * 36;
-            gyroEl.style.transform = `rotate(${gyroAngle}deg)`;
-        }
-    }
-
-    _setGaugeAlertState(gaugeEl, value, warnAt, dangerAt, mode = 'high') {
-        if (!gaugeEl) return;
-
-        gaugeEl.classList.remove('dial-warning', 'dial-danger');
-        if (typeof value !== 'number' || isNaN(value)) return;
-
-        const warning = mode === 'low' ? value <= warnAt : value >= warnAt;
-        const danger = mode === 'low' ? value <= dangerAt : value >= dangerAt;
-
-        if (danger) {
-            gaugeEl.classList.add('dial-danger');
-        } else if (warning) {
-            gaugeEl.classList.add('dial-warning');
-        }
-    }
+    // ── Flight data readouts ──
 
     /**
-     * Update cockpit dial gauges with live telemetry.
-     * @param {object} data - { altitudeMiles, velocityMph, distanceMiles, mach, gForce }
+     * Update the digital flight-data readout strip.
      */
     setTelemetry(data) {
-        if (data.altitudeMiles !== undefined) {
-            this._setNeedle(this.elements.altNeedle, data.altitudeMiles / 80, this.elements.altGyro);
-            if (this.elements.altDigital) {
-                this.elements.altDigital.textContent = data.altitudeMiles.toFixed(1);
-            }
-            this._setGaugeAlertState(this.elements.altGauge, data.altitudeMiles, 12, 5, 'low');
+        if (this.elements.fdAlt && data.altitudeMiles !== undefined) {
+            this.elements.fdAlt.textContent = data.altitudeMiles.toFixed(1);
+            this.elements.fdAlt.classList.toggle('fd-warn', data.altitudeMiles < 12);
+            this.elements.fdAlt.classList.toggle('fd-danger', data.altitudeMiles < 5);
         }
-        if (data.velocityMph !== undefined) {
-            this._setNeedle(this.elements.velNeedle, data.velocityMph / 13000, this.elements.velGyro);
-            if (this.elements.velDigital) {
-                this.elements.velDigital.textContent = (data.velocityMph / 1000).toFixed(1);
-            }
-            this._setGaugeAlertState(this.elements.velGauge, data.velocityMph, 10000, 12000);
+        if (this.elements.fdVel && data.velocityMph !== undefined) {
+            this.elements.fdVel.textContent = Math.round(data.velocityMph).toLocaleString();
         }
-        if (data.distanceMiles !== undefined) {
-            this._setNeedle(this.elements.rangeNeedle, data.distanceMiles / 320, this.elements.rangeGyro);
-            if (this.elements.rangeDigital) {
-                this.elements.rangeDigital.textContent = data.distanceMiles.toFixed(0);
-            }
-            this._setGaugeAlertState(this.elements.rangeGauge, data.distanceMiles, 20, 8, 'low');
+        if (this.elements.fdRange && data.distanceMiles !== undefined) {
+            this.elements.fdRange.textContent = data.distanceMiles.toFixed(1);
         }
-        if (data.mach !== undefined) {
-            const mach = isNaN(data.mach) ? 0 : data.mach;
-            this._setNeedle(this.elements.machNeedle, mach / 30, this.elements.machGyro);
-            if (this.elements.machDigital) {
-                this.elements.machDigital.textContent = mach.toFixed(1);
-            }
-            this._setGaugeAlertState(this.elements.machGauge, mach, 18, 24);
+        if (this.elements.fdMach && data.mach !== undefined) {
+            const m = isNaN(data.mach) ? 0 : data.mach;
+            this.elements.fdMach.textContent = m.toFixed(1);
+            this.elements.fdMach.classList.toggle('fd-warn', m > 5 && m <= 15);
+            this.elements.fdMach.classList.toggle('fd-danger', m > 15);
         }
-        if (data.gForce !== undefined) {
+        if (this.elements.fdG && data.gForce !== undefined) {
             const g = isNaN(data.gForce) ? 0 : data.gForce;
-            this._setNeedle(this.elements.gNeedle, g / 10, this.elements.gGyro);
-            if (this.elements.gDigital) {
-                this.elements.gDigital.textContent = g.toFixed(1);
-            }
-            this._setGaugeAlertState(this.elements.gGauge, g, 4, 6.5);
+            this.elements.fdG.textContent = `${g.toFixed(1)}g`;
+            this.elements.fdG.classList.toggle('fd-warn', g > 3 && g <= 5);
+            this.elements.fdG.classList.toggle('fd-danger', g > 5);
         }
     }
 
-    /**
-     * Update the mode indicator in the HUD drawer.
-     * @param {'SIMULATION'|'PLAYBACK'} mode
-     */
+    // ── Mode indicator ──
+
     setMode(mode) {
         if (this.elements.modeDot) {
             const color = mode === 'PLAYBACK' ? '#3498db' : '#2ecc71';
