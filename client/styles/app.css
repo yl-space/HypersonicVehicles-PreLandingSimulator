@@ -279,12 +279,14 @@ body {
     transform: translateX(-50%);
     width: auto;
     max-width: none;
-    background: none;
-    padding: 0;
-    border-radius: 0;
+    background: rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 6px 12px;
+    border-radius: 10px;
     z-index: 100;
-    border: none;
-    box-shadow: none;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.2);
     font-size: 14px;
     font-family: var(--font-ui);
     display: flex;
@@ -294,180 +296,130 @@ body {
 
 /* Rate drawer - single container for all bottom controls */
 .rate-drawer {
-    position: relative;
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(100%);
+    opacity: 0;
+    pointer-events: none;
     background: rgba(0, 0, 0, 0.3);
     backdrop-filter: blur(50px);
     -webkit-backdrop-filter: blur(50px);
     padding: 8px 16px;
-    border-radius: 15px;
+    border-radius: 12px 12px 0 0;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
+    z-index: -1;
+    /* Lay out all drawer content (rate + dividers + steppers) in one row */
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    justify-content: center;
     gap: 12px;
     white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.4s ease;
 }
 
 .rate-drawer.expanded {
+    transform: translateX(-50%) translateY(0);
     opacity: 1;
     pointer-events: auto;
 }
 
-/* ── Cockpit HUD drawer ── */
-.cockpit-drawer {
-    background: rgba(5, 8, 12, 0.75) !important;
-    border: 1px solid rgba(80, 160, 255, 0.15);
-    box-shadow: inset 0 1px 0 rgba(80, 200, 255, 0.06),
-                0 -4px 24px rgba(0, 0, 0, 0.7);
-    padding: 10px 20px !important;
-    gap: 16px !important;
+/* ── Floating PFD panel (beside timeline) ── */
+.pfd-panel {
+    position: absolute;
+    bottom: 60px;
+    left: 20px;
+    z-index: 100;
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    pointer-events: auto;
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 6px 8px;
 }
 
-/* ── HUD arc gauges ── */
-.hud-gauge {
+
+/* ── Attitude indicator ── */
+.ai-container {
+    flex-shrink: 0;
+}
+
+.attitude-svg {
+    width: 200px;
+    height: 200px;
+    display: block;
+}
+
+/* ── Flight data readout panel ── */
+.flight-data-panel {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    position: relative;
-    width: 80px;
-}
-
-.hud-gauge-svg {
-    width: 80px;
-    height: 50px;
-    overflow: visible;
-}
-
-.hud-arc-bg {
-    fill: none;
-    stroke: rgba(255, 255, 255, 0.08);
-    stroke-width: 4;
-    stroke-linecap: round;
-}
-
-.hud-arc-fill {
-    fill: none;
-    stroke: #33ff66;
-    stroke-width: 4;
-    stroke-linecap: round;
-    filter: drop-shadow(0 0 4px rgba(51, 255, 102, 0.5));
-    transition: stroke-dashoffset 0.15s ease-out;
-}
-
-.hud-arc-cyan {
-    stroke: #00d4ff;
-    filter: drop-shadow(0 0 4px rgba(0, 212, 255, 0.5));
-}
-
-.hud-arc-orange {
-    stroke: #ff6600;
-    filter: drop-shadow(0 0 4px rgba(255, 102, 0, 0.5));
-}
-
-.hud-gauge-readout {
-    display: flex;
-    align-items: baseline;
     gap: 3px;
-    margin-top: -6px;
+    padding: 4px 0;
 }
 
-.hud-gauge-value {
-    font-family: 'Courier New', Consolas, monospace;
-    font-size: 14px;
-    font-weight: 700;
-    color: #e0e0e0;
-    text-shadow: 0 0 4px rgba(255, 255, 255, 0.15);
-    letter-spacing: 0.5px;
-}
-
-.hud-gauge-unit {
-    font-family: var(--font-ui);
-    font-size: 9px;
-    color: rgba(180, 200, 220, 0.5);
-    letter-spacing: 0.5px;
-}
-
-.hud-gauge-label {
-    font-family: var(--font-ui);
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 1.5px;
-    color: rgba(180, 200, 220, 0.5);
-    text-transform: uppercase;
-    margin-top: 2px;
-}
-
-/* ── Compact Mach / G readouts ── */
-.hud-compact-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 4px 8px;
-    border-left: 1px solid rgba(80, 160, 255, 0.12);
-}
-
-.hud-compact {
+.fd-item {
     display: flex;
     align-items: baseline;
     gap: 6px;
+    padding: 2px 8px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.hud-compact-label {
+.fd-label {
     font-family: var(--font-ui);
     font-size: 9px;
     font-weight: 600;
     letter-spacing: 1.5px;
     color: rgba(180, 200, 220, 0.5);
     text-transform: uppercase;
-    min-width: 32px;
+    min-width: 34px;
 }
 
-.hud-compact-value {
+.fd-value {
     font-family: 'Courier New', Consolas, monospace;
     font-size: 14px;
     font-weight: 700;
-    color: #e0e0e0;
-    text-shadow: 0 0 4px rgba(255, 255, 255, 0.15);
-    min-width: 40px;
+    color: #33ff66;
+    text-shadow: 0 0 6px rgba(51, 255, 102, 0.25);
+    min-width: 58px;
     text-align: right;
+    letter-spacing: 0.5px;
 }
 
-/* ── Warning / danger states ── */
-.cockpit-warning {
+.fd-unit {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    color: rgba(180, 200, 220, 0.4);
+    letter-spacing: 0.5px;
+    min-width: 24px;
+}
+
+.fd-divider {
+    height: 1px;
+    background: rgba(80, 160, 255, 0.1);
+    margin: 2px 0;
+}
+
+.fd-warn {
     color: #ffcc00 !important;
     text-shadow: 0 0 6px rgba(255, 204, 0, 0.4) !important;
 }
 
-.cockpit-danger {
+.fd-danger {
     color: #ff3333 !important;
     text-shadow: 0 0 8px rgba(255, 50, 50, 0.5) !important;
 }
 
-.cockpit-divider {
-    width: 1px;
-    height: 22px;
-    background: rgba(80, 160, 255, 0.12);
-    flex-shrink: 0;
-}
 
-.cockpit-divider-thick {
-    width: 1px;
-    height: 30px;
-    background: rgba(80, 160, 255, 0.15);
-    flex-shrink: 0;
-    margin: 0 2px;
-}
-
-/* ── Mode indicator (inside timeline drawer) ── */
+/* ── Mode indicator ── */
 .hud-mode-indicator {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 12px;
-    border-left: 1px solid rgba(80, 160, 255, 0.12);
+    padding: 4px 8px;
 }
 
 .hud-mode-dot {
@@ -555,32 +507,6 @@ body {
     display: contents;
 }
 
-/* Timeline row inside the combined drawer */
-.drawer-timeline-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding-top: 6px;
-    border-top: 1px solid rgba(120, 170, 210, 0.15);
-}
-
-.drawer-timeline-row .timeline-progress-bar {
-    flex: 1;
-    order: 4;
-}
-
-.drawer-timeline-row .play-button {
-    order: 2;
-}
-
-.drawer-timeline-row .timeline-reset-button {
-    order: 3;
-}
-
-.drawer-timeline-row .timeline-info {
-    order: 1;
-}
 
 .play-button {
     width: 36px;
@@ -594,6 +520,7 @@ body {
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
+    order: 2;
 }
 
 .play-button:hover {
@@ -612,6 +539,7 @@ body {
     color: #FFFFFF;
     font-weight: 400;
     font-size: 14px;
+    order: 1;
     white-space: nowrap;
 }
 
@@ -685,6 +613,7 @@ body {
     border-radius: 4px;
     cursor: pointer;
     font-size: 0;
+    order: 3;
     transition: all 0.2s ease;
     min-width: 32px;
 }
@@ -713,6 +642,7 @@ body {
     width: clamp(180px, 35vw, 420px);
     margin: 0;
     padding: 0;
+    order: 3;
     cursor: pointer;
     pointer-events: auto;
     transition: opacity 0.2s ease;
@@ -2458,355 +2388,3 @@ select:focus {
     font-weight: 500;
 }
 
-/* ===========================
-   Cockpit Gyro Overrides
-   =========================== */
-
-.rate-drawer {
-    width: auto;
-    max-width: 96vw;
-    background: rgba(3, 6, 10, 0.8);
-    backdrop-filter: blur(34px);
-    -webkit-backdrop-filter: blur(34px);
-    padding: 10px 14px;
-    border-radius: 16px;
-    border: 1px solid rgba(100, 140, 180, 0.22);
-    gap: 14px;
-}
-
-.cockpit-drawer {
-    box-shadow: inset 0 1px 0 rgba(120, 200, 255, 0.08),
-                inset 0 -1px 0 rgba(255, 255, 255, 0.04),
-                0 -10px 28px rgba(0, 0, 0, 0.55);
-}
-
-.cockpit-instrument-cluster {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 8px 10px 10px;
-    border-radius: 12px;
-    border: 1px solid rgba(120, 170, 210, 0.24);
-    background: linear-gradient(180deg, rgba(22, 29, 37, 0.9) 0%, rgba(6, 10, 15, 0.95) 100%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
-                inset 0 -12px 24px rgba(0, 0, 0, 0.55);
-}
-
-.cockpit-instrument-cluster::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: repeating-linear-gradient(
-        to bottom,
-        rgba(255, 255, 255, 0.02) 0px,
-        rgba(255, 255, 255, 0.02) 1px,
-        transparent 1px,
-        transparent 3px
-    );
-    pointer-events: none;
-    opacity: 0.4;
-}
-
-.dial-panel {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.dial-row-main,
-.dial-row-aux {
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
-}
-
-.dial-row-aux {
-    justify-content: space-between;
-}
-
-.dial-gauge {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.dial-gauge-aux {
-    transform: scale(0.84);
-    transform-origin: center bottom;
-}
-
-.dial-chassis {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 122px;
-    min-width: 122px;
-    padding: 3px 4px 5px;
-    border-radius: 10px;
-    border: 1px solid rgba(185, 210, 235, 0.18);
-    background: linear-gradient(180deg, rgba(30, 35, 40, 0.92) 0%, rgba(11, 13, 16, 0.98) 60%, rgba(3, 4, 6, 1) 100%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
-                inset 0 -2px 5px rgba(0, 0, 0, 0.75),
-                0 3px 10px rgba(0, 0, 0, 0.55);
-}
-
-.dial-svg {
-    width: 112px;
-    height: 112px;
-    overflow: visible;
-}
-
-.dial-outer-ring {
-    fill: rgba(26, 29, 35, 0.92);
-    stroke: rgba(225, 240, 255, 0.2);
-    stroke-width: 1.6;
-}
-
-.dial-inner-ring {
-    fill: rgba(11, 14, 20, 0.95);
-    stroke: rgba(134, 158, 182, 0.28);
-    stroke-width: 1;
-}
-
-.dial-face {
-    stroke: rgba(52, 69, 84, 0.8);
-    stroke-width: 0.8;
-}
-
-.dial-gyro-ring {
-    fill: none;
-    stroke: rgba(170, 210, 240, 0.12);
-    stroke-width: 0.9;
-}
-
-.dial-gyro-axis {
-    stroke: rgba(170, 210, 240, 0.12);
-    stroke-width: 0.7;
-}
-
-.dial-tick-major {
-    stroke: rgba(232, 238, 244, 0.9);
-    stroke-width: 1.1;
-}
-
-.dial-tick-minor {
-    stroke: rgba(168, 185, 201, 0.5);
-    stroke-width: 0.65;
-}
-
-.dial-scale-number {
-    fill: rgba(215, 226, 236, 0.72);
-    font-size: 7.2px;
-    font-family: var(--font-data);
-}
-
-.dial-reference-line {
-    stroke: rgba(180, 205, 228, 0.14);
-    stroke-width: 0.8;
-}
-
-.dial-needle-tail {
-    stroke: rgba(255, 255, 255, 0.4);
-    stroke-width: 1.15;
-    stroke-linecap: round;
-}
-
-.dial-needle-main {
-    stroke-width: 2.05;
-    stroke-linecap: round;
-    filter: drop-shadow(0 0 3px currentColor);
-}
-
-.dial-center-cap {
-    fill: #0f1217;
-    stroke: rgba(218, 230, 241, 0.28);
-    stroke-width: 0.9;
-}
-
-.dial-center-core {
-    filter: drop-shadow(0 0 2px currentColor);
-}
-
-.dial-digital-window {
-    fill: rgba(0, 7, 9, 0.78);
-    stroke: rgba(164, 184, 203, 0.28);
-    stroke-width: 0.85;
-}
-
-.dial-digital-value {
-    font-family: var(--font-data);
-    font-size: 11px;
-    letter-spacing: 0.6px;
-    font-weight: 700;
-}
-
-.dial-unit-text {
-    fill: rgba(186, 204, 220, 0.56);
-    font-size: 6.6px;
-    letter-spacing: 0.85px;
-    text-transform: uppercase;
-    font-family: var(--font-data);
-}
-
-.dial-glare {
-    pointer-events: none;
-}
-
-.dial-label {
-    margin-top: 1px;
-    color: rgba(203, 216, 228, 0.82);
-    font-family: var(--font-ui);
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 1.3px;
-    text-transform: uppercase;
-}
-
-.dial-gauge.dial-warning .dial-needle-main,
-.dial-gauge.dial-warning .dial-center-core,
-.dial-gauge.dial-warning .dial-digital-value {
-    stroke: #ffd35a !important;
-    fill: #ffd35a !important;
-}
-
-.dial-gauge.dial-danger .dial-needle-main,
-.dial-gauge.dial-danger .dial-center-core,
-.dial-gauge.dial-danger .dial-digital-value {
-    stroke: #ff5c5c !important;
-    fill: #ff5c5c !important;
-}
-
-.cockpit-divider {
-    width: 1px;
-    height: 28px;
-    background: linear-gradient(180deg, rgba(120, 150, 180, 0), rgba(120, 150, 180, 0.45), rgba(120, 150, 180, 0));
-}
-
-.cockpit-divider-thick {
-    width: 1px;
-    height: 58px;
-    margin: 0;
-    background: linear-gradient(180deg, rgba(120, 170, 210, 0), rgba(120, 170, 210, 0.65), rgba(120, 170, 210, 0));
-}
-
-.hud-mode-indicator {
-    gap: 8px;
-    min-width: 132px;
-    margin-left: 2px;
-    padding: 5px 10px;
-    border: 1px solid rgba(150, 185, 215, 0.25);
-    border-radius: 8px;
-    background: rgba(10, 16, 24, 0.66);
-}
-
-.hud-mode-label {
-    font-family: var(--font-data);
-    font-weight: 700;
-    letter-spacing: 1.2px;
-    color: rgba(196, 214, 230, 0.86);
-}
-
-.playback-rate {
-    gap: 7px;
-    font-size: 11px;
-    color: rgba(224, 236, 246, 0.95);
-}
-
-.rate-label {
-    color: rgba(186, 204, 220, 0.92);
-    font-family: var(--font-data);
-    font-size: 10px;
-    letter-spacing: 1.1px;
-}
-
-.rate-buttons {
-    border: 1px solid rgba(138, 170, 201, 0.34);
-    background: rgba(10, 16, 24, 0.76);
-}
-
-.rate-button {
-    color: rgba(224, 236, 246, 0.92);
-    font-family: var(--font-data);
-    border-right: 1px solid rgba(138, 170, 201, 0.22);
-}
-
-.rate-button:hover {
-    background: rgba(118, 170, 216, 0.24);
-}
-
-.rate-button.active {
-    background: rgba(118, 170, 216, 0.46);
-    color: #fff;
-}
-
-.timeline-control-stepper {
-    gap: 8px;
-}
-
-.stepper-group {
-    background: rgba(13, 20, 28, 0.85);
-    border: 1px solid rgba(138, 170, 201, 0.34);
-}
-
-.stepper-btn {
-    color: rgba(220, 232, 243, 0.95);
-    padding: 4px 8px;
-    font-family: var(--font-data);
-}
-
-.stepper-btn:hover {
-    background: rgba(118, 170, 216, 0.24);
-}
-
-.stepper-btn:active {
-    background: rgba(118, 170, 216, 0.36);
-}
-
-.stepper-val {
-    padding: 4px 9px;
-    min-width: 52px;
-    color: rgba(224, 236, 246, 0.95);
-    border-left: 1px solid rgba(138, 170, 201, 0.34);
-    border-right: 1px solid rgba(138, 170, 201, 0.34);
-}
-
-@media (max-width: 1200px) {
-    .rate-drawer {
-        flex-wrap: wrap;
-        justify-content: center;
-        white-space: normal;
-    }
-
-    .cockpit-divider-thick,
-    .cockpit-divider {
-        display: none;
-    }
-}
-
-@media (max-width: 768px) {
-    .rate-drawer {
-        padding: 8px 10px;
-        gap: 10px;
-        border-radius: 12px;
-    }
-
-    .dial-row-main,
-    .dial-row-aux {
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-
-    .dial-gauge-aux {
-        transform: scale(0.8);
-    }
-
-    .timeline-control-stepper,
-    .playback-rate {
-        width: 100%;
-        justify-content: center;
-    }
-}
