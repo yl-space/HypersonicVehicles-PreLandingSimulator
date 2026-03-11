@@ -5,6 +5,7 @@ import time as _time
 
 from src.sim_server.OP.entryeoms import entryeoms
 from src.sim_server.OP.coordinates import Cartesian_to_Spherical
+from src.sim_server.OP.phases_calculation import phases_calculation_entry
 
 #secondary functions: I need to move them to seprate files and import for calrity probably
 
@@ -195,7 +196,24 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
     for i in range(len(states)):
         total_heat_rate[i] = compute_total_heat_rate(states[i], planet, vehicle)
 
+    # Phases determination
+    [t12, t23, t34, t45] = phases_calculation_entry(time_array, states, total_heat_rate);
+
+    # print("t12: ", t12)
+    # print("t23: ", t23)
+    # print("t34: ", t34)
+    # print("t45: ", t45)
+
+    # returns dictionary with phase ids and time stamps for the sim out
+    phases_entry = {
+        "12_e": t12,
+        "23_e": t23,
+        "34_e": t34,
+        "45_e": t45,
+    }
+
     if return_states:
+        # this is for debug
         return {
             'time_s': time_array + init.get("start_time_s", 0.0),
             'states': states,
@@ -212,6 +230,7 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         'vx_m_s': vel_inertial[:, 0],
         'vy_m_s': vel_inertial[:, 1],
         'vz_m_s': vel_inertial[:, 2],
+        'phases_entry': phases_entry,
     }
 
 
@@ -260,28 +279,28 @@ def main(init=None, control=None):
     plt.legend(loc="best")
     plt.show()
 
-    # Plot r vs time
-    plt.figure()
-    plt.plot(results['time_s'], results['states'][:, 0] / 1000.0 - planet["rp"] / 1000.0, linewidth=1.5, label="Simulated")
-    plt.xlabel("Time [s]")
-    plt.ylabel("Altitude [km]")
-    plt.title("r vs time")
-    plt.grid(True)
-    plt.legend(loc="best")
-    plt.show()
+    # # Plot r vs time
+    # plt.figure()
+    # plt.plot(results['time_s'], results['states'][:, 0] / 1000.0 - planet["rp"] / 1000.0, linewidth=1.5, label="Simulated")
+    # plt.xlabel("Time [s]")
+    # plt.ylabel("Altitude [km]")
+    # plt.title("r vs time")
+    # plt.grid(True)
+    # plt.legend(loc="best")
+    # plt.show()
 
-    # FOR verification: Plot total heat rate vs time
-    total_heat_rate = np.zeros(len(results["states"]))
-    for i in range(len(results["states"])):
-        total_heat_rate[i] = compute_total_heat_rate(results["states"][i], planet, vehicle)
+    # # FOR verification: Plot total heat rate vs time
+    # total_heat_rate = np.zeros(len(results["states"]))
+    # for i in range(len(results["states"])):
+    #     total_heat_rate[i] = compute_total_heat_rate(results["states"][i], planet, vehicle)
 
-    plt.figure()
-    plt.plot(results["time_s"], total_heat_rate, linewidth=1.5)
-    plt.xlabel("Time [s]")
-    plt.ylabel("Total heat rate [W/m^2]")
-    plt.title("Total heat rate vs time")
-    plt.grid(True)
-    plt.show()
+    # plt.figure()
+    # plt.plot(results["time_s"], total_heat_rate, linewidth=1.5)
+    # plt.xlabel("Time [s]")
+    # plt.ylabel("Total heat rate [W/m^2]")
+    # plt.title("Total heat rate vs time")
+    # plt.grid(True)
+    # plt.show()
 
     # 3D plot of theta, phi and altitude 
     # alt = results['states'][:, 0]/ 1000.0 - planet["rp"]/ 1000.0
@@ -302,45 +321,45 @@ def main(init=None, control=None):
 if __name__ == "__main__":
     main()
     # this block is just a surrogate to be replaced. The input for the recalc function will need to be repalced with real stuff
-    from src.sim_server.constants.defaults import DEFAULT_PLANET
-    from src.sim_server.constants.planets import get_planet_params
-    planet = get_planet_params(DEFAULT_PLANET["planet_name"])
-    bank_angle_changed = True
+    # from src.sim_server.constants.defaults import DEFAULT_PLANET
+    # from src.sim_server.constants.planets import get_planet_params
+    # planet = get_planet_params(DEFAULT_PLANET["planet_name"])
+    # bank_angle_changed = True
 
-    # point_of_input = {
-    # "h0": 124999, 
-    # "vel0": 6.0836e3, 
-    # "theta0": np.deg2rad(-78.8618), 
-    # "phi0": np.deg2rad(27.1050),
-    # "gamma0": np.deg2rad(-15.5), 
-    # "psi0": np.deg2rad(0),
+    # # point_of_input = {
+    # # "h0": 124999, 
+    # # "vel0": 6.0836e3, 
+    # # "theta0": np.deg2rad(-78.8618), 
+    # # "phi0": np.deg2rad(27.1050),
+    # # "gamma0": np.deg2rad(-15.5), 
+    # # "psi0": np.deg2rad(0),
+    # # }
+    # bank_angle_input = {
+    #     "bank_angle": np.deg2rad(30.0), # [rad] Bank Angle 
     # }
-    bank_angle_input = {
-        "bank_angle": np.deg2rad(30.0), # [rad] Bank Angle 
-    }
 
-    # I will use the example point along the trajectory which is approximatelly number 10000 out of 16157
-    # if the bank angle input remains the same, the final error should remain the same, as documented in pptx
+    # # I will use the example point along the trajectory which is approximatelly number 10000 out of 16157
+    # # if the bank angle input remains the same, the final error should remain the same, as documented in pptx
 
-    point_of_input_Cartesian = {
-        "x": 1.205532181396078e+06,
-        "y": -2.796002637077214e+06,
-        "z": 1.558152803402915e+06,
-        "vx": 7.762841024785303e+02,
-        "vy": 4.340321796247736e+02,
-        "vz": 0.882049683132209e+02,
-    }
+    # point_of_input_Cartesian = {
+    #     "x": 1.205532181396078e+06,
+    #     "y": -2.796002637077214e+06,
+    #     "z": 1.558152803402915e+06,
+    #     "vx": 7.762841024785303e+02,
+    #     "vy": 4.340321796247736e+02,
+    #     "vz": 0.882049683132209e+02,
+    # }
 
-    point_of_input_Spherical = Cartesian_to_Spherical(point_of_input_Cartesian)
-    new_init = {
-        "h0": point_of_input_Spherical["r"] - planet["rp"], # [m] Initial altitude us beeded as input 
-        "vel0": point_of_input_Spherical["V"],
-        "theta0": point_of_input_Spherical["theta"],
-        "phi0": point_of_input_Spherical["phi"],
-        "gamma0": point_of_input_Spherical["gamma"],
-        "psi0": point_of_input_Spherical["psi"],
-    }
+    # point_of_input_Spherical = Cartesian_to_Spherical(point_of_input_Cartesian)
+    # new_init = {
+    #     "h0": point_of_input_Spherical["r"] - planet["rp"], # [m] Initial altitude us beeded as input 
+    #     "vel0": point_of_input_Spherical["V"],
+    #     "theta0": point_of_input_Spherical["theta"],
+    #     "phi0": point_of_input_Spherical["phi"],
+    #     "gamma0": point_of_input_Spherical["gamma"],
+    #     "psi0": point_of_input_Spherical["psi"],
+    # }
 
-    if bank_angle_changed == True:
-        main(init=new_init, control=bank_angle_input)
+    # if bank_angle_changed == True:
+    #     main(init=new_init, control=bank_angle_input)
    
