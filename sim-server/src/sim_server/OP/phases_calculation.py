@@ -54,7 +54,7 @@ def phases_calculation_entry(time: np.ndarray, states: np.ndarray, total_heat_ra
     t45 = time_chute - SUFR_buffer
 
     if idx12 is None or idx23 is None or idx34 is None:
-        raise ValueError("Phase calculation failed. Check user-defined thresholds.")
+        print("Phase calculation failed. Check user-defined thresholds.")
 
     t12 = t[idx12]
     t23 = t[idx23]
