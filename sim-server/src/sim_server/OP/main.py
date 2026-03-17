@@ -155,8 +155,6 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         print(f"difference in FPA: {final_output[4] - benchmark_final_output[4]:.5g}")
         print(f"difference in heading: {final_output[5] - benchmark_final_output[5]:.5g}")
 
-        # print final state 
-        print("final state: ", final_output)
 
     # Convert spherical to inertial Cartesian position
     # ref - L1b. Nav. class notes and iPad notebook board
@@ -283,10 +281,10 @@ def main(init=None, control=None):
 
     # Plot r vs V
     plt.figure()
-    plt.plot(results['states'][:, 3] / 1000.0, results['states'][:, 0] / 1000.0 - planet["rp"] / 1000.0, linewidth=1.5, label="Simulated")
+    plt.plot(results['states'][:, 3] / 1000.0, results['states'][:, 0] / 1000.0, linewidth=1.5, label="Simulated")
     plt.xlabel("Velocity V [km/s]")
-    plt.ylabel("Altitude [km]")
-    plt.title("Velocity vs Altitude")
+    plt.ylabel("Radius r [km]")
+    plt.title("r vs v")
     plt.grid(True)
     plt.legend(loc="best")
     plt.show()
