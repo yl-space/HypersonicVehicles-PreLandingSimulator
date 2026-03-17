@@ -281,12 +281,12 @@ def main(init=None, control=None):
 
     # Plot r vs V
     plt.figure()
-    plt.plot(results['states'][:, 3] / 1000.0, results['states'][:, 0] / 1000.0, linewidth=1.5, label="Simulated")
+    plt.plot(results['states'][:, 3] / 1000.0, results['states'][:, 0] / 1000.0 - planet["rp"] / 1000.0, linewidth=1.5)
     plt.xlabel("Velocity V [km/s]")
-    plt.ylabel("Radius r [km]")
-    plt.title("r vs v")
+    plt.ylabel("Altitude [km]")
+    plt.title("Velocity vs Altitude")
     plt.grid(True)
-    plt.legend(loc="best")
+    #plt.legend(loc="best")
     plt.show()
 
     # # Plot r vs time
