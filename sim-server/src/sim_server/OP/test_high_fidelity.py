@@ -1,6 +1,12 @@
 import numpy as np
 import pytest
+import sys
+from pathlib import Path
 from numpy.testing import assert_allclose
+
+# Ensure project root is on sys.path so `src.sim_server...` imports resolve under pytest.
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
 from src.sim_server.OP.main import high_fidelity_simulation
 from src.sim_server.constants.defaults import DEFAULT_PLANET, DEFAULT_INIT, DEFAULT_VEHICLE, DEFAULT_CONTROL
 from src.sim_server.constants.vehicles import get_vehicle_params
