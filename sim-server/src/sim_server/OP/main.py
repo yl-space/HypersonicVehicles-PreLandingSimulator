@@ -197,7 +197,17 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         total_heat_rate[i] = compute_total_heat_rate(states[i], planet, vehicle)
 
     # Phases determination
-    [t12, t23, t34, t45] = phases_calculation_entry(time_array, states, total_heat_rate);
+    try:
+        [t12, t23, t34, t45] = phases_calculation_entry(time_array, states, total_heat_rate)
+    except ValueError as exc:
+        if "Phase calculation failed" not in str(exc):
+            raise
+        if verbose:
+            print(f"Warning: {exc}")
+        t12 = np.nan
+        t23 = np.nan
+        t34 = np.nan
+        t45 = np.nan
 
     # print("t12: ", t12)
     # print("t23: ", t23)
