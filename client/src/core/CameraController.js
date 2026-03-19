@@ -530,6 +530,11 @@ export class CameraController {
 
     /**
      * Compute a fixed side-view camera position that frames the entire trajectory.
+     *
+     * The trajectory points sit on/near the Mars surface (~33.9 scene units from
+     * origin). The camera is placed perpendicular to the trajectory plane, offset
+     * sideways so the full arc from entry to landing is visible.
+     *
      * @param {THREE.Vector3[]} trajectoryPoints - Array of world-space positions
      */
     computeTrajectoryView(trajectoryPoints) {
@@ -538,57 +543,66 @@ export class CameraController {
             return;
         }
 
-        // Compute bounding box of trajectory
-        const bbox = new THREE.Box3();
-        trajectoryPoints.forEach(p => bbox.expandByPoint(p));
+        // Use the midpoint of the trajectory arc as the look-at target
+        const midIdx = Math.floor(trajectoryPoints.length / 2);
+        const midPoint = trajectoryPoints[midIdx].clone();
 
-        const center = new THREE.Vector3();
-        bbox.getCenter(center);
-
-        const size = new THREE.Vector3();
-        bbox.getSize(size);
-
-        const maxExtent = Math.max(size.x, size.y, size.z);
-
-        // Guard: degenerate bbox (all points coincident)
-        if (maxExtent < 0.0001) {
-            this.trajectoryView.computed = false;
-            return;
-        }
-
-        // Determine the "side" direction for the camera.
         const start = trajectoryPoints[0].clone();
         const end = trajectoryPoints[trajectoryPoints.length - 1].clone();
-        const along = end.clone().sub(start);
 
-        // If start==end, use first→mid as along direction
+        // "Along" direction: start → end
+        const along = end.clone().sub(start);
         if (along.length() < 0.0001) {
-            const mid = trajectoryPoints[Math.floor(trajectoryPoints.length / 2)];
-            along.copy(mid).sub(start);
+            along.copy(midPoint).sub(start);
         }
+        const arcLength = along.length();
         along.normalize();
 
-        const radial = center.clone().normalize(); // away from planet center
-        const side = new THREE.Vector3().crossVectors(along, radial);
+        // Radial "up" = away from planet center at the midpoint
+        const radial = midPoint.clone().normalize();
 
-        // Cascade of fallbacks for degenerate cross products
-        if (side.length() < 0.001) {
-            side.crossVectors(along, new THREE.Vector3(0, 1, 0));
-        }
-        if (side.length() < 0.001) {
-            side.crossVectors(along, new THREE.Vector3(1, 0, 0));
-        }
+        // Side direction = perpendicular to trajectory plane
+        const side = new THREE.Vector3().crossVectors(along, radial);
+        if (side.length() < 0.001) side.crossVectors(along, new THREE.Vector3(0, 1, 0));
+        if (side.length() < 0.001) side.crossVectors(along, new THREE.Vector3(1, 0, 0));
         side.normalize();
 
-        // Distance: fit trajectory in view using FOV-based projection
-        const fovRad = (this.camera.fov || 50) * Math.PI / 180;
-        // Place camera so trajectory fills ~70% of viewport height
-        const cameraDistance = (maxExtent * 0.5) / Math.tan(fovRad / 2) * 0.8;
+        // Compute the maximum altitude above the surface along the trajectory
+        const planetRadius = this.orbit.planetRadius; // 33.9
+        let maxAlt = 0;
+        for (const p of trajectoryPoints) {
+            const alt = p.length() - planetRadius;
+            if (alt > maxAlt) maxAlt = alt;
+        }
 
-        this.trajectoryView.position = center.clone().add(side.clone().multiplyScalar(cameraDistance));
-        this.trajectoryView.lookAt = center.clone();
-        this.trajectoryView.up = radial.clone();
+        // The "scene extent" we need to frame: max of arc length and altitude range
+        const sceneExtent = Math.max(arcLength, maxAlt * 2) || 1;
+
+        // Place camera to the side, at a distance that fits the trajectory
+        // Use a tighter framing multiplier so the trajectory fills the viewport
+        const fovRad = 65 * Math.PI / 180; // We use 65° FOV in trajectory mode
+        const cameraDistance = (sceneExtent * 0.5) / Math.tan(fovRad / 2) * 1.1;
+
+        // Offset the look-at point slightly above the surface midpoint
+        // (halfway between surface and max altitude) so the arc is centered
+        const lookAt = midPoint.clone().add(radial.clone().multiplyScalar(maxAlt * 0.4));
+
+        // Camera position: offset sideways from the look-at point
+        const camPos = lookAt.clone().add(side.clone().multiplyScalar(cameraDistance));
+
+        // Ensure camera doesn't end up inside the planet
+        const camDistFromCenter = camPos.length();
+        if (camDistFromCenter < planetRadius + 0.01) {
+            const pushDir = camPos.clone().normalize();
+            camPos.copy(pushDir.multiplyScalar(planetRadius + 0.01));
+        }
+
+        this.trajectoryView.position = camPos;
+        this.trajectoryView.lookAt = lookAt;
+        this.trajectoryView.up = radial;
         this.trajectoryView.computed = true;
+
+        console.log(`[CameraController] Trajectory view: arcLen=${arcLength.toFixed(4)}, maxAlt=${maxAlt.toFixed(4)}, camDist=${cameraDistance.toFixed(4)}`);
     }
 
     reset() {
