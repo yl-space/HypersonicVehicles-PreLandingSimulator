@@ -85,9 +85,10 @@ export class EntryVehicle {
             }
         }
 
-        this.createHeatEffects();
+        // Heat effects disabled — user requested removal of heat blob around spacecraft
+        // this.createHeatEffects();
         // this.createThrusterSystem();
-        // this.createLocalCoordinateAxes(); // REMOVED: User requested removal of body axes
+        // this.createLocalCoordinateAxes();
         this.createOrientationVectors();
         this.createVectorLabels();
 

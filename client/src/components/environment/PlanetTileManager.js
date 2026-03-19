@@ -27,7 +27,7 @@ export class PlanetTileManager {
 
         // Skirt configuration for crack elimination
         this.skirtEnabled = true;
-        this.skirtDepthFactor = 0.02; // Skirt drops 2% of radius below surface
+        this.skirtDepthFactor = 0.035; // Skirt drops 3.5% of radius below surface (deeper = fewer visible seams)
 
         this.rootTiles = [];
         this.group = new THREE.Group();
@@ -79,10 +79,10 @@ export class PlanetTileManager {
      * Higher zoom = more segments for better detail
      */
     getSegmentsForLevel(z) {
-        // Adaptive segments: fewer for distant tiles, more for close-up
-        if (z <= 2) return 4;   // Coarse tiles: 4 segments (32 triangles)
-        if (z <= 4) return 8;   // Medium tiles: 8 segments (128 triangles)
-        return 16;              // Fine tiles: 16 segments (512 triangles)
+        // Higher segment count = smoother curvature = fewer visible seams
+        if (z <= 2) return 8;    // Coarse tiles
+        if (z <= 4) return 16;   // Medium tiles
+        return 24;               // Fine tiles: smooth curvature near spacecraft
     }
 
     init() {
@@ -609,8 +609,8 @@ export class PlanetTileManager {
         // Apparent angular size from camera's perspective
         const apparentAngularSize = 2 * Math.atan2(tileArcSize / 2, dist);
         const screenSize = apparentAngularSize * pixelsPerRad;
-        // Reduced threshold from 120 to 60 pixels - subdivide earlier for sharper tiles
-        const shouldSubdivide = screenSize > 60 && tile.z < this.maxLevel;
+        // Aggressive subdivision: 40px threshold ensures high detail near spacecraft
+        const shouldSubdivide = screenSize > 40 && tile.z < this.maxLevel;
 
         if (shouldSubdivide) {
             if (!tile.children) {

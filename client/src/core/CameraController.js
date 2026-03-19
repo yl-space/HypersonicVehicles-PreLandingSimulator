@@ -574,7 +574,11 @@ export class CameraController {
         }
         side.normalize();
 
-        const cameraDistance = maxExtent * 1.8;
+        // Distance: fit the trajectory tightly with some padding
+        // Use tan(fov/2) to compute distance that fits maxExtent in view
+        const fovRad = (this.camera.fov || 50) * Math.PI / 180;
+        const fitDistance = (maxExtent * 0.55) / Math.tan(fovRad / 2);
+        const cameraDistance = Math.max(fitDistance, maxExtent * 0.4);
 
         this.trajectoryView.position = center.clone().add(side.clone().multiplyScalar(cameraDistance));
         this.trajectoryView.lookAt = center.clone();

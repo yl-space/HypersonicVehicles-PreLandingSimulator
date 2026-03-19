@@ -63,7 +63,8 @@ export class MarsLatLonGrid {
         this._labelRefs  = [];
 
         this._buildGrid();
-        this._buildLabels();
+        // Labels disabled — grid lines alone provide reference without visual clutter
+        // this._buildLabels();
 
         this.group.visible = options.visible ?? true;
     }

@@ -754,20 +754,21 @@ export class SimulationManager {
             this.mars.getObject3D().getWorldPosition(this._planetCenterWorld);
             this.atmosphere.updateDynamics(altitudeKm, this._planetCenterWorld);
 
-            // ── Atmospheric entry colour grade ──
-            // Blend a warm dusty tint into the scene clear colour and lift exposure
-            // so the whole view gradually warms as the spacecraft descends.
+            // ── Atmospheric entry colour grade (heavily smoothed to prevent flicker) ──
             const renderer = this.sceneManager?.renderer;
             if (renderer) {
                 const tint = this.atmosphere.getSceneTint();
                 if (tint) {
-                    renderer.setClearColor(new THREE.Color(tint.r, tint.g, tint.b));
+                    // Smoothly lerp the clear colour to avoid per-frame jumps
+                    if (!this._currentClearColor) this._currentClearColor = new THREE.Color(0, 0, 0);
+                    this._currentClearColor.r += (tint.r - this._currentClearColor.r) * 0.02;
+                    this._currentClearColor.g += (tint.g - this._currentClearColor.g) * 0.02;
+                    this._currentClearColor.b += (tint.b - this._currentClearColor.b) * 0.02;
+                    renderer.setClearColor(this._currentClearColor);
                 }
-                // Smoothly ramp tone-mapping exposure (1.2 → 1.55 at surface)
+                // Very slow exposure ramp to eliminate flicker
                 const targetExposure = this.atmosphere.getExposure();
-                renderer.toneMappingExposure = THREE.MathUtils.lerp(
-                    renderer.toneMappingExposure, targetExposure, 0.04
-                );
+                renderer.toneMappingExposure += (targetExposure - renderer.toneMappingExposure) * 0.015;
             }
         }
 
