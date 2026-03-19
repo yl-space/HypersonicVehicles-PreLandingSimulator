@@ -63,6 +63,12 @@ export class Controls {
                     </svg>
                     ORBIT
                 </button>
+                <button class="camera-mode" data-mode="TRAJECTORY">
+                    <svg width="20" height="20" viewBox="0 0 24 24">
+                        <path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z" fill="currentColor"/>
+                    </svg>
+                    TRAJECTORY
+                </button>
             </div>
             <div class="control-group">
                 <h3 class="control-label">REFERENCE TRAJECTORY</h3>

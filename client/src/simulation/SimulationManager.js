@@ -585,6 +585,9 @@ export class SimulationManager {
             case '2':
                 this.setCameraMode('orbit');
                 break;
+            case '3':
+                this.setCameraMode('trajectory');
+                break;
             case 'v':
             case 'V':
                 if (this.entryVehicle) {
@@ -904,6 +907,13 @@ export class SimulationManager {
     }
     
     setCameraMode(mode) {
+        // For trajectory view, compute camera position from trajectory data first
+        if (mode.toLowerCase() === 'trajectory') {
+            const points = this.trajectoryManager.getAllTrajectoryPositions?.();
+            if (points && points.length > 1) {
+                this.cameraController.computeTrajectoryView(points);
+            }
+        }
         this.cameraController.setMode(mode);
     }
     

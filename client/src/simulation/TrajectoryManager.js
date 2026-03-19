@@ -743,6 +743,18 @@ export class TrajectoryManager {
     getObject3D() {
         return this.group;
     }
+
+    /**
+     * Return all trajectory positions as THREE.Vector3 array for external use
+     * (e.g., computing trajectory-view camera framing).
+     * @returns {THREE.Vector3[]}
+     */
+    getAllTrajectoryPositions() {
+        if (!this.trajectoryData || this.trajectoryData.length === 0) return [];
+        return this.trajectoryData
+            .filter(p => p.position)
+            .map(p => p.position.clone());
+    }
     
     getVelocityVector(time) {
         const data = this.getDataAtTime(time);

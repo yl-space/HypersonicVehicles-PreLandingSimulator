@@ -10,6 +10,14 @@ export class CameraController {
         this.renderer = renderer;
         this.mode = 'follow'; // Default to follow mode like NASA's visualization
         this.target = null;
+
+        // Trajectory view state (fixed side view of entire trajectory)
+        this.trajectoryView = {
+            position: null,    // Computed camera position (THREE.Vector3)
+            lookAt: null,      // Computed look-at point (THREE.Vector3)
+            up: null,          // Up vector for the fixed view
+            computed: false    // Whether the view has been calculated
+        };
         this.smoothness = 0.15; // Increased for more responsive camera movement
         
         // Camera state (spacecraft-centric with planet collision prevention)
@@ -94,6 +102,7 @@ export class CameraController {
         
         // Mouse controls for both orbit and follow modes
         canvas.addEventListener('mousedown', (e) => {
+            if (this.mode === 'trajectory') return; // Fixed view — no interaction
             this.mouse.isDown = true;
             this.mouse.lastX = e.clientX;
             this.mouse.lastY = e.clientY;
@@ -222,6 +231,13 @@ export class CameraController {
             this.followOrbit.enabled = false;
             this.followOrbit.theta = 0;
             this.followOrbit.phi = 0;
+        }
+
+        // In trajectory mode, disable mouse interaction completely
+        if (mode === 'trajectory') {
+            this.mouse.isDown = false;
+            this.inertia.deltaX = 0;
+            this.inertia.deltaY = 0;
         }
 
         // Initialize orbit position when switching to orbit mode
@@ -432,6 +448,26 @@ export class CameraController {
                 // ALWAYS look at spacecraft - maintain focus
                 lookAtPoint = targetPos.clone();
                 break;
+
+            case 'trajectory':
+                // Fixed side-view of entire trajectory — no mouse interaction
+                if (this.trajectoryView.computed && this.trajectoryView.position) {
+                    desiredPosition.copy(this.trajectoryView.position);
+                    lookAtPoint.copy(this.trajectoryView.lookAt);
+                    if (this.trajectoryView.up) {
+                        this.cinematic.upVector.copy(this.trajectoryView.up);
+                    }
+                } else {
+                    // Fallback: position camera at a wide distance looking at target
+                    desiredPosition.set(
+                        targetPos.x + 0.5,
+                        targetPos.y + 0.3,
+                        targetPos.z
+                    );
+                    lookAtPoint.copy(targetPos);
+                    this.cinematic.upVector.set(0, 1, 0);
+                }
+                break;
         }
 
         // Hard-set camera position to desired every frame to avoid any drift/zoom-out
@@ -451,7 +487,7 @@ export class CameraController {
         this.camera.lookAt(lookAtPoint);
 
         // Update field of view based on distance (cinematic effect)
-        if (this.mode === 'follow' && vehicleData) {
+        if (this.mode === 'follow' && vehicleData && this.mode !== 'trajectory') {
             const altitude = vehicleData.altitude || 100;
             const targetFOV = 50 + Math.min(25, altitude * 0.1);
             this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFOV, 0.05);
@@ -483,6 +519,50 @@ export class CameraController {
     
     handleResize() {
         // Camera aspect ratio is handled by the renderer
+    }
+
+    /**
+     * Compute a fixed side-view camera position that frames the entire trajectory.
+     * @param {THREE.Vector3[]} trajectoryPoints - Array of world-space positions
+     */
+    computeTrajectoryView(trajectoryPoints) {
+        if (!trajectoryPoints || trajectoryPoints.length < 2) {
+            this.trajectoryView.computed = false;
+            return;
+        }
+
+        // Compute bounding box of trajectory
+        const bbox = new THREE.Box3();
+        trajectoryPoints.forEach(p => bbox.expandByPoint(p));
+
+        const center = new THREE.Vector3();
+        bbox.getCenter(center);
+
+        const size = new THREE.Vector3();
+        bbox.getSize(size);
+
+        // Determine the "side" direction for the camera.
+        // Use the trajectory's start→end direction as the "along" axis,
+        // radial from planet center as "up", and cross product as "side".
+        const start = trajectoryPoints[0].clone();
+        const end = trajectoryPoints[trajectoryPoints.length - 1].clone();
+        const along = end.clone().sub(start).normalize();
+        const radial = center.clone().normalize(); // away from planet center
+        const side = new THREE.Vector3().crossVectors(along, radial).normalize();
+
+        // If side is degenerate, pick an arbitrary perpendicular
+        if (side.length() < 0.001) {
+            side.crossVectors(along, new THREE.Vector3(0, 1, 0)).normalize();
+        }
+
+        // Camera distance: far enough to see the whole trajectory with some margin
+        const maxExtent = Math.max(size.x, size.y, size.z);
+        const cameraDistance = maxExtent * 1.8;
+
+        this.trajectoryView.position = center.clone().add(side.multiplyScalar(cameraDistance));
+        this.trajectoryView.lookAt = center.clone();
+        this.trajectoryView.up = radial.clone();
+        this.trajectoryView.computed = true;
     }
 
     reset() {
