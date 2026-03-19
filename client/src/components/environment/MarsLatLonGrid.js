@@ -90,33 +90,42 @@ export class MarsLatLonGrid {
     // ── Grid construction ─────────────────────────────────────────────────
 
     _buildGrid() {
-        // Latitude parallels: every 5° from -90° to +90°
-        for (let lat = -90; lat <= 90; lat += 5) {
-            const absLat = Math.abs(lat);
-            const isEquator = lat === 0;
-            const isTropic  = Math.abs(absLat - MARS_OBLIQUITY_DEG) < 0.5;
-            const isArctic  = Math.abs(absLat - MARS_ARCTIC_DEG) < 0.5;
-            const is30deg   = !isEquator && (lat % 30 === 0);
-            const is10deg   = !isEquator && !is30deg && (lat % 10 === 0);
+        // Collect latitudes to draw: 5° grid + exact Mars tropic/arctic values
+        const drawnLats = new Set();
 
-            this._addParallel(lat, { isEquator, is30deg, is10deg, isTropic, isArctic });
-        }
-
-        // Exact Mars tropic/arctic parallels (may not align to 5° grid)
-        [MARS_OBLIQUITY_DEG, -MARS_OBLIQUITY_DEG, MARS_ARCTIC_DEG, -MARS_ARCTIC_DEG].forEach(lat => {
+        // Exact Mars tropic/arctic parallels first (take priority over nearest 5° line)
+        const specialLats = [MARS_OBLIQUITY_DEG, -MARS_OBLIQUITY_DEG, MARS_ARCTIC_DEG, -MARS_ARCTIC_DEG];
+        for (const lat of specialLats) {
+            drawnLats.add(lat.toFixed(2));
             this._addParallel(lat, {
                 isTropic: Math.abs(lat) < 30,
                 isArctic: Math.abs(lat) > 60
             });
-        });
+        }
+
+        // Latitude parallels: every 5° from -90° to +90°
+        for (let lat = -90; lat <= 90; lat += 5) {
+            const absLat = Math.abs(lat);
+            // Skip if this is within 1° of an already-drawn tropic/arctic line
+            const tooCloseToSpecial = specialLats.some(s => Math.abs(absLat - Math.abs(s)) < 1.0);
+            if (tooCloseToSpecial && lat !== 0) continue;
+
+            const isEquator = lat === 0;
+            const is30deg   = !isEquator && (lat % 30 === 0);
+            const is15deg   = !isEquator && !is30deg && (lat % 15 === 0);
+            const is10deg   = !isEquator && !is30deg && !is15deg && (lat % 10 === 0);
+
+            this._addParallel(lat, { isEquator, is30deg, is15deg, is10deg });
+        }
 
         // Longitude meridians: every 5° from 0° to 355°
         for (let lon = 0; lon < 360; lon += 5) {
             const isPrime = lon === 0 || lon === 180;
             const is30deg = !isPrime && (lon % 30 === 0);
-            const is10deg = !isPrime && !is30deg && (lon % 10 === 0);
+            const is15deg = !isPrime && !is30deg && (lon % 15 === 0);
+            const is10deg = !isPrime && !is30deg && !is15deg && (lon % 10 === 0);
 
-            this._addMeridian(lon, { isPrime, is30deg, is10deg });
+            this._addMeridian(lon, { isPrime, is30deg, is15deg, is10deg });
         }
     }
 
@@ -157,6 +166,7 @@ export class MarsLatLonGrid {
         if (flags.isEquator || flags.isPrime)  return { opacity: OPACITY_SPECIAL, color: COLOR_SPECIAL };
         if (flags.isTropic || flags.isArctic)  return { opacity: OPACITY_MARS,    color: COLOR_MARS };
         if (flags.is30deg)                     return { opacity: OPACITY_30DEG,   color: COLOR_GRID };
+        if (flags.is15deg)                     return { opacity: OPACITY_15DEG,   color: COLOR_GRID };
         if (flags.is10deg)                     return { opacity: OPACITY_10DEG,   color: COLOR_GRID };
         // Default: 5° minor
         return { opacity: OPACITY_5DEG, color: COLOR_GRID };
