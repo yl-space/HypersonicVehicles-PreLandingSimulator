@@ -333,16 +333,51 @@ export class PlanetTileManager {
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
 
-        // MeshStandardMaterial responds to scene lighting, giving terrain
-        // relief via shadows and highlights on craters/ridges.
+        // PBR material with runtime normal perturbation from texture luminance.
+        // This creates visible terrain relief (craters, ridges) without
+        // loading separate normal/bump map tiles.
+        const bumpScale = 0.06; // strength of normal perturbation
         const material = new THREE.MeshStandardMaterial({
             color: new THREE.Color(this.brightness, this.brightness, this.brightness),
             side: THREE.DoubleSide,
-            roughness: 0.95,    // Very rough (rocky terrain)
-            metalness: 0.0,     // Non-metallic
+            roughness: 0.92,
+            metalness: 0.0,
             toneMapped: true,
-            flatShading: false, // Smooth normals for natural curvature
+            flatShading: false,
         });
+
+        // Inject per-pixel normal perturbation into the Standard shader.
+        // Samples the albedo texture at neighbouring texels to compute a
+        // luminance-gradient bump — darker areas become depressions, lighter
+        // areas become ridges.  This is the standard "bump from diffuse" technique.
+        material.onBeforeCompile = (shader) => {
+            shader.uniforms.uBumpScale = { value: bumpScale };
+
+            // Insert uniform declaration
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <common>',
+                `#include <common>
+                uniform float uBumpScale;`
+            );
+
+            // Perturb normal after normal_fragment_maps
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <normal_fragment_maps>',
+                `#include <normal_fragment_maps>
+                #ifdef USE_MAP
+                {
+                    // Sample neighbours to compute luminance gradient
+                    vec2 texelSize = vec2(1.0) / vec2(textureSize(map, 0));
+                    float L  = dot(texture2D(map, vMapUv).rgb, vec3(0.299, 0.587, 0.114));
+                    float Lx = dot(texture2D(map, vMapUv + vec2(texelSize.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
+                    float Ly = dot(texture2D(map, vMapUv + vec2(0.0, texelSize.y)).rgb, vec3(0.299, 0.587, 0.114));
+                    float dLx = (Lx - L) * uBumpScale;
+                    float dLy = (Ly - L) * uBumpScale;
+                    normal = normalize(normal + dLx * vec3(1.0, 0.0, 0.0) + dLy * vec3(0.0, 1.0, 0.0));
+                }
+                #endif`
+            );
+        };
 
         const mesh = new THREE.Mesh(geometry, material);
         mesh.frustumCulled = false;
