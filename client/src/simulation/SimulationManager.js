@@ -856,39 +856,45 @@ export class SimulationManager {
             this._noseCamImageData = this._noseCamCtx.createImageData(256, 256);
         }
 
-        // Hide the spacecraft itself so it doesn't block the nose camera view
         const vehicleObj = this.entryVehicle.getObject3D();
         const wasVisible = vehicleObj.visible;
-        vehicleObj.visible = false;
 
-        // Update the nose camera's world matrix (it's a child of the spacecraft group)
-        this.noseCamera.updateMatrixWorld(true);
+        try {
+            // Hide the spacecraft itself so it doesn't block the nose camera view
+            vehicleObj.visible = false;
 
-        // Save current render target, render into the off-screen RT
-        const prevRT = renderer.getRenderTarget();
-        renderer.setRenderTarget(this.noseCamRT);
-        renderer.render(scene, this.noseCamera);
+            // Update the nose camera's world matrix (it's a child of the spacecraft group)
+            this.noseCamera.updateMatrixWorld(true);
 
-        // Read pixels from the RT
-        renderer.readRenderTargetPixels(this.noseCamRT, 0, 0, 256, 256, this._noseCamPixels);
+            // Save current render target, render into the off-screen RT
+            const prevRT = renderer.getRenderTarget();
+            renderer.setRenderTarget(this.noseCamRT);
+            renderer.render(scene, this.noseCamera);
 
-        // Restore render target and spacecraft visibility
-        renderer.setRenderTarget(prevRT);
-        vehicleObj.visible = wasVisible;
+            // Read pixels from the RT
+            renderer.readRenderTargetPixels(this.noseCamRT, 0, 0, 256, 256, this._noseCamPixels);
 
-        // Flip vertically (WebGL Y is bottom-up, canvas Y is top-down)
-        const src = this._noseCamPixels;
-        const dst = this._noseCamImageData.data;
-        const stride = 256 * 4;
-        for (let row = 0; row < 256; row++) {
-            const srcOffset = (255 - row) * stride;
-            const dstOffset = row * stride;
-            for (let i = 0; i < stride; i++) {
-                dst[dstOffset + i] = src[srcOffset + i];
+            // Restore render target
+            renderer.setRenderTarget(prevRT);
+
+            // Flip vertically (WebGL Y is bottom-up, canvas Y is top-down)
+            const src = this._noseCamPixels;
+            const dst = this._noseCamImageData.data;
+            const stride = 256 * 4;
+            for (let row = 0; row < 256; row++) {
+                const srcOffset = (255 - row) * stride;
+                const dstOffset = row * stride;
+                for (let i = 0; i < stride; i++) {
+                    dst[dstOffset + i] = src[srcOffset + i];
+                }
             }
-        }
 
-        this._noseCamCtx.putImageData(this._noseCamImageData, 0, 0);
+            this._noseCamCtx.putImageData(this._noseCamImageData, 0, 0);
+        } catch (e) {
+            // WebGL context loss or GPU error — silently skip this frame
+        } finally {
+            vehicleObj.visible = wasVisible;
+        }
     }
 
     // onMouseClick method removed - no longer needed for trajectory clicking
