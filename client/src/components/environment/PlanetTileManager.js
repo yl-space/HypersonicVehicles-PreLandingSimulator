@@ -333,48 +333,17 @@ export class PlanetTileManager {
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
 
-        // PBR material with screen-space bump mapping from texture luminance.
+        // PBR material — directional light + sphere vertex normals provide
+        // natural curvature shading. Bump mapping removed because dFdx/dFdy
+        // derivatives spike at tile boundaries, creating visible white seam lines.
         const material = new THREE.MeshStandardMaterial({
             color: new THREE.Color(this.brightness, this.brightness, this.brightness),
             side: THREE.DoubleSide,
-            roughness: 0.92,
+            roughness: 0.95,
             metalness: 0.0,
             toneMapped: true,
             flatShading: false,
         });
-
-        // Screen-space bump: use dFdx/dFdy of texture luminance to perturb
-        // the surface normal. This correctly handles sphere curvature because
-        // the derivatives are in screen space, not object space.
-        material.onBeforeCompile = (shader) => {
-            shader.uniforms.uBumpStrength = { value: 1.8 };
-
-            shader.fragmentShader = shader.fragmentShader.replace(
-                '#include <common>',
-                `#include <common>
-                uniform float uBumpStrength;`
-            );
-
-            shader.fragmentShader = shader.fragmentShader.replace(
-                '#include <normal_fragment_maps>',
-                `#include <normal_fragment_maps>
-                #ifdef USE_MAP
-                {
-                    // Luminance of the albedo texture
-                    float lum = dot(texture2D(map, vMapUv).rgb, vec3(0.299, 0.587, 0.114));
-                    // Screen-space derivatives of luminance
-                    float dLdx = dFdx(lum);
-                    float dLdy = dFdy(lum);
-                    // Screen-space surface tangent vectors
-                    vec3 dPdx = dFdx(vViewPosition);
-                    vec3 dPdy = dFdy(vViewPosition);
-                    // Perturb normal using screen-space gradient
-                    vec3 bump = cross(dPdy, normal) * dLdx + cross(normal, dPdx) * dLdy;
-                    normal = normalize(normal - bump * uBumpStrength);
-                }
-                #endif`
-            );
-        };
 
         const mesh = new THREE.Mesh(geometry, material);
         mesh.frustumCulled = false;
