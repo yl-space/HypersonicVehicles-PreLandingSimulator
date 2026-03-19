@@ -1,17 +1,14 @@
 /**
  * Atmosphere.js
- * Mars atmospheric limb haze — soft gradient matching planet tile hue.
+ * Mars atmospheric haze — radial gradient (opaque near surface, fading outward).
  *
- * Uses a BackSide sphere slightly larger than the planet. The Fresnel
- * effect naturally concentrates glow at the planet limb (grazing angles)
- * and fades to zero where the camera looks straight at the surface.
- *
- * Bug fix history:
- *  - Previous versions used a "radial fade" (edgeFade) based on fragment
- *    distance from planet center. On a BackSide sphere viewed from outside,
- *    ALL fragments are at the same distance (= atmRadius), making
- *    edgeFade = 0 everywhere → atmosphere was invisible. Removed.
- *    Pure Fresnel provides the correct limb-glow effect.
+ * Technique: ray-sphere atmospheric scattering approximation.
+ * For each fragment on the BackSide atmosphere shell, we cast the view ray
+ * and compute how close it passes to the planet surface (closest approach).
+ * Rays that graze the planet limb pass through maximum atmosphere → opaque.
+ * Rays far from the surface pass through thin atmosphere → transparent.
+ * This creates the desired radial gradient: dense near the horizon,
+ * smoothly fading to nothing at the outer edge.
  */
 
 import * as THREE from 'three';
@@ -28,23 +25,23 @@ export class Atmosphere {
     }
 
     init() {
-        // Shell 4% larger than planet — Fresnel fades before the geometry edge
-        const atmRadius = this.planetRadius * 1.04;
+        // Shell 5% larger than planet for generous gradient space
+        const atmRadius = this.planetRadius * 1.05;
         const geometry = new THREE.SphereGeometry(atmRadius, 128, 80);
 
         this.material = new THREE.ShaderMaterial({
             uniforms: {
-                // Warm brownish-tan matching Mars surface tile hue
-                glowColor:    { value: new THREE.Vector3(0.78, 0.54, 0.38) },
-                intensity:    { value: 0.9 },
-                fresnelPower: { value: 2.8 },
+                planetCenter:  { value: new THREE.Vector3() },
+                planetRadius:  { value: this.planetRadius },
+                atmRadius:     { value: atmRadius },
+                // Reddish-brown Mars atmosphere color
+                glowColor:     { value: new THREE.Vector3(0.65, 0.35, 0.20) },
+                intensity:     { value: 1.0 },
             },
 
             vertexShader: /* glsl */`
-                varying vec3 vNormal;
                 varying vec3 vWorldPos;
                 void main() {
-                    vNormal = normalize(normalMatrix * normal);
                     vec4 wp = modelMatrix * vec4(position, 1.0);
                     vWorldPos = wp.xyz;
                     gl_Position = projectionMatrix * viewMatrix * wp;
@@ -52,29 +49,44 @@ export class Atmosphere {
             `,
 
             fragmentShader: /* glsl */`
+                uniform vec3  planetCenter;
+                uniform float planetRadius;
+                uniform float atmRadius;
                 uniform vec3  glowColor;
                 uniform float intensity;
-                uniform float fresnelPower;
 
-                varying vec3 vNormal;
                 varying vec3 vWorldPos;
 
                 void main() {
-                    vec3 viewDir = normalize(cameraPosition - vWorldPos);
+                    // View ray: from camera through this fragment
+                    vec3 rayOrigin = cameraPosition;
+                    vec3 rayDir = normalize(vWorldPos - cameraPosition);
 
-                    // Fresnel: strongest at grazing angles (planet limb),
-                    // zero when looking straight at the surface.
-                    float NdV = abs(dot(viewDir, vNormal));
-                    float f = clamp(1.0 - NdV, 0.0, 1.0);
+                    // Closest approach of the view ray to the planet center
+                    // This determines how much atmosphere the ray passes through
+                    vec3 oc = rayOrigin - planetCenter;
+                    float b = dot(oc, rayDir);
+                    float c = dot(oc, oc);
+                    // Closest distance squared = |oc|² - (oc·rayDir)²
+                    float closestDistSq = c - b * b;
+                    float closestDist = sqrt(max(closestDistSq, 0.0));
 
-                    // Multi-term: sharp limb core + wide diffuse halo
-                    float core = pow(f, fresnelPower);
-                    float halo = pow(f, fresnelPower * 0.35);
-                    float glow = core * 0.4 + halo * 0.6;
+                    // Normalize: 0 = at planet surface, 1 = at atmosphere edge
+                    float atmThickness = atmRadius - planetRadius;
+                    float heightAboveSurface = closestDist - planetRadius;
+                    float normalizedHeight = clamp(heightAboveSurface / atmThickness, 0.0, 1.0);
 
-                    float alpha = glow * intensity;
+                    // Radial gradient: opaque (1) at surface, transparent (0) at outer edge
+                    // Use squared falloff for natural-looking density decrease
+                    float density = 1.0 - normalizedHeight;
+                    density = density * density; // Quadratic falloff — dense near surface
 
-                    gl_FragColor = vec4(glowColor, clamp(alpha, 0.0, 0.6));
+                    // Extra softening at the very outer edge
+                    density *= smoothstep(1.0, 0.85, normalizedHeight);
+
+                    float alpha = density * intensity;
+
+                    gl_FragColor = vec4(glowColor, clamp(alpha, 0.0, 0.65));
                 }
             `,
 
@@ -90,7 +102,8 @@ export class Atmosphere {
     setIntensity(v) { this.intensityScale = THREE.MathUtils.clamp(v, 0, 1); }
 
     setPlanetCenter(c) {
-        // No longer needed (no planetCenter uniform), kept for API compat
+        if (this.material && c?.isVector3)
+            this.material.uniforms.planetCenter.value.copy(c);
     }
 
     /**
@@ -98,6 +111,8 @@ export class Atmosphere {
      */
     updateDynamics(spacecraftAltitudeKm = this.referenceAltitudeKm, planetCenter = null) {
         if (!this.material) return;
+        if (planetCenter?.isVector3)
+            this.material.uniforms.planetCenter.value.copy(planetCenter);
 
         const alt = Number.isFinite(spacecraftAltitudeKm)
             ? Math.max(0, spacecraftAltitudeKm) : this.referenceAltitudeKm;
@@ -108,12 +123,9 @@ export class Atmosphere {
         const density = t * t * (3.0 - 2.0 * t);
         this._density = density;
 
-        // Intensity: 0.9 at distance → 1.5 close to surface
+        // Intensity ramps from 1.0 (distant) to 1.8 (close to surface)
         this.material.uniforms.intensity.value =
-            THREE.MathUtils.lerp(0.9, 1.5, density) * this.intensityScale;
-        // Lower power = wider glow as spacecraft enters atmosphere
-        this.material.uniforms.fresnelPower.value =
-            THREE.MathUtils.lerp(3.0, 1.6, density);
+            THREE.MathUtils.lerp(1.0, 1.8, density) * this.intensityScale;
     }
 
     getDensity()  { return this._density; }
