@@ -55,6 +55,14 @@ export class SimulationManager {
         this.marsLatLonGrid = null;
         this.atmosphere = null;
 
+        // Nose camera (renders spacecraft pilot's POV to PFD canvas)
+        this.noseCamera = null;
+        this.noseCamRT = null;        // WebGLRenderTarget for off-screen render
+        this._noseCamCtx = null;      // 2D context of the PFD canvas
+        this._noseCamPixels = null;   // Uint8Array for readPixels
+        this._noseCamImageData = null; // ImageData for canvas blit
+        this._noseCamFrameSkip = 0;   // Throttle: render every 2nd frame
+
         // UI components
         this.timeline = null;
         this.phaseInfo = null;
@@ -233,6 +241,25 @@ export class SimulationManager {
         if (trajectoryObject) {
             this.sceneManager.addToAllScenes(trajectoryObject);
         }
+
+        // ── Nose camera: PerspectiveCamera at spacecraft nose ──
+        this.noseCamera = new THREE.PerspectiveCamera(90, 1, 0.000001, 10000);
+        // Position it at the forward tip of the spacecraft hull.
+        // Spacecraft +Z = forward (velocity direction), nose is at +Z = VEHICLE_HEIGHT_UNITS.
+        // We offset slightly forward so the hull isn't in view.
+        const noseOffset = 0.00004; // ~4 m ahead of spacecraft center
+        this.noseCamera.position.set(0, 0, noseOffset);
+        this.noseCamera.rotation.set(0, 0, 0); // look along +Z (forward)
+        this.entryVehicle.getObject3D().add(this.noseCamera);
+
+        // Off-screen render target (256x256, matching the PFD canvas)
+        this.noseCamRT = new THREE.WebGLRenderTarget(256, 256, {
+            format: THREE.RGBAFormat,
+            type: THREE.UnsignedByteType,
+            depthBuffer: true,
+            stencilBuffer: false,
+        });
+        this._noseCamPixels = new Uint8Array(256 * 256 * 4);
 
         // Set camera target
         this.cameraController.setTarget(this.entryVehicle.getObject3D());
@@ -737,6 +764,14 @@ export class SimulationManager {
             }
         }
 
+        // ── Render nose camera to PFD canvas (throttled to every 2nd frame) ──
+        if (this.noseCamera && this.noseCamRT && this.sceneManager.currentScene) {
+            this._noseCamFrameSkip = (this._noseCamFrameSkip + 1) % 2;
+            if (this._noseCamFrameSkip === 0) {
+                this._renderNoseCamera();
+            }
+        }
+        
         // Update UI
         this.timeline.update(this.state.currentTime, this.state.isPlaying);
 
@@ -804,8 +839,60 @@ export class SimulationManager {
         }
     }
     
+    /**
+     * Render the scene from the nose-mounted camera and blit to the PFD canvas.
+     * Uses readPixels → ImageData → 2D canvas to avoid DOM-visible WebGL context.
+     */
+    _renderNoseCamera() {
+        const renderer = this.sceneManager.renderer;
+        const scene = this.sceneManager.currentScene;
+        if (!renderer || !scene) return;
+
+        // Lazily grab the 2D canvas context from the Timeline PFD
+        if (!this._noseCamCtx) {
+            const canvas = this.timeline?.getNoseCamCanvas?.();
+            if (!canvas) return;
+            this._noseCamCtx = canvas.getContext('2d');
+            this._noseCamImageData = this._noseCamCtx.createImageData(256, 256);
+        }
+
+        // Hide the spacecraft itself so it doesn't block the nose camera view
+        const vehicleObj = this.entryVehicle.getObject3D();
+        const wasVisible = vehicleObj.visible;
+        vehicleObj.visible = false;
+
+        // Update the nose camera's world matrix (it's a child of the spacecraft group)
+        this.noseCamera.updateMatrixWorld(true);
+
+        // Save current render target, render into the off-screen RT
+        const prevRT = renderer.getRenderTarget();
+        renderer.setRenderTarget(this.noseCamRT);
+        renderer.render(scene, this.noseCamera);
+
+        // Read pixels from the RT
+        renderer.readRenderTargetPixels(this.noseCamRT, 0, 0, 256, 256, this._noseCamPixels);
+
+        // Restore render target and spacecraft visibility
+        renderer.setRenderTarget(prevRT);
+        vehicleObj.visible = wasVisible;
+
+        // Flip vertically (WebGL Y is bottom-up, canvas Y is top-down)
+        const src = this._noseCamPixels;
+        const dst = this._noseCamImageData.data;
+        const stride = 256 * 4;
+        for (let row = 0; row < 256; row++) {
+            const srcOffset = (255 - row) * stride;
+            const dstOffset = row * stride;
+            for (let i = 0; i < stride; i++) {
+                dst[dstOffset + i] = src[srcOffset + i];
+            }
+        }
+
+        this._noseCamCtx.putImageData(this._noseCamImageData, 0, 0);
+    }
+
     // onMouseClick method removed - no longer needed for trajectory clicking
-    
+
     play() {
         this.state.isPlaying = true;
         this.clock.start();

@@ -36,148 +36,55 @@ export class Timeline {
     }
 
     /**
-     * Build the SVG artificial horizon (attitude indicator).
-     * The horizon rotates with bank angle and translates with pitch (AoA).
+     * Build the nose-camera viewport with HUD overlay.
+     * A <canvas> element receives live renders from a PerspectiveCamera
+     * mounted at the spacecraft nose. Bank/AoA readouts and reference
+     * symbols are drawn as absolutely-positioned HTML overlays.
      */
     _buildAttitudeIndicator() {
-        const CX = 150, CY = 150, R = 115;
-        const PPD = 3.2; // pixels per degree of pitch
-
-        // ── Bank-angle scale ticks (fixed on bezel) ──
-        const bankAngles = [
-            { deg: 0,    len: 14, sw: 2.5 },
-            { deg: 10,   len: 6,  sw: 1 },   { deg: -10,   len: 6,  sw: 1 },
-            { deg: 20,   len: 6,  sw: 1 },   { deg: -20,   len: 6,  sw: 1 },
-            { deg: 30,   len: 12, sw: 2 },   { deg: -30,   len: 12, sw: 2 },
-            { deg: 45,   len: 6,  sw: 1 },   { deg: -45,   len: 6,  sw: 1 },
-            { deg: 60,   len: 12, sw: 2 },   { deg: -60,   len: 12, sw: 2 },
-            { deg: 90,   len: 14, sw: 2.5 }, { deg: -90,   len: 14, sw: 2.5 },
-            { deg: 120,  len: 12, sw: 2 },   { deg: -120,  len: 12, sw: 2 },
-            { deg: 150,  len: 6,  sw: 1 },   { deg: -150,  len: 6,  sw: 1 },
-            { deg: 180,  len: 14, sw: 2.5 },
-        ];
-        let bankTicks = '';
-        bankAngles.forEach(({ deg, len, sw }) => {
-            const rad = (deg - 90) * Math.PI / 180;
-            const x1 = CX + (R - 1) * Math.cos(rad);
-            const y1 = CY + (R - 1) * Math.sin(rad);
-            const x2 = CX + (R + len) * Math.cos(rad);
-            const y2 = CY + (R + len) * Math.sin(rad);
-            const isMajor = Math.abs(deg) % 30 === 0;
-            const opacity = isMajor ? 0.85 : 0.6;
-            const color = Math.abs(deg) >= 90 ? `rgba(255,200,100,${opacity})` : `rgba(255,255,255,${opacity})`;
-            bankTicks += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-width="${sw}"/>`;
-        });
-
-        // ── Pitch ladder lines (move with the horizon) ──
-        let pitchLines = '';
-        for (let deg = -90; deg <= 90; deg += 5) {
-            if (deg === 0) continue;
-            const y = CY - deg * PPD;
-            const absDeg = Math.abs(deg);
-            const isMajor = deg % 10 === 0;
-
-            let halfW;
-            if (absDeg % 30 === 0) {
-                halfW = 40;
-            } else if (isMajor) {
-                halfW = 30;
-            } else {
-                halfW = 15;
-            }
-
-            const gap = 6;
-            const sw = isMajor ? 1.5 : 1;
-            const color = deg > 0 ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.55)';
-            const dashAttr = deg < 0 ? ' stroke-dasharray="4,3"' : '';
-
-            // Left segment
-            pitchLines += `<line x1="${CX - halfW}" y1="${y}" x2="${CX - gap}" y2="${y}" stroke="${color}" stroke-width="${sw}"${dashAttr}/>`;
-            // Right segment
-            pitchLines += `<line x1="${CX + gap}" y1="${y}" x2="${CX + halfW}" y2="${y}" stroke="${color}" stroke-width="${sw}"${dashAttr}/>`;
-            // Degree labels on major lines
-            if (isMajor) {
-                pitchLines += `<text x="${CX - halfW - 6}" y="${y + 3.5}" fill="white" font-size="9" font-family="'Courier New',monospace" text-anchor="end" opacity="0.7">${absDeg}</text>`;
-                pitchLines += `<text x="${CX + halfW + 6}" y="${y + 3.5}" fill="white" font-size="9" font-family="'Courier New',monospace" text-anchor="start" opacity="0.7">${absDeg}</text>`;
-            }
-        }
-
         return `
-            <svg viewBox="0 0 300 300" class="attitude-svg" aria-label="Attitude Indicator">
-                <defs>
-                    <clipPath id="ai-clip">
-                        <circle cx="${CX}" cy="${CY}" r="${R}"/>
-                    </clipPath>
-                    <radialGradient id="ai-bezel-grad" cx="50%" cy="40%" r="60%">
-                        <stop offset="0%" stop-color="#3a3a3a"/>
-                        <stop offset="100%" stop-color="#1a1a1a"/>
-                    </radialGradient>
-                    <linearGradient id="mars-sky" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%"   stop-color="#1a0a08"/>
-                        <stop offset="30%"  stop-color="#3d1f1a"/>
-                        <stop offset="65%"  stop-color="#c4836a"/>
-                        <stop offset="85%"  stop-color="#d4a083"/>
-                        <stop offset="100%" stop-color="#e8c4a0"/>
-                    </linearGradient>
-                    <linearGradient id="mars-ground" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%"   stop-color="#a0522d"/>
-                        <stop offset="20%"  stop-color="#8b3a1a"/>
-                        <stop offset="50%"  stop-color="#6b2a12"/>
-                        <stop offset="100%" stop-color="#3a150a"/>
-                    </linearGradient>
-                </defs>
+            <div class="nose-cam-viewport" style="position:relative;width:200px;height:200px;border-radius:50%;overflow:hidden;background:#0a0a0a;">
+                <!-- Live nose-camera render target -->
+                <canvas id="nose-cam-canvas" width="256" height="256"
+                        style="width:100%;height:100%;display:block;border-radius:50%;"></canvas>
 
-                <!-- Bezel ring -->
-                <circle cx="${CX}" cy="${CY}" r="${R + 8}" fill="url(#ai-bezel-grad)" stroke="#555" stroke-width="1.5"/>
-                <circle cx="${CX}" cy="${CY}" r="${R + 1}" fill="none" stroke="#222" stroke-width="2"/>
+                <!-- HUD overlay elements (absolutely positioned over canvas) -->
+                <div class="nose-cam-hud" style="position:absolute;inset:0;pointer-events:none;">
+                    <!-- Fixed aircraft reference symbol (SVG overlay) -->
+                    <svg viewBox="0 0 200 200" style="width:100%;height:100%;position:absolute;inset:0;">
+                        <!-- Crosshair wings -->
+                        <line x1="30" y1="100" x2="82" y2="100" stroke="#e8a830" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+                        <line x1="118" y1="100" x2="170" y2="100" stroke="#e8a830" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+                        <line x1="82" y1="100" x2="82" y2="106" stroke="#e8a830" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+                        <line x1="118" y1="100" x2="118" y2="106" stroke="#e8a830" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+                        <rect x="97" y="98" width="6" height="4" fill="#e8a830" rx="1" opacity="0.9"/>
 
-                <!-- Bank-angle scale ticks (fixed) -->
-                ${bankTicks}
+                        <!-- Horizon reference ticks at 3 and 9 o'clock -->
+                        <line x1="6" y1="100" x2="20" y2="100" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+                        <line x1="180" y1="100" x2="194" y2="100" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+                    </svg>
 
-                <!-- Fixed reference triangle at top (index mark) -->
-                <polygon points="${CX},${CY - R + 2} ${CX - 7},${CY - R - 10} ${CX + 7},${CY - R - 10}" fill="#e8a830" opacity="0.9"/>
+                    <!-- Bank angle readout (top) -->
+                    <div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);
+                                background:rgba(0,0,0,0.7);border:0.5px solid rgba(255,255,255,0.15);
+                                border-radius:2px;padding:1px 6px;">
+                        <span id="ai-bank-text" style="color:#e8a830;font:10px 'Courier New',monospace;">0.0\u00B0</span>
+                    </div>
 
-                <!-- Attitude ball (clipped to circle, rotates for bank) -->
-                <g clip-path="url(#ai-clip)">
-                    <g id="ai-bank-rotate" style="transform-origin: ${CX}px ${CY}px; transition: transform 0.1s ease-out;">
-                        <g id="ai-pitch-translate" style="transition: transform 0.1s ease-out;">
-                            <!-- Sky -->
-                            <rect x="-100" y="${CY - 500}" width="500" height="500" fill="url(#mars-sky)"/>
-                            <!-- Ground -->
-                            <rect x="-100" y="${CY}" width="500" height="500" fill="url(#mars-ground)"/>
-                            <!-- Horizon line -->
-                            <line x1="-100" y1="${CY}" x2="400" y2="${CY}" stroke="#e8c4a0" stroke-width="2.5"/>
-                            <!-- Sub-horizon accent line -->
-                            <line x1="-100" y1="${CY + 1.5}" x2="400" y2="${CY + 1.5}" stroke="rgba(60,20,10,0.5)" stroke-width="1"/>
+                    <!-- AoA readout (bottom) -->
+                    <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+                                background:rgba(0,0,0,0.7);border:0.5px solid rgba(255,255,255,0.15);
+                                border-radius:2px;padding:1px 6px;">
+                        <span id="ai-aoa-text" style="color:#33ccff;font:10px 'Courier New',monospace;">-16.0\u00B0</span>
+                    </div>
 
-                            <!-- Pitch ladder -->
-                            ${pitchLines}
-                        </g>
-
-                        <!-- Rotating bank pointer (triangle at top, inside clip) -->
-                        <polygon points="${CX},${CY - R + 5} ${CX - 6},${CY - R + 15} ${CX + 6},${CY - R + 15}" fill="white" opacity="0.85"/>
-                    </g>
-                </g>
-
-                <!-- Fixed aircraft reference symbol -->
-                <line x1="${CX - 55}" y1="${CY}" x2="${CX - 18}" y2="${CY}" stroke="#e8a830" stroke-width="3.5" stroke-linecap="round"/>
-                <line x1="${CX + 18}" y1="${CY}" x2="${CX + 55}" y2="${CY}" stroke="#e8a830" stroke-width="3.5" stroke-linecap="round"/>
-                <line x1="${CX - 18}" y1="${CY}" x2="${CX - 18}" y2="${CY + 8}" stroke="#e8a830" stroke-width="3.5" stroke-linecap="round"/>
-                <line x1="${CX + 18}" y1="${CY}" x2="${CX + 18}" y2="${CY + 8}" stroke="#e8a830" stroke-width="3.5" stroke-linecap="round"/>
-                <rect x="${CX - 3}" y="${CY - 2}" width="6" height="4" fill="#e8a830" rx="1"/>
-
-                <!-- Digital readout windows on the AI face -->
-                <!-- Bank angle (top) -->
-                <rect x="${CX - 22}" y="${CY - R + 18}" width="44" height="15" rx="2" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
-                <text id="ai-bank-text" x="${CX}" y="${CY - R + 29}" text-anchor="middle" fill="#e8a830" font-size="10" font-family="'Courier New',monospace">0.0\u00B0</text>
-
-                <!-- AoA (bottom) -->
-                <rect x="${CX - 22}" y="${CY + R - 33}" width="44" height="15" rx="2" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
-                <text id="ai-aoa-text" x="${CX}" y="${CY + R - 22}" text-anchor="middle" fill="#33ccff" font-size="10" font-family="'Courier New',monospace">-16.0\u00B0</text>
-
-                <!-- Subtle glass glare -->
-                <ellipse cx="${CX - 15}" cy="${CY - 30}" rx="${R - 30}" ry="${R - 55}" fill="rgba(255,255,255,0.04)"/>
-            </svg>
+                    <!-- Circular bezel ring -->
+                    <svg viewBox="0 0 200 200" style="width:100%;height:100%;position:absolute;inset:0;">
+                        <circle cx="100" cy="100" r="98" fill="none" stroke="#333" stroke-width="3"/>
+                        <circle cx="100" cy="100" r="96" fill="none" stroke="#1a1a1a" stroke-width="1.5"/>
+                    </svg>
+                </div>
+            </div>
         `;
     }
 
@@ -322,9 +229,8 @@ export class Timeline {
             aoaStepper:  this.options.container.querySelector('#aoa-stepper'),
             bankVal:     this.options.container.querySelector('#timeline-bank-val'),
             aoaVal:      this.options.container.querySelector('#timeline-aoa-val'),
-            // Attitude indicator (in floating PFD panel)
-            aiBankRotate:    this._pfdPanel.querySelector('#ai-bank-rotate'),
-            aiPitchTranslate: this._pfdPanel.querySelector('#ai-pitch-translate'),
+            // Nose camera canvas + HUD readouts (in floating PFD panel)
+            noseCamCanvas:   this._pfdPanel.querySelector('#nose-cam-canvas'),
             aiBankText:      this._pfdPanel.querySelector('#ai-bank-text'),
             aiAoaText:       this._pfdPanel.querySelector('#ai-aoa-text'),
             // Flight data readouts (in floating PFD panel)
@@ -682,20 +588,7 @@ export class Timeline {
      * Called by SimulationManager via setControlValue().
      */
     _updateAttitude() {
-        const PPD = 3.2; // pixels per degree of pitch (matches SVG build)
-
-        // Rotate the entire sky/ground by bank angle
-        if (this.elements.aiBankRotate) {
-            this.elements.aiBankRotate.style.transform = `rotate(${-this._bankDeg}deg)`;
-        }
-
-        // Translate the pitch ladder (positive AoA = nose up = horizon drops = translateY positive)
-        if (this.elements.aiPitchTranslate) {
-            const offset = this._aoaDeg * PPD;
-            this.elements.aiPitchTranslate.style.transform = `translateY(${offset}px)`;
-        }
-
-        // Update digital readouts on the AI face
+        // Update digital readouts on the nose-camera HUD overlay
         if (this.elements.aiBankText) {
             this.elements.aiBankText.textContent = `${this._bankDeg.toFixed(1)}\u00B0`;
         }
@@ -764,6 +657,15 @@ export class Timeline {
             this.elements.fdG.classList.toggle('fd-warn', g > 3 && g <= 5);
             this.elements.fdG.classList.toggle('fd-danger', g > 5);
         }
+    }
+
+    /**
+     * Returns the nose-camera canvas element for external render-target blitting.
+     * SimulationManager uses this to draw the WebGLRenderTarget output each frame.
+     * @returns {HTMLCanvasElement|null}
+     */
+    getNoseCamCanvas() {
+        return this.elements.noseCamCanvas || null;
     }
 
     // ── Mode indicator ──

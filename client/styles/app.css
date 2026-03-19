@@ -339,11 +339,21 @@ body {
 }
 
 
-/* ── Attitude indicator ── */
+/* ── Nose-camera viewport (replaces SVG attitude indicator) ── */
 .ai-container {
     flex-shrink: 0;
 }
 
+.nose-cam-viewport {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #0a0a0a;
+    box-shadow: 0 0 8px rgba(0,0,0,0.5), inset 0 0 3px rgba(0,0,0,0.8);
+}
+
+/* Keep legacy class for backward compat */
 .attitude-svg {
     width: 200px;
     height: 200px;
