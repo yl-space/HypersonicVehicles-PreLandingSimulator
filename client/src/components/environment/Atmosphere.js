@@ -1,11 +1,16 @@
 /**
  * Atmosphere.js
- * Mars atmospheric limb haze with extremely smooth outer-edge falloff.
+ * Mars atmospheric limb haze — soft gradient that blends with planet tile hue.
  *
- * Uses a wide BackSide sphere with multi-term Fresnel that blends
- * smoothly from the planet surface colour outward into transparent space.
- * The outer edge is feathered using smoothstep so there is never a
- * visible hard boundary.
+ * Renders on a large BackSide sphere. The fragment shader computes Fresnel
+ * glow (strongest at the planet limb) and fades smoothly toward the outer
+ * geometry edge via smoothstep so there is never a hard boundary.
+ *
+ * Key visual design:
+ *  - Glow color matches the warm brownish-tan of Mars surface tiles
+ *  - Intensity increases as the spacecraft descends (altitude-driven density)
+ *  - Alpha capped at 0.55 to avoid solid-looking rings
+ *  - Wide shell (1.04× radius) so the gradient starts early
  */
 
 import * as THREE from 'three';
@@ -22,22 +27,22 @@ export class Atmosphere {
     }
 
     init() {
-        // Wide shell — the shader fades to zero well before the geometry edge
-        const atmRadius = this.planetRadius * 1.03;
-        const geometry = new THREE.SphereGeometry(atmRadius, 96, 64);
+        // Large shell — shader fades to zero well before the geometry edge
+        const atmRadius = this.planetRadius * 1.04;
+        const geometry = new THREE.SphereGeometry(atmRadius, 128, 80);
 
         this.material = new THREE.ShaderMaterial({
             uniforms: {
                 planetCenter:  { value: new THREE.Vector3() },
                 planetRadius:  { value: this.planetRadius },
                 atmRadius:     { value: atmRadius },
-                // Warm brownish-tan matching Mars tile hue
-                glowColor:     { value: new THREE.Vector3(0.72, 0.50, 0.36) },
-                intensity:     { value: 0.5 },
-                fresnelPower:  { value: 3.0 },
+                // Warm brownish-tan that blends with Mars surface tile hue
+                glowColor:     { value: new THREE.Vector3(0.75, 0.52, 0.38) },
+                intensity:     { value: 0.8 },
+                fresnelPower:  { value: 2.5 },
             },
 
-            vertexShader: `
+            vertexShader: /* glsl */`
                 varying vec3 vNormal;
                 varying vec3 vWorldPos;
                 void main() {
@@ -48,7 +53,7 @@ export class Atmosphere {
                 }
             `,
 
-            fragmentShader: `
+            fragmentShader: /* glsl */`
                 uniform vec3  planetCenter;
                 uniform float planetRadius;
                 uniform float atmRadius;
@@ -56,31 +61,31 @@ export class Atmosphere {
                 uniform float intensity;
                 uniform float fresnelPower;
 
-                varying vec3  vNormal;
-                varying vec3  vWorldPos;
+                varying vec3 vNormal;
+                varying vec3 vWorldPos;
 
                 void main() {
                     vec3 viewDir = normalize(cameraPosition - vWorldPos);
 
-                    // --- Fresnel glow (strongest at planet limb) ---
+                    // Fresnel: strongest at planet limb (grazing angles)
                     float NdV = abs(dot(viewDir, vNormal));
                     float rawFresnel = 1.0 - NdV;
+                    float f = clamp(rawFresnel, 0.0, 1.0);
 
-                    // Multi-term blend: sharp core + wide soft halo
-                    float core = pow(clamp(rawFresnel, 0.0, 1.0), fresnelPower);
-                    float halo = pow(clamp(rawFresnel, 0.0, 1.0), fresnelPower * 0.4);
-                    float fresnel = core * 0.5 + halo * 0.5;
+                    // Multi-term: sharp core limb + wide diffuse halo
+                    float core = pow(f, fresnelPower);          // tight limb ring
+                    float halo = pow(f, fresnelPower * 0.35);   // wide soft glow
+                    float fresnel = core * 0.45 + halo * 0.55;
 
-                    // --- Radial fade: blend to zero toward the outer geometry edge ---
-                    // Fragments far from the planet surface fade out smoothly
+                    // Radial height fade — smoothly vanish toward outer geometry edge
                     float fragDist = length(vWorldPos - planetCenter);
                     float relHeight = (fragDist - planetRadius) / (atmRadius - planetRadius);
-                    // smoothstep from 0.3 to 1.0 — fully gone at outer edge
-                    float edgeFade = 1.0 - smoothstep(0.3, 1.0, relHeight);
+                    // Fade starts at 20% height, fully gone at 95%
+                    float edgeFade = 1.0 - smoothstep(0.2, 0.95, relHeight);
 
                     float alpha = fresnel * intensity * edgeFade;
 
-                    gl_FragColor = vec4(glowColor, clamp(alpha, 0.0, 0.40));
+                    gl_FragColor = vec4(glowColor, clamp(alpha, 0.0, 0.55));
                 }
             `,
 
@@ -100,6 +105,9 @@ export class Atmosphere {
             this.material.uniforms.planetCenter.value.copy(c);
     }
 
+    /**
+     * Altitude-driven dynamics: glow strengthens as spacecraft descends.
+     */
     updateDynamics(spacecraftAltitudeKm = this.referenceAltitudeKm, planetCenter = null) {
         if (!this.material) return;
         if (planetCenter?.isVector3)
@@ -108,14 +116,18 @@ export class Atmosphere {
         const alt = Number.isFinite(spacecraftAltitudeKm)
             ? Math.max(0, spacecraftAltitudeKm) : this.referenceAltitudeKm;
         const norm = THREE.MathUtils.clamp(alt / this.referenceAltitudeKm, 0, 1);
+
+        // Smoothstep easing: 0 at high altitude → 1 at surface
         const t = 1 - norm;
         const density = t * t * (3.0 - 2.0 * t);
         this._density = density;
 
+        // Intensity ramps from 0.8 (distant) to 1.4 (close)
         this.material.uniforms.intensity.value =
-            THREE.MathUtils.lerp(0.5, 1.0, density) * this.intensityScale;
+            THREE.MathUtils.lerp(0.8, 1.4, density) * this.intensityScale;
+        // Fresnel power decreases (wider glow) as spacecraft enters atmosphere
         this.material.uniforms.fresnelPower.value =
-            THREE.MathUtils.lerp(3.5, 2.0, density);
+            THREE.MathUtils.lerp(3.0, 1.8, density);
     }
 
     getDensity()  { return this._density; }

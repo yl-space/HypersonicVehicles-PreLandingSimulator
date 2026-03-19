@@ -333,16 +333,16 @@ export class PlanetTileManager {
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
 
-        // PBR material — directional light + sphere vertex normals provide
-        // natural curvature shading. Bump mapping removed because dFdx/dFdy
-        // derivatives spike at tile boundaries, creating visible white seam lines.
-        const material = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(this.brightness, this.brightness, this.brightness),
-            side: THREE.DoubleSide,
-            roughness: 0.95,
-            metalness: 0.0,
+        // MeshBasicMaterial (unlit) — satellite imagery already has baked
+        // illumination. Using MeshStandardMaterial + directional light causes
+        // visible bright/dark seam lines at tile edges due to vertex normal
+        // discontinuities between adjacent tiles. MeshBasicMaterial avoids
+        // this entirely since it ignores normals and lighting.
+        const brightnessColor = new THREE.Color(this.brightness, this.brightness, this.brightness);
+        const material = new THREE.MeshBasicMaterial({
+            color: brightnessColor,
+            side: THREE.FrontSide,
             toneMapped: true,
-            flatShading: false,
         });
 
         const mesh = new THREE.Mesh(geometry, material);
