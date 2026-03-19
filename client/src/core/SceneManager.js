@@ -115,18 +115,18 @@ export class SceneManager {
         const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
         pmremGenerator.compileEquirectangularShader();
         
-        // Ambient fill — prevents fully black areas
-        const ambientLight = new THREE.AmbientLight(0xfff8e6, 0.6);
+        // Strong ambient so the planet is never too dark
+        const ambientLight = new THREE.AmbientLight(0xfff8e6, 1.2);
         marsScene.add(ambientLight);
 
-        // Hemisphere for sky/ground colour variation
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffc592, 0.5);
+        // Hemisphere for subtle sky/ground colour variation
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffc592, 0.6);
         marsScene.add(hemiLight);
 
-        // Directional sunlight — creates relief shadows on terrain features
-        // Positioned to simulate Sun at ~30° elevation from south-east
-        const sunLight = new THREE.DirectionalLight(0xfff0e0, 1.2);
-        sunLight.position.set(40, 25, -30); // above and to the side of Mars
+        // Directional sunlight — oblique angle creates relief shadows
+        // on craters and ridges without making the unlit side too dark
+        const sunLight = new THREE.DirectionalLight(0xfff0e0, 0.8);
+        sunLight.position.set(40, 25, -30);
         sunLight.target.position.set(0, 0, 0);
         marsScene.add(sunLight);
         marsScene.add(sunLight.target);

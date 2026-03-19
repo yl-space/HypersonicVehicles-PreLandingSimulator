@@ -21,8 +21,8 @@ export class PlanetTileManager {
         this.baseSegments = Math.max(8, segments);
         this.anisotropy = anisotropy;
         this.extension = extension.startsWith('.') ? extension.slice(1) : extension;
-        // Slight dim for overlay contrast without making planet too dark.
-        this.brightness = 0.85;
+        // Full brightness — directional light provides terrain contrast.
+        this.brightness = 1.0;
 
         // Skirt configuration for crack elimination
         this.skirtEnabled = true;
@@ -333,10 +333,7 @@ export class PlanetTileManager {
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
 
-        // PBR material with runtime normal perturbation from texture luminance.
-        // This creates visible terrain relief (craters, ridges) without
-        // loading separate normal/bump map tiles.
-        const bumpScale = 0.06; // strength of normal perturbation
+        // PBR material with screen-space bump mapping from texture luminance.
         const material = new THREE.MeshStandardMaterial({
             color: new THREE.Color(this.brightness, this.brightness, this.brightness),
             side: THREE.DoubleSide,
@@ -346,34 +343,34 @@ export class PlanetTileManager {
             flatShading: false,
         });
 
-        // Inject per-pixel normal perturbation into the Standard shader.
-        // Samples the albedo texture at neighbouring texels to compute a
-        // luminance-gradient bump — darker areas become depressions, lighter
-        // areas become ridges.  This is the standard "bump from diffuse" technique.
+        // Screen-space bump: use dFdx/dFdy of texture luminance to perturb
+        // the surface normal. This correctly handles sphere curvature because
+        // the derivatives are in screen space, not object space.
         material.onBeforeCompile = (shader) => {
-            shader.uniforms.uBumpScale = { value: bumpScale };
+            shader.uniforms.uBumpStrength = { value: 1.8 };
 
-            // Insert uniform declaration
             shader.fragmentShader = shader.fragmentShader.replace(
                 '#include <common>',
                 `#include <common>
-                uniform float uBumpScale;`
+                uniform float uBumpStrength;`
             );
 
-            // Perturb normal after normal_fragment_maps
             shader.fragmentShader = shader.fragmentShader.replace(
                 '#include <normal_fragment_maps>',
                 `#include <normal_fragment_maps>
                 #ifdef USE_MAP
                 {
-                    // Sample neighbours to compute luminance gradient
-                    vec2 texelSize = vec2(1.0) / vec2(textureSize(map, 0));
-                    float L  = dot(texture2D(map, vMapUv).rgb, vec3(0.299, 0.587, 0.114));
-                    float Lx = dot(texture2D(map, vMapUv + vec2(texelSize.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
-                    float Ly = dot(texture2D(map, vMapUv + vec2(0.0, texelSize.y)).rgb, vec3(0.299, 0.587, 0.114));
-                    float dLx = (Lx - L) * uBumpScale;
-                    float dLy = (Ly - L) * uBumpScale;
-                    normal = normalize(normal + dLx * vec3(1.0, 0.0, 0.0) + dLy * vec3(0.0, 1.0, 0.0));
+                    // Luminance of the albedo texture
+                    float lum = dot(texture2D(map, vMapUv).rgb, vec3(0.299, 0.587, 0.114));
+                    // Screen-space derivatives of luminance
+                    float dLdx = dFdx(lum);
+                    float dLdy = dFdy(lum);
+                    // Screen-space surface tangent vectors
+                    vec3 dPdx = dFdx(vViewPosition);
+                    vec3 dPdy = dFdy(vViewPosition);
+                    // Perturb normal using screen-space gradient
+                    vec3 bump = cross(dPdy, normal) * dLdx + cross(normal, dPdx) * dLdy;
+                    normal = normalize(normal - bump * uBumpStrength);
                 }
                 #endif`
             );
