@@ -750,17 +750,24 @@ export class SimulationManager {
 
         // Keep atmosphere anchored to Mars and adjust by spacecraft altitude.
         if (this.atmosphere && this.mars) {
-            const altitudeKm = this.state.vehicleData?.altitude ?? 130;
+            const altitudeKm = this.state.vehicleData?.altitude ?? 250;
             this.mars.getObject3D().getWorldPosition(this._planetCenterWorld);
             this.atmosphere.updateDynamics(altitudeKm, this._planetCenterWorld);
 
-            // Apply subtle atmospheric entry tint to scene background
-            const tint = this.atmosphere.getSceneTint();
-            if (tint && this.sceneManager?.renderer) {
-                const r = THREE.MathUtils.lerp(0.0, tint.r, 0.15);
-                const g = THREE.MathUtils.lerp(0.0, tint.g, 0.15);
-                const b = THREE.MathUtils.lerp(0.0, tint.b, 0.15);
-                this.sceneManager.renderer.setClearColor(new THREE.Color(r, g, b));
+            // ── Atmospheric entry colour grade ──
+            // Blend a warm dusty tint into the scene clear colour and lift exposure
+            // so the whole view gradually warms as the spacecraft descends.
+            const renderer = this.sceneManager?.renderer;
+            if (renderer) {
+                const tint = this.atmosphere.getSceneTint();
+                if (tint) {
+                    renderer.setClearColor(new THREE.Color(tint.r, tint.g, tint.b));
+                }
+                // Smoothly ramp tone-mapping exposure (1.2 → 1.55 at surface)
+                const targetExposure = this.atmosphere.getExposure();
+                renderer.toneMappingExposure = THREE.MathUtils.lerp(
+                    renderer.toneMappingExposure, targetExposure, 0.04
+                );
             }
         }
 

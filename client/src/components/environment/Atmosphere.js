@@ -1,57 +1,68 @@
 /**
  * Atmosphere.js
- * Mars atmosphere shell with smooth altitude-driven gradient glow.
- * Multi-layer Fresnel produces a gradual limb halo rather than a hard edge.
- * Scene tint shifts subtly reddish during atmospheric entry.
+ * Mars atmosphere — thin limb haze with altitude-reactive scene tint.
+ *
+ * Design goals (matching NASA Mars 2020 EDL visualisation):
+ *   - At high altitude: barely-visible peach/white haze at the planet limb,
+ *     no distinct "ring" or hard edge.
+ *   - During entry: the whole scene gradually warms (dusty salmon tint),
+ *     the limb haze intensifies slightly, and exposure brightens.
+ *   - The shell must blend seamlessly into the planet edge — the viewer
+ *     should never perceive a separate glowing element.
  */
 
 import * as THREE from 'three';
 
 export class Atmosphere {
     /**
-     * @param {number} planetRadius - scene-unit radius (33.9 ~= 3390 km at 1 unit = 100 km)
+     * @param {number} planetRadius  scene-unit radius (33.9 ≈ 3 390 km)
      */
     constructor(planetRadius = 33.9) {
         this.planetRadius = planetRadius;
-        this.referenceAltitudeKm = 200; // wider onset for subtler gradient
+        this.referenceAltitudeKm = 250;   // onset begins early but very faintly
         this.intensityScale = 1.0;
         this.mesh = null;
         this.material = null;
 
-        // Scene-wide tint driven by atmospheric density
-        this._sceneTint = { r: 0, g: 0, b: 0 };
+        // Externally-readable scene-wide colour-grade values
+        this._sceneTint   = { r: 0, g: 0, b: 0 };
+        this._exposure    = 1.2;   // base renderer exposure
+        this._density     = 0;     // cached 0-1 density
 
         this.init();
     }
 
+    /* ------------------------------------------------------------------ */
     init() {
-        // Wider shell for a more gradual falloff (was 1.008)
-        const atmRadius = this.planetRadius * 1.025;
-        const geometry = new THREE.SphereGeometry(atmRadius, 128, 96);
+        // Very thin shell — just enough to cover the limb.
+        // A thinner shell means less visible "edge" where the geometry ends.
+        const atmRadius = this.planetRadius * 1.012;
+        const geometry  = new THREE.SphereGeometry(atmRadius, 128, 96);
 
         this.material = new THREE.ShaderMaterial({
             uniforms: {
-                planetCenter:     { value: new THREE.Vector3(0, 0, 0) },
+                planetCenter:     { value: new THREE.Vector3() },
                 planetRadius:     { value: this.planetRadius },
                 atmosphereRadius: { value: atmRadius },
-                glowColor:        { value: new THREE.Vector3(0.88, 0.42, 0.16) },
-                intensity:        { value: 0.45 },
-                fresnelPower:     { value: 5.0 },
+                // Pale peach — not saturated orange
+                glowColor:        { value: new THREE.Vector3(0.95, 0.72, 0.55) },
+                intensity:        { value: 0.0 },
+                fresnelPower:     { value: 8.0 },
                 altitudeDensity:  { value: 0.0 },
-                horizonSoftness:  { value: 0.14 },
-                rimBoost:         { value: 0.40 }
+                horizonSoftness:  { value: 0.05 },
             },
+
             vertexShader: /* glsl */`
                 varying vec3 vWorldNormal;
                 varying vec3 vWorldPosition;
-
                 void main() {
-                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-                    vWorldPosition = worldPosition.xyz;
-                    vWorldNormal = normalize(mat3(modelMatrix) * normal);
-                    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+                    vec4 wp = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = wp.xyz;
+                    vWorldNormal   = normalize(mat3(modelMatrix) * normal);
+                    gl_Position    = projectionMatrix * viewMatrix * wp;
                 }
             `,
+
             fragmentShader: /* glsl */`
                 uniform vec3  planetCenter;
                 uniform float planetRadius;
@@ -61,73 +72,65 @@ export class Atmosphere {
                 uniform float fresnelPower;
                 uniform float altitudeDensity;
                 uniform float horizonSoftness;
-                uniform float rimBoost;
 
                 varying vec3 vWorldNormal;
                 varying vec3 vWorldPosition;
 
                 void main() {
-                    vec3 viewDir = normalize(cameraPosition - vWorldPosition);
-                    vec3 normal  = normalize(vWorldNormal);
+                    vec3 V = normalize(cameraPosition - vWorldPosition);
+                    vec3 N = normalize(vWorldNormal);
 
-                    // Multi-layer Fresnel for smooth gradient:
-                    // Inner glow (sharp limb) + outer halo (soft, wide spread)
-                    float baseFresnel = 1.0 - abs(dot(viewDir, normal));
-                    float innerGlow   = pow(max(baseFresnel, 0.0), fresnelPower);
-                    float outerHalo   = pow(max(baseFresnel, 0.0), fresnelPower * 0.35);
-                    float fresnel     = innerGlow * 0.65 + outerHalo * 0.35;
+                    // ── Limb fresnel (very high power → razor-thin at limb only) ──
+                    float NdV     = abs(dot(V, N));
+                    float fresnel = pow(1.0 - NdV, fresnelPower);
 
-                    // Horizon band with smoother falloff via smoothstep
-                    vec3 radialDir    = normalize(vWorldPosition - planetCenter);
-                    float viewToRadial = abs(dot(viewDir, radialDir));
-                    float horizonBand  = 1.0 - smoothstep(0.0, horizonSoftness * 1.5, viewToRadial);
+                    // ── Horizon proximity (radial-view alignment) ──
+                    vec3  R   = normalize(vWorldPosition - planetCenter);
+                    float RdV = abs(dot(V, R));
+                    // Smooth fade — widest when horizonSoftness is large
+                    float horizon = 1.0 - smoothstep(0.0, horizonSoftness, RdV);
 
-                    // Combined glow shape
-                    float glowShape = fresnel + horizonBand * rimBoost * 0.25;
+                    // Combine: only visible where limb AND horizon align
+                    float shape = fresnel * (0.6 + 0.4 * horizon);
 
-                    float densityBoost = 0.25 + altitudeDensity * 0.75;
-                    float alpha = intensity * glowShape * densityBoost;
+                    // Density-modulated alpha — nearly invisible at high alt
+                    float alpha = intensity * shape;
 
-                    // Warm Mars atmospheric tint toward horizon edge
-                    vec3 horizonTint = vec3(0.20, 0.08, 0.02) * horizonBand;
-                    vec3 densityTint = glowColor * (0.12 * altitudeDensity);
-                    vec3 color = glowColor + horizonTint + densityTint;
+                    // Slight colour warm-up toward the horizon
+                    vec3 tint = glowColor + vec3(0.08, 0.02, 0.0) * horizon;
 
-                    // Softer max alpha for subtlety (was 0.85)
-                    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.60));
+                    // Very soft cap — never fully opaque
+                    gl_FragColor = vec4(tint, clamp(alpha, 0.0, 0.35));
                 }
             `,
+
             transparent: true,
             side: THREE.BackSide,
             blending: THREE.AdditiveBlending,
-            depthWrite: false
+            depthWrite: false,
         });
 
         this.mesh = new THREE.Mesh(geometry, this.material);
+        this.mesh.renderOrder = 5;  // draw after planet tiles
     }
 
-    /**
-     * External intensity multiplier.
-     * @param {number} value - 0..1
-     */
+    /* ------------------------------------------------------------------ */
     setIntensity(value) {
         this.intensityScale = THREE.MathUtils.clamp(value, 0, 1);
     }
 
-    /**
-     * Keep shader center aligned with planet world-space center.
-     * @param {THREE.Vector3} center
-     */
     setPlanetCenter(center) {
         if (!this.material || !center?.isVector3) return;
         this.material.uniforms.planetCenter.value.copy(center);
     }
 
+    /* ------------------------------------------------------------------ */
     /**
-     * Update visual density from spacecraft altitude.
-     * Uses ease-in-out cubic for smoother transitions instead of linear lerp.
-     * @param {number} spacecraftAltitudeKm
-     * @param {THREE.Vector3|null} planetCenter
+     * Drive atmosphere visuals from live spacecraft altitude.
+     *
+     * High altitude  → limb haze invisible, no scene tint.
+     * Low altitude   → thin limb haze appears, scene warms noticeably,
+     *                   tone-mapping exposure lifts slightly.
      */
     updateDynamics(spacecraftAltitudeKm = this.referenceAltitudeKm, planetCenter = null) {
         if (!this.material) return;
@@ -136,50 +139,51 @@ export class Atmosphere {
             this.material.uniforms.planetCenter.value.copy(planetCenter);
         }
 
-        const altitudeKm = Number.isFinite(spacecraftAltitudeKm)
+        const alt = Number.isFinite(spacecraftAltitudeKm)
             ? Math.max(0, spacecraftAltitudeKm)
             : this.referenceAltitudeKm;
 
-        const normalizedAlt = THREE.MathUtils.clamp(
-            altitudeKm / this.referenceAltitudeKm,
-            0,
-            1
-        );
+        const norm = THREE.MathUtils.clamp(alt / this.referenceAltitudeKm, 0, 1);
 
-        // Ease-in-out cubic for smoother density transitions
-        const t = 1 - normalizedAlt;
-        const density = t < 0.5
-            ? 4 * t * t * t
-            : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        // Smooth ease-in curve so atmosphere "fades in" gradually
+        const t = 1 - norm;                         // 0 at ref alt → 1 at surface
+        const density = t * t * (3.0 - 2.0 * t);    // smoothstep hermite
 
-        const dynamicIntensity = THREE.MathUtils.lerp(0.25, 0.85, density) * this.intensityScale;
-        const fresnelPower     = THREE.MathUtils.lerp(6.0, 2.5, density);
-        const horizonSoftness  = THREE.MathUtils.lerp(0.06, 0.22, density);
-        const rimBoost         = THREE.MathUtils.lerp(0.30, 0.85, density);
+        this._density = density;
 
-        this.material.uniforms.intensity.value      = dynamicIntensity;
+        // ── Shader uniforms ──
+        // Intensity ramps from 0 (invisible) to moderate
+        const dynIntensity    = THREE.MathUtils.lerp(0.0, 0.55, density) * this.intensityScale;
+        // High power at altitude (razor thin) → lower power at entry (slightly wider)
+        const fresnelPower    = THREE.MathUtils.lerp(8.0, 4.0, density);
+        // Horizon softness widens during entry
+        const horizonSoftness = THREE.MathUtils.lerp(0.03, 0.12, density);
+
+        this.material.uniforms.intensity.value      = dynIntensity;
         this.material.uniforms.altitudeDensity.value = density;
         this.material.uniforms.fresnelPower.value    = fresnelPower;
         this.material.uniforms.horizonSoftness.value = horizonSoftness;
-        this.material.uniforms.rimBoost.value        = rimBoost;
 
-        // Compute scene tint (reddish for Mars atmospheric entry)
-        this._sceneTint.r = density * 0.12;
-        this._sceneTint.g = density * 0.03;
-        this._sceneTint.b = density * 0.01;
+        // ── Scene-wide colour grade (warm dusty salmon during entry) ──
+        // These are mixed into the clear-colour and tone-mapping by SimulationManager
+        this._sceneTint.r = density * 0.18;
+        this._sceneTint.g = density * 0.07;
+        this._sceneTint.b = density * 0.03;
+
+        // Slightly lift exposure during entry (planet surface brightens, looks dusty)
+        this._exposure = THREE.MathUtils.lerp(1.2, 1.55, density);
     }
 
-    /**
-     * Returns the current atmospheric tint for external scene-wide color grading.
-     * @returns {{ r: number, g: number, b: number }}
-     */
-    getSceneTint() {
-        return this._sceneTint;
-    }
+    /* ── Getters for SimulationManager ── */
 
-    getObject3D() {
-        return this.mesh;
-    }
+    /** { r, g, b } tint to blend into renderer.setClearColor */
+    getSceneTint()  { return this._sceneTint; }
+    /** Target toneMappingExposure (1.2 nominal → 1.55 deep entry) */
+    getExposure()   { return this._exposure; }
+    /** Current 0-1 density value */
+    getDensity()    { return this._density; }
+
+    getObject3D()   { return this.mesh; }
 
     dispose() {
         if (this.mesh) {
