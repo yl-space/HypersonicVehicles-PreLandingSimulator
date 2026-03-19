@@ -334,10 +334,15 @@ export class PlanetTileManager {
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
 
-        const material = new THREE.MeshBasicMaterial({
+        // MeshStandardMaterial responds to scene lighting, giving terrain
+        // relief via shadows and highlights on craters/ridges.
+        const material = new THREE.MeshStandardMaterial({
             color: new THREE.Color(this.brightness, this.brightness, this.brightness),
             side: THREE.DoubleSide,
-            toneMapped: true  // Enable tone mapping for proper brightness
+            roughness: 0.95,    // Very rough (rocky terrain)
+            metalness: 0.0,     // Non-metallic
+            toneMapped: true,
+            flatShading: false, // Smooth normals for natural curvature
         });
 
         const mesh = new THREE.Mesh(geometry, material);

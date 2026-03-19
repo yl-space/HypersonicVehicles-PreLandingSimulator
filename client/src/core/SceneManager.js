@@ -115,14 +115,21 @@ export class SceneManager {
         const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
         pmremGenerator.compileEquirectangularShader();
         
-        // Uniform ambient/hemisphere lighting (no directional shadows)
-        // Strong ambient to eliminate dark hemispheres
-        const ambientLight = new THREE.AmbientLight(0xfff8e6, 1.0);
+        // Ambient fill — prevents fully black areas
+        const ambientLight = new THREE.AmbientLight(0xfff8e6, 0.6);
         marsScene.add(ambientLight);
 
-        // Gentle hemisphere for subtle color variation without real shading
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffc592, 1.0);
+        // Hemisphere for sky/ground colour variation
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffc592, 0.5);
         marsScene.add(hemiLight);
+
+        // Directional sunlight — creates relief shadows on terrain features
+        // Positioned to simulate Sun at ~30° elevation from south-east
+        const sunLight = new THREE.DirectionalLight(0xfff0e0, 1.2);
+        sunLight.position.set(40, 25, -30); // above and to the side of Mars
+        sunLight.target.position.set(0, 0, 0);
+        marsScene.add(sunLight);
+        marsScene.add(sunLight.target);
         
         // Create earth and jupiter scenes as placeholders
         const earthScene = marsScene.clone();
