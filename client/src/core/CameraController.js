@@ -487,8 +487,14 @@ export class CameraController {
         this.camera.up.copy(correctedUp);
         this.camera.lookAt(lookAtPoint);
 
-        // Update field of view based on distance (cinematic effect)
-        if (this.mode === 'follow' && vehicleData && this.mode !== 'trajectory') {
+        // Update field of view based on mode
+        if (this.mode === 'trajectory') {
+            // Wide FOV for trajectory overview
+            if (Math.abs(this.camera.fov - 65) > 0.5) {
+                this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, 65, 0.1);
+                this.camera.updateProjectionMatrix();
+            }
+        } else if (this.mode === 'follow' && vehicleData) {
             const altitude = vehicleData.altitude || 100;
             const targetFOV = 50 + Math.min(25, altitude * 0.1);
             this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFOV, 0.05);
@@ -574,11 +580,10 @@ export class CameraController {
         }
         side.normalize();
 
-        // Distance: fit the trajectory tightly with some padding
-        // Use tan(fov/2) to compute distance that fits maxExtent in view
+        // Distance: fit trajectory in view using FOV-based projection
         const fovRad = (this.camera.fov || 50) * Math.PI / 180;
-        const fitDistance = (maxExtent * 0.55) / Math.tan(fovRad / 2);
-        const cameraDistance = Math.max(fitDistance, maxExtent * 0.4);
+        // Place camera so trajectory fills ~70% of viewport height
+        const cameraDistance = (maxExtent * 0.5) / Math.tan(fovRad / 2) * 0.8;
 
         this.trajectoryView.position = center.clone().add(side.clone().multiplyScalar(cameraDistance));
         this.trajectoryView.lookAt = center.clone();

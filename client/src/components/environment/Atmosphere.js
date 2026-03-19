@@ -39,10 +39,11 @@ export class Atmosphere {
             uniforms: {
                 planetCenter:   { value: new THREE.Vector3() },
                 planetRadius:   { value: this.planetRadius },
-                atmTopRadius:   { value: this.planetRadius * 1.008 }, // thin 0.8% shell
-                intensity:      { value: 0.0 },
+                atmTopRadius:   { value: this.planetRadius * 1.015 }, // 1.5% atmosphere shell
+                intensity:      { value: 0.35 },
                 hazeDensity:    { value: 0.0 },
-                hazeColor:      { value: new THREE.Vector3(0.85, 0.65, 0.50) },
+                // Mars dust haze — brownish-tan matching tile colour
+                hazeColor:      { value: new THREE.Vector3(0.72, 0.52, 0.38) },
             },
 
             vertexShader: /* glsl */`
@@ -104,14 +105,14 @@ export class Atmosphere {
                     float opticalDepth = pathLen / atmThickness;
 
                     // Exponential falloff — thin atmosphere = mostly transparent
-                    float haze = 1.0 - exp(-opticalDepth * 0.15 * (1.0 + hazeDensity * 2.0));
+                    float haze = 1.0 - exp(-opticalDepth * 0.35 * (1.0 + hazeDensity * 2.0));
 
                     float alpha = haze * intensity;
 
                     // Slight warm shift at limb (longer path)
                     vec3 color = hazeColor + vec3(0.05, 0.01, 0.0) * smoothstep(2.0, 8.0, opticalDepth);
 
-                    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.30));
+                    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.50));
                 }
             `,
 
@@ -144,8 +145,8 @@ export class Atmosphere {
         const density = t * t * (3.0 - 2.0 * t);
         this._density = density;
 
-        // Shader intensity: invisible at high alt, moderate at surface
-        this.material.uniforms.intensity.value  = THREE.MathUtils.lerp(0.0, 0.6, density) * this.intensityScale;
+        // Always visible at limb (base 0.35), intensifies during entry
+        this.material.uniforms.intensity.value  = THREE.MathUtils.lerp(0.35, 0.85, density) * this.intensityScale;
         this.material.uniforms.hazeDensity.value = density;
 
         // Scene colour grade
