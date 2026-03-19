@@ -115,7 +115,8 @@ export class PlanetTileManager {
         this.brightness = THREE.MathUtils.clamp(value, 0.2, 1.5);
         const c = new THREE.Color(this.brightness, this.brightness, this.brightness);
         this.group.traverse(child => {
-            if (child.isMesh && child.material) {
+            if (child.isMesh && child.material && child.userData.tileKey) {
+                // Only update tile meshes (have tileKey), not fallback sphere
                 child.material.color.copy(c);
             }
         });
