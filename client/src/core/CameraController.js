@@ -167,6 +167,7 @@ export class CameraController {
         // Touch start
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
+            if (this.mode === 'trajectory') return; // Fixed view — no touch interaction
             if (this.mode === 'orbit') {
                 if (e.touches.length === 1) {
                     // Single touch for rotation
@@ -541,25 +542,41 @@ export class CameraController {
         const size = new THREE.Vector3();
         bbox.getSize(size);
 
-        // Determine the "side" direction for the camera.
-        // Use the trajectory's start→end direction as the "along" axis,
-        // radial from planet center as "up", and cross product as "side".
-        const start = trajectoryPoints[0].clone();
-        const end = trajectoryPoints[trajectoryPoints.length - 1].clone();
-        const along = end.clone().sub(start).normalize();
-        const radial = center.clone().normalize(); // away from planet center
-        const side = new THREE.Vector3().crossVectors(along, radial).normalize();
+        const maxExtent = Math.max(size.x, size.y, size.z);
 
-        // If side is degenerate, pick an arbitrary perpendicular
-        if (side.length() < 0.001) {
-            side.crossVectors(along, new THREE.Vector3(0, 1, 0)).normalize();
+        // Guard: degenerate bbox (all points coincident)
+        if (maxExtent < 0.0001) {
+            this.trajectoryView.computed = false;
+            return;
         }
 
-        // Camera distance: far enough to see the whole trajectory with some margin
-        const maxExtent = Math.max(size.x, size.y, size.z);
+        // Determine the "side" direction for the camera.
+        const start = trajectoryPoints[0].clone();
+        const end = trajectoryPoints[trajectoryPoints.length - 1].clone();
+        const along = end.clone().sub(start);
+
+        // If start==end, use first→mid as along direction
+        if (along.length() < 0.0001) {
+            const mid = trajectoryPoints[Math.floor(trajectoryPoints.length / 2)];
+            along.copy(mid).sub(start);
+        }
+        along.normalize();
+
+        const radial = center.clone().normalize(); // away from planet center
+        const side = new THREE.Vector3().crossVectors(along, radial);
+
+        // Cascade of fallbacks for degenerate cross products
+        if (side.length() < 0.001) {
+            side.crossVectors(along, new THREE.Vector3(0, 1, 0));
+        }
+        if (side.length() < 0.001) {
+            side.crossVectors(along, new THREE.Vector3(1, 0, 0));
+        }
+        side.normalize();
+
         const cameraDistance = maxExtent * 1.8;
 
-        this.trajectoryView.position = center.clone().add(side.multiplyScalar(cameraDistance));
+        this.trajectoryView.position = center.clone().add(side.clone().multiplyScalar(cameraDistance));
         this.trajectoryView.lookAt = center.clone();
         this.trajectoryView.up = radial.clone();
         this.trajectoryView.computed = true;
