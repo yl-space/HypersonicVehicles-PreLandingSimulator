@@ -21,8 +21,9 @@ export class PlanetTileManager {
         this.baseSegments = Math.max(8, segments);
         this.anisotropy = anisotropy;
         this.extension = extension.startsWith('.') ? extension.slice(1) : extension;
-        // Brighten the planet textures (no lighting), >1 is allowed for un-tonemapped MeshBasic
-        this.brightness = 1;
+        // Dim the planet textures to improve trajectory/overlay visibility.
+        // MeshBasicMaterial.color multiplies the texture, so 0.65 = 35% darker.
+        this.brightness = 0.65;
 
         // Skirt configuration for crack elimination
         this.skirtEnabled = true;
@@ -104,6 +105,20 @@ export class PlanetTileManager {
 
     getObject3D() {
         return this.group;
+    }
+
+    /**
+     * Adjust tile brightness at runtime. Updates all existing tile materials.
+     * @param {number} value - brightness multiplier (0.2–1.5)
+     */
+    setBrightness(value) {
+        this.brightness = THREE.MathUtils.clamp(value, 0.2, 1.5);
+        const c = new THREE.Color(this.brightness, this.brightness, this.brightness);
+        this.group.traverse(child => {
+            if (child.isMesh && child.material) {
+                child.material.color.copy(c);
+            }
+        });
     }
 
     dispose() {
@@ -319,7 +334,7 @@ export class PlanetTileManager {
         geometry.computeVertexNormals();
 
         const material = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
+            color: new THREE.Color(this.brightness, this.brightness, this.brightness),
             side: THREE.DoubleSide,
             toneMapped: true  // Enable tone mapping for proper brightness
         });
