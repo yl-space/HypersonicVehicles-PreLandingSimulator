@@ -723,8 +723,17 @@ export class SimulationManager {
             const altitudeKm = this.state.vehicleData?.altitude ?? 130;
             this.mars.getObject3D().getWorldPosition(this._planetCenterWorld);
             this.atmosphere.updateDynamics(altitudeKm, this._planetCenterWorld);
+
+            // Apply subtle atmospheric entry tint to scene background
+            const tint = this.atmosphere.getSceneTint();
+            if (tint && this.sceneManager?.renderer) {
+                const r = THREE.MathUtils.lerp(0.0, tint.r, 0.15);
+                const g = THREE.MathUtils.lerp(0.0, tint.g, 0.15);
+                const b = THREE.MathUtils.lerp(0.0, tint.b, 0.15);
+                this.sceneManager.renderer.setClearColor(new THREE.Color(r, g, b));
+            }
         }
-        
+
         // Update UI
         this.timeline.update(this.state.currentTime, this.state.isPlaying);
 
