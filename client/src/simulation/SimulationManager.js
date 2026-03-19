@@ -224,7 +224,7 @@ export class SimulationManager {
         // Create latitude / longitude grid overlay (enabled by default, toggleable via Settings)
         this.marsLatLonGrid = new MarsLatLonGrid({
             marsRadius : this.mars.getRadius(),
-            visible    : true
+            visible    : false   // Off by default, toggled via Settings panel
         });
         this.sceneManager.addToAllScenes(this.marsLatLonGrid.getObject3D());
 

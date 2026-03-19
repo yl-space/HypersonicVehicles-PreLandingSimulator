@@ -21,9 +21,8 @@ export class PlanetTileManager {
         this.baseSegments = Math.max(8, segments);
         this.anisotropy = anisotropy;
         this.extension = extension.startsWith('.') ? extension.slice(1) : extension;
-        // Dim the planet textures to improve trajectory/overlay visibility.
-        // MeshBasicMaterial.color multiplies the texture, so 0.65 = 35% darker.
-        this.brightness = 0.65;
+        // Slight dim for overlay contrast without making planet too dark.
+        this.brightness = 0.85;
 
         // Skirt configuration for crack elimination
         this.skirtEnabled = true;
