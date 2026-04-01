@@ -333,16 +333,17 @@ export class PlanetTileManager {
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
 
-        // MeshBasicMaterial (unlit) — satellite imagery already has baked
-        // illumination. Using MeshStandardMaterial + directional light causes
-        // visible bright/dark seam lines at tile edges due to vertex normal
-        // discontinuities between adjacent tiles. MeshBasicMaterial avoids
-        // this entirely since it ignores normals and lighting.
-        const brightnessColor = new THREE.Color(this.brightness, this.brightness, this.brightness);
+        // MeshBasicMaterial (unlit) — satellite imagery has baked illumination.
+        // Warm-shifted colour multiplier to match NASA Eyes Mars 2020 orange-tan
+        // appearance. The raw tiles from NASA Trek are grey-ish; multiplying by
+        // a warm tint (R>G>B) brings them into the correct Mars colour space.
+        const b = this.brightness;
+        const tileColor = new THREE.Color(b * 1.15, b * 0.95, b * 0.80);
         const material = new THREE.MeshBasicMaterial({
-            color: brightnessColor,
+            color: tileColor,
             side: THREE.FrontSide,
             toneMapped: true,
+            fog: true, // Responds to scene FogExp2 for atmospheric entry tint
         });
 
         const mesh = new THREE.Mesh(geometry, material);

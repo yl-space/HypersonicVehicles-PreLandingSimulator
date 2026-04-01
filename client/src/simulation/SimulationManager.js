@@ -747,9 +747,21 @@ export class SimulationManager {
             const altitudeKm = this.state.vehicleData?.altitude ?? 250;
             this.mars.getObject3D().getWorldPosition(this._planetCenterWorld);
             this.atmosphere.updateDynamics(altitudeKm, this._planetCenterWorld);
-            // Scene tint/exposure removed — the atmosphere shader handles all visual
-            // grading internally. No renderer.setClearColor or toneMappingExposure
-            // changes, which eliminates the per-frame flicker.
+
+            // Apply altitude-driven scene fog for atmospheric entry tint
+            // (matches NASA Eyes Mars 2020 warm brown haze during descent)
+            const fog = this.atmosphere.getFog();
+            const scene = this.sceneManager.currentScene;
+            if (scene && fog.density > 0.00001) {
+                if (!scene.fog) {
+                    scene.fog = new THREE.FogExp2(fog.color, fog.density);
+                } else {
+                    scene.fog.color.copy(fog.color);
+                    scene.fog.density = fog.density;
+                }
+            } else if (scene && scene.fog) {
+                scene.fog = null; // No fog at high altitude
+            }
         }
 
         // ── Render nose camera to PFD canvas (throttled to every 2nd frame) ──

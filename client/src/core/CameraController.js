@@ -523,9 +523,13 @@ export class CameraController {
                 this.camera.updateProjectionMatrix();
             }
         } else if (this.mode === 'follow' && vehicleData) {
+            // NASA-style auto-zoom: tighter FOV at high altitude (zoomed in on
+            // spacecraft against planet backdrop), wider FOV near surface (shows
+            // terrain context). Matches NASA Eyes Mars 2020 camera behaviour.
             const altitude = vehicleData.altitude || 100;
-            const targetFOV = 50 + Math.min(25, altitude * 0.1);
-            this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFOV, 0.05);
+            const altNorm = THREE.MathUtils.clamp(altitude / 130, 0, 1); // 0=surface, 1=high
+            const targetFOV = THREE.MathUtils.lerp(55, 40, altNorm); // 40° high alt, 55° low alt
+            this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFOV, 0.03);
             this.camera.updateProjectionMatrix();
         }
     }

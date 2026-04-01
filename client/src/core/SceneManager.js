@@ -119,17 +119,16 @@ export class SceneManager {
         const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
         pmremGenerator.compileEquirectangularShader();
         
-        // Strong ambient so the planet is never too dark
-        const ambientLight = new THREE.AmbientLight(0xfff8e6, 1.2);
+        // Warm ambient matching NASA Eyes Mars 2020 — planet never goes dark
+        const ambientLight = new THREE.AmbientLight(0xffe8d0, 1.6);
         marsScene.add(ambientLight);
 
-        // Hemisphere for subtle sky/ground colour variation
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffc592, 0.6);
+        // Hemisphere: warm sky (sun-facing) / warm ground (Mars surface bounce)
+        const hemiLight = new THREE.HemisphereLight(0xfff0e0, 0xd4a070, 0.5);
         marsScene.add(hemiLight);
 
-        // Directional sunlight — oblique angle creates relief shadows
-        // on craters and ridges without making the unlit side too dark
-        const sunLight = new THREE.DirectionalLight(0xfff0e0, 0.8);
+        // Directional sunlight — oblique angle for subtle shadow relief
+        const sunLight = new THREE.DirectionalLight(0xfff0d8, 0.6);
         sunLight.position.set(40, 25, -30);
         sunLight.target.position.set(0, 0, 0);
         marsScene.add(sunLight);

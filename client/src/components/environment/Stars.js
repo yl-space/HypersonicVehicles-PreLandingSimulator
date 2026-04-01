@@ -1,6 +1,10 @@
 /**
  * Stars.js
- * Creates a starfield background using texture tiling
+ * Procedural point-star field matching NASA Eyes Mars 2020 reference.
+ *
+ * Replaces the texture-based skybox (which had visible repeating patterns)
+ * with thousands of individual point sprites at random positions on a
+ * large sphere. Each star has randomised brightness for a natural look.
  */
 
 import * as THREE from 'three';
@@ -12,45 +16,77 @@ export class Stars {
     }
 
     init() {
-        this.createStarfieldSkybox();
+        this.createPointStars();
     }
 
-    createStarfieldSkybox() {
-        const loader = new THREE.TextureLoader();
-        const texture = loader.load('/assets/textures/starfield.png');
+    createPointStars() {
+        const starCount = 8000;
+        const radius = 5000; // Far enough to be behind everything
 
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.minFilter = THREE.LinearMipmapLinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-        texture.generateMipmaps = true;
+        const positions = new Float32Array(starCount * 3);
+        const colors = new Float32Array(starCount * 3);
+        const sizes = new Float32Array(starCount);
 
-        const size = 100000;
-        const geometry = new THREE.BoxGeometry(size, size, size);
-        const materials = [];
+        for (let i = 0; i < starCount; i++) {
+            // Random point on sphere surface
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const r = radius;
 
-        for (let i = 0; i < 6; i++) {
-            const faceTexture = texture.clone();
-            faceTexture.repeat.set(10 + i * 2, 10 + i * 2);
-            materials.push(new THREE.MeshBasicMaterial({
-                map: faceTexture,
-                side: THREE.BackSide,
-                depthWrite: false,
-                depthTest: true, // keep stars in background; respect depth so they don't overlay everything
-                fog: false,
-                toneMapped: false,
-                transparent: true,
-                opacity: 0.95
-            }));
+            positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+            positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+            positions[i * 3 + 2] = r * Math.cos(phi);
+
+            // Randomised warm-white colour with slight variation
+            const brightness = 0.5 + Math.random() * 0.5;
+            // Slight colour temperature variation: some bluer, some warmer
+            const temp = Math.random();
+            if (temp > 0.85) {
+                // Blue-white star (~15%)
+                colors[i * 3]     = brightness * 0.8;
+                colors[i * 3 + 1] = brightness * 0.85;
+                colors[i * 3 + 2] = brightness;
+            } else if (temp > 0.7) {
+                // Yellow-white star (~15%)
+                colors[i * 3]     = brightness;
+                colors[i * 3 + 1] = brightness * 0.9;
+                colors[i * 3 + 2] = brightness * 0.7;
+            } else {
+                // White star (~70%)
+                colors[i * 3]     = brightness;
+                colors[i * 3 + 1] = brightness;
+                colors[i * 3 + 2] = brightness;
+            }
+
+            // Random size: most are tiny, a few are brighter
+            sizes[i] = 1.0 + Math.random() * 2.0;
+            if (Math.random() > 0.95) sizes[i] *= 2.5; // ~5% brighter stars
         }
 
-        const skybox = new THREE.Mesh(geometry, materials);
-        skybox.renderOrder = -10; // render early, behind everything
-        this.group.add(skybox);
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+
+        const material = new THREE.PointsMaterial({
+            size: 2,
+            sizeAttenuation: false,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.9,
+            depthWrite: false,
+            depthTest: true,
+            fog: false,
+            toneMapped: false,
+        });
+
+        const points = new THREE.Points(geometry, material);
+        points.renderOrder = -10;
+        this.group.add(points);
     }
 
     update(deltaTime) {
+        // Very slow rotation — barely perceptible, adds life
         this.group.rotation.y += deltaTime * 0.00002;
     }
 
@@ -62,15 +98,8 @@ export class Stars {
         this.group.traverse(child => {
             if (child.geometry) child.geometry.dispose();
             if (child.material) {
-                if (Array.isArray(child.material)) {
-                    child.material.forEach(mat => {
-                        if (mat.map) mat.map.dispose();
-                        mat.dispose();
-                    });
-                } else {
-                    if (child.material.map) child.material.map.dispose();
-                    child.material.dispose();
-                }
+                if (child.material.map) child.material.map.dispose();
+                child.material.dispose();
             }
         });
     }
