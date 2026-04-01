@@ -656,30 +656,12 @@ export class EntryVehicle {
             this.thrusterMesh.material.opacity = this.state.thrustersActive ? 0.8 : 0;
         }
 
-        // Debug: Log LOD state periodically even if camera is null
-        if (!this._lodDebugCounter) this._lodDebugCounter = 0;
-        if (++this._lodDebugCounter % 120 === 0) {
-            console.log(`[EntryVehicle] Update called: camera=${camera ? 'present' : 'NULL'}, vehicleLOD=${this.vehicleLOD ? 'present' : 'NULL'}, modelLoaded=${this.state.modelLoaded}`);
-            if (this.vehicleLOD) {
-                console.log(`[EntryVehicle] LOD state: visible=${this.vehicleLOD.visible}, children=${this.vehicleLOD.children.length}, levels=${this.vehicleLOD.levels?.length || 0}`);
-                if (camera) {
-                    const distance = camera.position.distanceTo(this.group.position);
-                    console.log(`[EntryVehicle] Camera distance: ${distance.toFixed(4)}`);
-                }
-            }
-        }
-
         if (camera && this.vehicleLOD) {
             this.vehicleLOD.update(camera);
-        } else if (!camera) {
-            console.warn('[EntryVehicle] Camera is NULL - LOD not updating!');
-        } else if (!this.vehicleLOD) {
-            console.warn('[EntryVehicle] vehicleLOD is NULL - no spacecraft mesh!');
         }
 
         // Ensure spacecraft and LOD remain visible
         if (this.vehicleLOD && !this.vehicleLOD.visible) {
-            console.warn('[EntryVehicle] LOD became invisible! Re-enabling.');
             this.vehicleLOD.visible = true;
         }
     }
@@ -732,24 +714,10 @@ export class EntryVehicle {
     setPosition(position) {
         if (position?.isVector3) {
             this.group.position.copy(position);
-            this.group.updateMatrixWorld(true);  // CRITICAL FIX: Update world matrix for LOD distance calculation
-            if (this.vehicleLOD) {
-                this.vehicleLOD.updateMatrixWorld(true);
-            }
-
-            // Debug: Log position periodically (every 60 frames to avoid spam)
-            if (!this._positionLogCounter) this._positionLogCounter = 0;
-            this._positionLogCounter++;
-            if (this._positionLogCounter % 60 === 0) {
-                const distance = position.length();
-                const marsRadius = 33.9; // units (3390 km)
-                const altitude = (distance - marsRadius) * 100; // km
-                console.log(`[EntryVehicle] Position: x=${position.x.toFixed(4)}, y=${position.y.toFixed(4)}, z=${position.z.toFixed(4)}, distance=${distance.toFixed(4)}, altitude=${altitude.toFixed(2)} km, visible=${this.group.visible}`);
-            }
+            this.group.updateMatrixWorld(true);
 
             // Ensure spacecraft is always visible
             if (!this.group.visible) {
-                console.warn('[EntryVehicle] Group became invisible! Re-enabling visibility.');
                 this.group.visible = true;
             }
         }

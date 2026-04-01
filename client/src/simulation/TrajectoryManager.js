@@ -793,7 +793,10 @@ export class TrajectoryManager {
     }
 
     updateLineResolution() {
-        this.lineResolution.set(window.innerWidth, window.innerHeight);
+        const w = window.innerWidth, h = window.innerHeight;
+        // Skip if resolution unchanged — avoids unnecessary LineMaterial shader updates
+        if (this.lineResolution.x === w && this.lineResolution.y === h) return;
+        this.lineResolution.set(w, h);
         if (this.pastMaterial?.resolution) {
             this.pastMaterial.resolution.copy(this.lineResolution);
         }

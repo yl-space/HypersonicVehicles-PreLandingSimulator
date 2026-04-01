@@ -405,24 +405,19 @@ export class PlanetTileManager {
     }
 
     setTileTexture(tile, texture) {
-        console.log(`[PlanetTileManager] setTileTexture called for tile ${tile.key}, mesh exists: ${!!tile.mesh}, material exists: ${!!tile.mesh?.material}`);
         if (tile.mesh?.material) {
             tile.mesh.material.map = texture;
             tile.mesh.material.toneMapped = true;
             tile.mesh.material.needsUpdate = true;
             tile.loaded = true;
             tile.loading = false;
-            console.log(`[PlanetTileManager] Texture applied to tile ${tile.key}`);
             // Remove fallback completely once we have at least one textured tile
             if (this.fallbackMesh && this.fallbackMesh.parent) {
                 this.group.remove(this.fallbackMesh);
                 this.fallbackMesh.geometry.dispose();
                 this.fallbackMesh.material.dispose();
                 this.fallbackMesh = null;
-                console.log(`[PlanetTileManager] Fallback mesh removed from scene`);
             }
-        } else {
-            console.warn(`[PlanetTileManager] Cannot apply texture - mesh or material missing for tile ${tile.key}`);
         }
     }
 
@@ -542,9 +537,6 @@ export class PlanetTileManager {
 
         // Debug: log group children count periodically
         if (!this._debugCounter) this._debugCounter = 0;
-        if (++this._debugCounter % 60 === 0) {
-            console.log(`[PlanetTileManager] Group has ${this.group.children.length} children, tileCache has ${this.tileCache.size} tiles`);
-        }
         // Cache camera info for prioritization
         this.lastCameraPos = camera.position.clone();
         this.lastCameraDir = new THREE.Vector3();

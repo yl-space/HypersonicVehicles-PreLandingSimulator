@@ -689,12 +689,6 @@ export class SimulationManager {
                     );
                 }
 
-                // Debug: Log spacecraft rendering state periodically
-                if (!this._renderDebugCounter) this._renderDebugCounter = 0;
-                if (++this._renderDebugCounter % 60 === 0) {
-                    const sc = this.entryVehicle.getObject3D();
-                    console.log(`[SimulationManager] Spacecraft render state: visible=${sc.visible}, children=${sc.children.length}, position=(${sc.position.x.toFixed(2)}, ${sc.position.y.toFixed(2)}, ${sc.position.z.toFixed(2)})`);
-                }
             }
             
             // Update phase
