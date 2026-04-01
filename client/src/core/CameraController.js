@@ -575,20 +575,23 @@ export class CameraController {
             if (alt > maxAlt) maxAlt = alt;
         }
 
-        // The "scene extent" we need to frame: max of arc length and altitude range
-        const sceneExtent = Math.max(arcLength, maxAlt * 2) || 1;
+        // The "scene extent" we need to frame: max of arc length and altitude range.
+        // Ensure a minimum extent so the trajectory is always visible even for short arcs.
+        const sceneExtent = Math.max(arcLength, maxAlt * 2, 0.02) || 0.02;
 
-        // Place camera to the side, at a distance that fits the trajectory
-        // Use a tighter framing multiplier so the trajectory fills the viewport
-        const fovRad = 65 * Math.PI / 180; // We use 65° FOV in trajectory mode
-        const cameraDistance = (sceneExtent * 0.5) / Math.tan(fovRad / 2) * 1.1;
+        // Place camera to the side. Use generous padding (3x) so the full
+        // trajectory arc + spacecraft are comfortably visible with room to spare.
+        const fovRad = 65 * Math.PI / 180; // FOV used in trajectory mode
+        const cameraDistance = (sceneExtent * 0.5) / Math.tan(fovRad / 2) * 3.0;
 
-        // Offset the look-at point slightly above the surface midpoint
-        // (halfway between surface and max altitude) so the arc is centered
+        // Look-at: midpoint elevated halfway between surface and max altitude
         const lookAt = midPoint.clone().add(radial.clone().multiplyScalar(maxAlt * 0.4));
 
         // Camera position: offset sideways from the look-at point
         const camPos = lookAt.clone().add(side.clone().multiplyScalar(cameraDistance));
+
+        // Also raise camera slightly above the trajectory plane for better perspective
+        camPos.add(radial.clone().multiplyScalar(sceneExtent * 0.25));
 
         // Ensure camera doesn't end up inside the planet
         const camDistFromCenter = camPos.length();
