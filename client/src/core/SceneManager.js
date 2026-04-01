@@ -53,8 +53,9 @@ export class SceneManager {
         // Use standard WebGLRenderer for production stability
         this.renderer = new THREE.WebGLRenderer(params);
         
-        // Modern renderer settings - reduced pixel ratio for better performance
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1)); // Cap at 1 for better performance
+        // Cap at 2 to balance sharpness on Retina/HiDPI vs GPU load.
+        // Previous cap of 1 caused blurry text and aliased edges on modern displays.
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         // Balanced exposure for Mars surface visibility
@@ -72,11 +73,14 @@ export class SceneManager {
     setupCamera() {
         const aspect = this.container.clientWidth / this.container.clientHeight;
         
+        // logarithmicDepthBuffer (enabled in renderer) handles the extreme range.
+        // Near 0.00001 (~1 m at scene scale) is safe with log depth; avoids
+        // Z-fighting from the previous 0.000001 (ratio was 1e10).
         this.camera = new THREE.PerspectiveCamera(
             50,
             aspect,
-            0.000001,  // Extremely close near plane for meter-scale spacecraft (~0.1 m)
-            10000   // Far plane for large scale scenes
+            0.00001,
+            10000
         );
         
         this.camera.position.set(150, 100, 150);

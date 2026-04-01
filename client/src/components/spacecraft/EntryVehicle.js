@@ -732,10 +732,9 @@ export class EntryVehicle {
     setPosition(position) {
         if (position?.isVector3) {
             this.group.position.copy(position);
-            this.group.updateMatrixWorld(true);  // CRITICAL FIX: Update world matrix for LOD distance calculation
-            if (this.vehicleLOD) {
-                this.vehicleLOD.updateMatrixWorld(true);
-            }
+            // Single updateMatrixWorld(true) propagates to all children including vehicleLOD.
+            // Previous code called it twice (group + vehicleLOD), wasting a full matrix traversal.
+            this.group.updateMatrixWorld(true);
 
             // Debug: Log position periodically (every 60 frames to avoid spam)
             if (!this._positionLogCounter) this._positionLogCounter = 0;
@@ -815,12 +814,11 @@ export class EntryVehicle {
         const rotationMatrix = new THREE.Matrix4();
         rotationMatrix.makeBasis(right, up, forward);
 
-        // Extract quaternion
-        this.attitude.quaternion.setFromRotationMatrix(rotationMatrix);
+        // Extract quaternion and normalize to prevent accumulated floating-point drift
+        this.attitude.quaternion.setFromRotationMatrix(rotationMatrix).normalize();
 
         // Apply to spacecraft group
         this.group.quaternion.copy(this.attitude.quaternion);
-        this.group.updateMatrixWorld(true);  // CRITICAL FIX: Update world matrix for LOD distance calculation
     }
 
     /**
