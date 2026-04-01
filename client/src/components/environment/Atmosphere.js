@@ -83,10 +83,10 @@ export class Atmosphere {
                     // to cosAtmEdge (outer = atmosphere edge).
                     // cosLimb > cosAtmEdge since the planet is smaller than the atm shell.
                     float bandWidth = cosLimb - cosAtmEdge;
-                    if (bandWidth < 0.0001) { discard; }
+                    if (bandWidth < 0.001) { discard; }
 
                     // t = 0 at planet limb (inner), t = 1 at atmosphere edge (outer)
-                    float t = (cosLimb - cosViewAngle) / bandWidth;
+                    float t = (cosLimb - cosViewAngle) / max(bandWidth, 0.001);
                     t = clamp(t, 0.0, 1.0);
 
                     // Radial gradient: opaque at inner edge, transparent at outer edge

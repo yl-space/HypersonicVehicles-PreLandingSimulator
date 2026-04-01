@@ -274,7 +274,13 @@ export class CameraController {
             if (velocity.length() > 0.001 && position.length() > 0.001) {
                 const forward = velocity.clone().normalize();
                 const radial = position.clone().normalize();
-                const right = new THREE.Vector3().crossVectors(forward, radial).normalize();
+                const right = new THREE.Vector3().crossVectors(forward, radial);
+                // Guard: if forward ∥ radial (straight-down fall), cross product is zero
+                if (right.length() < 0.001) {
+                    right.crossVectors(forward, new THREE.Vector3(0, 1, 0));
+                    if (right.length() < 0.001) right.set(1, 0, 0);
+                }
+                right.normalize();
                 const up = new THREE.Vector3().crossVectors(right, forward).normalize();
 
                 desiredPosition.copy(targetPos);
@@ -355,7 +361,13 @@ export class CameraController {
                             const radial = position.clone().normalize();   // Radial from Mars (up direction)
 
                             // Right vector = perpendicular to both forward and radial
-                            const right = new THREE.Vector3().crossVectors(forward, radial).normalize();
+                            const right = new THREE.Vector3().crossVectors(forward, radial);
+                            // Guard: if forward ∥ radial (vertical fall), cross product is zero
+                            if (right.length() < 0.001) {
+                                right.crossVectors(forward, new THREE.Vector3(0, 1, 0));
+                                if (right.length() < 0.001) right.set(1, 0, 0);
+                            }
+                            right.normalize();
 
                             // Recalculate up to be perpendicular to forward and right (ensures orthogonal frame)
                             const up = new THREE.Vector3().crossVectors(right, forward).normalize();

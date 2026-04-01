@@ -129,8 +129,9 @@ export class PhaseController {
         }
         
         const phaseDuration = nextPhase.time - currentPhase.time;
+        if (phaseDuration <= 0) return 1; // Guard against identical phase timestamps
         const timeInPhase = currentTime - currentPhase.time;
-        
+
         return Math.min(timeInPhase / phaseDuration, 1);
     }
     

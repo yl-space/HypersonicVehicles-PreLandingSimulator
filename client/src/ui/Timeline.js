@@ -174,8 +174,8 @@ export class Timeline {
                 </div>
             </div>
             <div class="timeline-controls">
-                <button class="play-button" id="play-button">
-                    <svg width="24" height="24" viewBox="0 0 24 24">
+                <button class="play-button" id="play-button" aria-label="Play or pause simulation">
+                    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
                         <path class="play-icon" d="M8 5v14l11-7z" fill="currentColor"></path>
                         <g class="pause-icon" style="display: none;">
                             <rect x="6" y="4" width="4" height="16" fill="currentColor"></rect>
@@ -183,7 +183,7 @@ export class Timeline {
                         </g>
                     </svg>
                 </button>
-                <button class="timeline-reset-button" id="timeline-reset" disabled>
+                <button class="timeline-reset-button" id="timeline-reset" disabled aria-label="Reset and replay simulation">
                     <svg width="20" height="20" viewBox="0 0 24 24">
                         <path d="M12 5V2L8 6l4 4V7c2.76 0 5 2.24 5 5 0 2.21-1.79 4-4 4-1.38 0-2.6-.7-3.32-1.76l-1.66.96C9 17.91 10.39 19 12 19c3.31 0 6-2.69 6-6s-2.69-6-6-6z" fill="currentColor"></path>
                     </svg>
@@ -291,12 +291,14 @@ export class Timeline {
             this.elements.handle.addEventListener('keydown', (event) => this.handleHandleKeydown(event));
         }
 
-        document.addEventListener('keydown', (event) => {
+        // Store reference so the global listener can be removed in dispose()
+        this._globalKeyHandler = (event) => {
             if (event.key === ' ') {
                 event.preventDefault();
                 this.options.onPlayPause();
             }
-        });
+        };
+        document.addEventListener('keydown', this._globalKeyHandler);
 
         // Stepper button clicks — forward to SimulationManager via callback
         this.elements.rateDrawer.addEventListener('click', (event) => {
@@ -678,6 +680,20 @@ export class Timeline {
         }
         if (this.elements.modeLabel) {
             this.elements.modeLabel.textContent = mode === 'PLAYBACK' ? 'PLAYBACK' : 'SIMULATION';
+        }
+    }
+
+    /**
+     * Clean up event listeners to prevent memory leaks.
+     * Must be called if the Timeline instance is destroyed/recreated.
+     */
+    dispose() {
+        if (this._globalKeyHandler) {
+            document.removeEventListener('keydown', this._globalKeyHandler);
+            this._globalKeyHandler = null;
+        }
+        if (this._pfdPanel?.parentNode) {
+            this._pfdPanel.parentNode.removeChild(this._pfdPanel);
         }
     }
 }
