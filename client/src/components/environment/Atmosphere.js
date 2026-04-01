@@ -35,7 +35,7 @@ export class Atmosphere {
                 planetCenter:  { value: new THREE.Vector3() },
                 planetRadius:  { value: this.planetRadius },
                 atmRadius:     { value: atmRadius },
-                // Reddish-brown Mars atmosphere
+                // Reddish-brown Mars atmosphere colour
                 glowColor:     { value: new THREE.Vector3(0.62, 0.32, 0.18) },
                 intensity:     { value: 1.0 },
             },
@@ -135,7 +135,7 @@ export class Atmosphere {
         const density = t * t * (3.0 - 2.0 * t);
         this._density = density;
 
-        // Intensity ramps from 1.0 → 2.0 as spacecraft descends
+        // Intensity ramps from 1.0 at distance to 2.0 near surface
         this.material.uniforms.intensity.value =
             THREE.MathUtils.lerp(1.0, 2.0, density) * this.intensityScale;
     }
