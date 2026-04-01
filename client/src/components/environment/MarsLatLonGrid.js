@@ -44,6 +44,9 @@ const COLOR_MARS    = 0xffb464;  // warm amber for Mars-specific lines
 const SURFACE_OFFSET = 1.003;
 const LABEL_OFFSET   = 1.015;
 
+// Label constants
+const LABEL_OFFSET = 1.015;   // labels sit slightly above the grid lines
+
 // ────────────────────────────────────────────────────────────────────────────
 
 export class MarsLatLonGrid {
