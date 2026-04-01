@@ -968,8 +968,16 @@ export class EntryVehicle {
             if (child.geometry) child.geometry.dispose();
             if (child.material) {
                 if (Array.isArray(child.material)) {
-                    child.material.forEach(m => m.dispose());
+                    child.material.forEach(m => {
+                        if (m.map) m.map.dispose();
+                        if (m.normalMap) m.normalMap.dispose();
+                        if (m.roughnessMap) m.roughnessMap.dispose();
+                        m.dispose();
+                    });
                 } else {
+                    if (child.material.map) child.material.map.dispose();
+                    if (child.material.normalMap) child.material.normalMap.dispose();
+                    if (child.material.roughnessMap) child.material.roughnessMap.dispose();
                     child.material.dispose();
                 }
             }

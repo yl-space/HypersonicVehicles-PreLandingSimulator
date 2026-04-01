@@ -580,8 +580,17 @@ export class PlanetTileManager {
             tile.children.forEach(child => this.removeTile(child));
             tile.children = null;
         }
-        if (tile.mesh && this.group.children.includes(tile.mesh)) {
-            this.group.remove(tile.mesh);
+        if (tile.mesh) {
+            if (this.group.children.includes(tile.mesh)) {
+                this.group.remove(tile.mesh);
+            }
+            // Dispose GPU resources to prevent VRAM leak
+            if (tile.mesh.geometry) tile.mesh.geometry.dispose();
+            if (tile.mesh.material) {
+                if (tile.mesh.material.map) tile.mesh.material.map.dispose();
+                tile.mesh.material.dispose();
+            }
+            tile.mesh = null;
         }
     }
 
