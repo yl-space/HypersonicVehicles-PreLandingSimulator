@@ -462,23 +462,40 @@ export class CameraController {
                 break;
 
             case 'trajectory':
-                // Fixed side-view of entire trajectory — no mouse interaction
-                if (this.trajectoryView.computed && this.trajectoryView.position) {
-                    desiredPosition.copy(this.trajectoryView.position);
-                    lookAtPoint.copy(this.trajectoryView.lookAt);
-                    if (this.trajectoryView.up) {
-                        this.cinematic.upVector.copy(this.trajectoryView.up);
+                // Side-angle view that tracks the spacecraft — shows the trajectory
+                // line growing as the vehicle flies. Camera is offset to the side and
+                // slightly above, looking at the spacecraft. No mouse interaction.
+                if (vehicleData && vehicleData.velocity instanceof THREE.Vector3 && vehicleData.position instanceof THREE.Vector3) {
+                    const velocity = vehicleData.velocity.clone();
+                    const position = vehicleData.position.clone();
+
+                    if (velocity.length() > 0.001 && position.length() > 0.001) {
+                        const forward = velocity.clone().normalize();
+                        const radial = position.clone().normalize();
+                        const right = new THREE.Vector3().crossVectors(forward, radial);
+                        if (right.length() < 0.001) right.crossVectors(forward, new THREE.Vector3(0, 1, 0));
+                        if (right.length() < 0.001) right.set(1, 0, 0);
+                        right.normalize();
+                        const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+
+                        // Place camera to the side: 5x further than follow mode,
+                        // offset sideways and slightly above for a wide side-angle
+                        const dist = this.state.distance * 5;
+                        desiredPosition.copy(targetPos);
+                        desiredPosition.add(right.multiplyScalar(dist * 1.5));   // side offset
+                        desiredPosition.add(up.multiplyScalar(dist * 0.6));      // above
+                        desiredPosition.add(forward.multiplyScalar(-dist * 0.3)); // slightly behind
+
+                        this.cinematic.upVector.copy(radial);
+                    } else {
+                        desiredPosition.set(targetPos.x + 0.001, targetPos.y + 0.0005, targetPos.z);
+                        this.cinematic.upVector.set(0, 1, 0);
                     }
                 } else {
-                    // Fallback: position camera at a wide distance looking at target
-                    desiredPosition.set(
-                        targetPos.x + 0.5,
-                        targetPos.y + 0.3,
-                        targetPos.z
-                    );
-                    lookAtPoint.copy(targetPos);
+                    desiredPosition.set(targetPos.x + 0.001, targetPos.y + 0.0005, targetPos.z);
                     this.cinematic.upVector.set(0, 1, 0);
                 }
+                lookAtPoint = targetPos.clone();
                 break;
         }
 

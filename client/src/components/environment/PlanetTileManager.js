@@ -584,6 +584,9 @@ export class PlanetTileManager {
             }
             tile.mesh = null;
         }
+        // Remove from cache so createTile() rebuilds instead of returning
+        // a disposed tile with mesh=null (which causes Object3D.add(null) errors)
+        this.tileCache.delete(tile.key);
     }
 
     collectVisible(tile, camera, pixelsPerRad, desired) {
@@ -625,7 +628,7 @@ export class PlanetTileManager {
                     for (let dx = 0; dx < 2; dx++) {
                         const child = this.createTile(tile.z + 1, tile.x * 2 + dx, tile.y * 2 + dy, tile);
                         tile.children.push(child);
-                        this.group.add(child.mesh);
+                        if (child.mesh) this.group.add(child.mesh);
                     }
                 }
             }
