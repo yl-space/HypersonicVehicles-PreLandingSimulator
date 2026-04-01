@@ -125,6 +125,7 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
 
     # resample at the defined time stamps
     t_end = sol.t[-1]
+    print("t_end: ", t_end)
     time_array = np.arange(0.0, t_end + 1e-12, simulation_termination["dt"]) # epsilon is added to include the endpoint. specifics of np.arange
     states = sol.sol(time_array).T  # shape (N, 6)
     
@@ -138,23 +139,26 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
     final_output = states[-1, :]
     #np.savez("benchmark_DOP853_1e9.npz", final_output=final_output)
 
+
     # load the benchmark data 
     benchmark_data = np.load("benchmark_DOP853_1e9.npz")
     benchmark_final_output = benchmark_data["final_output"]
     #print("benchmark final output: ", benchmark_final_output)
 
-    if verbose:
+    #if verbose:
         # print the final state
         #print("final state: ", final_output)
         # print the difference of the benchmark and final output for each state separately
-        print("the output below shows the difference between the benchmark and the final output")
-        print(f"difference in radius: {final_output[0] - benchmark_final_output[0]:.5g}")
-        print(f"difference in longitude: {final_output[1] - benchmark_final_output[1]:.5g}")
-        print(f"difference in latitude: {final_output[2] - benchmark_final_output[2]:.5g}")
-        print(f"difference in velocity: {final_output[3] - benchmark_final_output[3]:.5g}")
-        print(f"difference in FPA: {final_output[4] - benchmark_final_output[4]:.5g}")
-        print(f"difference in heading: {final_output[5] - benchmark_final_output[5]:.5g}")
+        # print("the output below shows the difference between the benchmark and the final output")
+        # print(f"difference in radius: {final_output[0] - benchmark_final_output[0]:.5g}")
+        # print(f"difference in longitude: {final_output[1] - benchmark_final_output[1]:.5g}")
+        # print(f"difference in latitude: {final_output[2] - benchmark_final_output[2]:.5g}")
+        # print(f"difference in velocity: {final_output[3] - benchmark_final_output[3]:.5g}")
+        # print(f"difference in FPA: {final_output[4] - benchmark_final_output[4]:.5g}")
+        # print(f"difference in heading: {final_output[5] - benchmark_final_output[5]:.5g}")
 
+    # print final state 
+    print("final state: ", final_output)
 
     # Convert spherical to inertial Cartesian position
     # ref - L1b. Nav. class notes and iPad notebook board
@@ -189,6 +193,10 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
 
     # save cartesian states to a file
     #np.savez("benchmark_DOP853_1e9_cartesian.npz", x_m=pos_inertial[:, 0], y_m=pos_inertial[:, 1], z_m=pos_inertial[:, 2], vx_m_s=vel_inertial[:, 0], vy_m_s=vel_inertial[:, 1], vz_m_s=vel_inertial[:, 2])
+    #np.savez("golden_master_benchmark.npz", x_m=pos_inertial[:, 0], y_m=pos_inertial[:, 1], z_m=pos_inertial[:, 2], vx_m_s=vel_inertial[:, 0], vy_m_s=vel_inertial[:, 1], vz_m_s=vel_inertial[:, 2])
+    # print final state
+    #print("final state Cartesian: ", pos_inertial[-1, :], vel_inertial[-1, :])
+    
     # Return the results
 
     # Aerothermal post-processing
