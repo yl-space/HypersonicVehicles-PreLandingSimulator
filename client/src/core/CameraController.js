@@ -225,7 +225,6 @@ export class CameraController {
     
     setMode(mode) {
         this.mode = mode.toLowerCase();
-        console.log(`Camera mode set to: ${this.mode}`);
 
         // Reset follow orbit when switching modes
         if (mode === 'follow') {
@@ -602,7 +601,6 @@ export class CameraController {
         this.trajectoryView.up = radial;
         this.trajectoryView.computed = true;
 
-        console.log(`[CameraController] Trajectory view: arcLen=${arcLength.toFixed(4)}, maxAlt=${maxAlt.toFixed(4)}, camDist=${cameraDistance.toFixed(4)}`);
     }
 
     reset() {
