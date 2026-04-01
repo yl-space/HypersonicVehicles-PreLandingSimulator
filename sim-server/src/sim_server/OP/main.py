@@ -5,8 +5,38 @@ import time as _time
 
 from src.sim_server.OP.entryeoms import entryeoms
 from src.sim_server.OP.coordinates import Cartesian_to_Spherical
+from src.sim_server.OP.phases_calculation import phases_calculation_entry
 
 #secondary functions: I need to move them to seprate files and import for calrity probably
+
+def compute_total_heat_rate(states: np.ndarray, planet: dict, vehicle: dict) -> np.ndarray:
+    """Convective and radiative heat rate calculation
+    """
+    atmosphere_composition_constant = planet["atmosphere_composition_constant"]
+    nose_radius = vehicle["nose_radius"]
+
+    r = states[0]
+    h = r - planet["rp"]
+    altitudes_data = planet["atmosphere_model"].iloc[:,0]
+    rhos_data = planet["atmosphere_model"].iloc[:,3]
+    rho = np.interp(h, altitudes_data, rhos_data)
+
+    V = states[3]
+
+    q_c_dot = atmosphere_composition_constant * np.sqrt(rho / nose_radius) * (V ** 3)  # ref Girija2022
+
+    if 10000 <= V <= 12000:
+        q_r_dot = 3.07e-48 * (V ** 13.4) * (rho ** 1.2) * (nose_radius ** 0.49)
+    elif 8000 <= V < 10000:
+        q_r_dot = 1.22e-16 * (V ** 5.5) * (rho ** 1.2) * (nose_radius ** 0.49)
+    elif V < 8000:
+        q_r_dot = 3.33e-34 * (V ** 10) * (rho ** 1.2) * (nose_radius ** 0.49)
+    else:
+        raise ValueError("Velocity out of range for radiative heat rate calculation")
+
+    total_heat_rate = q_c_dot + q_r_dot
+
+    return total_heat_rate
 
 
 def make_event(ind: int, term: float):
@@ -95,6 +125,7 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
 
     # resample at the defined time stamps
     t_end = sol.t[-1]
+    print("t_end: ", t_end)
     time_array = np.arange(0.0, t_end + 1e-12, simulation_termination["dt"]) # epsilon is added to include the endpoint. specifics of np.arange
     states = sol.sol(time_array).T  # shape (N, 6)
     
@@ -108,23 +139,26 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
     final_output = states[-1, :]
     #np.savez("benchmark_DOP853_1e9.npz", final_output=final_output)
 
+
     # load the benchmark data 
     benchmark_data = np.load("benchmark_DOP853_1e9.npz")
     benchmark_final_output = benchmark_data["final_output"]
     #print("benchmark final output: ", benchmark_final_output)
 
-    if verbose:
+    #if verbose:
         # print the final state
         #print("final state: ", final_output)
         # print the difference of the benchmark and final output for each state separately
-        print("the output below shows the difference between the benchmark and the final output")
-        print(f"difference in radius: {final_output[0] - benchmark_final_output[0]:.5g}")
-        print(f"difference in longitude: {final_output[1] - benchmark_final_output[1]:.5g}")
-        print(f"difference in latitude: {final_output[2] - benchmark_final_output[2]:.5g}")
-        print(f"difference in velocity: {final_output[3] - benchmark_final_output[3]:.5g}")
-        print(f"difference in FPA: {final_output[4] - benchmark_final_output[4]:.5g}")
-        print(f"difference in heading: {final_output[5] - benchmark_final_output[5]:.5g}")
+        # print("the output below shows the difference between the benchmark and the final output")
+        # print(f"difference in radius: {final_output[0] - benchmark_final_output[0]:.5g}")
+        # print(f"difference in longitude: {final_output[1] - benchmark_final_output[1]:.5g}")
+        # print(f"difference in latitude: {final_output[2] - benchmark_final_output[2]:.5g}")
+        # print(f"difference in velocity: {final_output[3] - benchmark_final_output[3]:.5g}")
+        # print(f"difference in FPA: {final_output[4] - benchmark_final_output[4]:.5g}")
+        # print(f"difference in heading: {final_output[5] - benchmark_final_output[5]:.5g}")
 
+    # print final state 
+    print("final state: ", final_output)
 
     # Convert spherical to inertial Cartesian position
     # ref - L1b. Nav. class notes and iPad notebook board
@@ -159,9 +193,45 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
 
     # save cartesian states to a file
     #np.savez("benchmark_DOP853_1e9_cartesian.npz", x_m=pos_inertial[:, 0], y_m=pos_inertial[:, 1], z_m=pos_inertial[:, 2], vx_m_s=vel_inertial[:, 0], vy_m_s=vel_inertial[:, 1], vz_m_s=vel_inertial[:, 2])
+    #np.savez("golden_master_benchmark.npz", x_m=pos_inertial[:, 0], y_m=pos_inertial[:, 1], z_m=pos_inertial[:, 2], vx_m_s=vel_inertial[:, 0], vy_m_s=vel_inertial[:, 1], vz_m_s=vel_inertial[:, 2])
+    # print final state
+    #print("final state Cartesian: ", pos_inertial[-1, :], vel_inertial[-1, :])
+    
     # Return the results
 
+    # Aerothermal post-processing
+    total_heat_rate = np.zeros(len(states))
+    for i in range(len(states)):
+        total_heat_rate[i] = compute_total_heat_rate(states[i], planet, vehicle)
+
+    # Phases determination
+    try:
+        [t12, t23, t34, t45] = phases_calculation_entry(time_array, states, total_heat_rate)
+    except ValueError as exc:
+        if "Phase calculation failed" not in str(exc):
+            raise
+        if verbose:
+            print(f"Warning: {exc}")
+        t12 = np.nan
+        t23 = np.nan
+        t34 = np.nan
+        t45 = np.nan
+
+    # print("t12: ", t12)
+    # print("t23: ", t23)
+    # print("t34: ", t34)
+    # print("t45: ", t45)
+
+    # returns dictionary with phase ids and time stamps for the sim out
+    phases_entry = {
+        "12_e": t12,
+        "23_e": t23,
+        "34_e": t34,
+        "45_e": t45,
+    }
+
     if return_states:
+        # this is for debug
         return {
             'time_s': time_array + init.get("start_time_s", 0.0),
             'states': states,
@@ -178,6 +248,7 @@ def high_fidelity_simulation(planet: dict, init: dict, vehicle: dict, control: d
         'vx_m_s': vel_inertial[:, 0],
         'vy_m_s': vel_inertial[:, 1],
         'vz_m_s': vel_inertial[:, 2],
+        'phases_entry': phases_entry,
     }
 
 
@@ -218,23 +289,36 @@ def main(init=None, control=None):
 
     # Plot r vs V
     plt.figure()
-    plt.plot(results['states'][:, 3] / 1000.0, results['states'][:, 0] / 1000.0, linewidth=1.5, label="Simulated")
+    plt.plot(results['states'][:, 3] / 1000.0, results['states'][:, 0] / 1000.0 - planet["rp"] / 1000.0, linewidth=1.5)
     plt.xlabel("Velocity V [km/s]")
-    plt.ylabel("Radius r [km]")
-    plt.title("r vs v")
+    plt.ylabel("Altitude [km]")
+    plt.title("Velocity vs Altitude")
     plt.grid(True)
-    plt.legend(loc="best")
+    #plt.legend(loc="best")
     plt.show()
 
-    # Plot r vs time
-    plt.figure()
-    plt.plot(results['time_s'], results['states'][:, 0] / 1000.0 - planet["rp"] / 1000.0, linewidth=1.5, label="Simulated")
-    plt.xlabel("Time [s]")
-    plt.ylabel("Altitude [km]")
-    plt.title("r vs time")
-    plt.grid(True)
-    plt.legend(loc="best")
-    plt.show()
+    # # Plot r vs time
+    # plt.figure()
+    # plt.plot(results['time_s'], results['states'][:, 0] / 1000.0 - planet["rp"] / 1000.0, linewidth=1.5, label="Simulated")
+    # plt.xlabel("Time [s]")
+    # plt.ylabel("Altitude [km]")
+    # plt.title("r vs time")
+    # plt.grid(True)
+    # plt.legend(loc="best")
+    # plt.show()
+
+    # # FOR verification: Plot total heat rate vs time
+    # total_heat_rate = np.zeros(len(results["states"]))
+    # for i in range(len(results["states"])):
+    #     total_heat_rate[i] = compute_total_heat_rate(results["states"][i], planet, vehicle)
+
+    # plt.figure()
+    # plt.plot(results["time_s"], total_heat_rate, linewidth=1.5)
+    # plt.xlabel("Time [s]")
+    # plt.ylabel("Total heat rate [W/m^2]")
+    # plt.title("Total heat rate vs time")
+    # plt.grid(True)
+    # plt.show()
 
     # 3D plot of theta, phi and altitude 
     # alt = results['states'][:, 0]/ 1000.0 - planet["rp"]/ 1000.0
@@ -255,45 +339,45 @@ def main(init=None, control=None):
 if __name__ == "__main__":
     main()
     # this block is just a surrogate to be replaced. The input for the recalc function will need to be repalced with real stuff
-    from src.sim_server.constants.defaults import DEFAULT_PLANET
-    from src.sim_server.constants.planets import get_planet_params
-    planet = get_planet_params(DEFAULT_PLANET["planet_name"])
-    bank_angle_changed = True
+    # from src.sim_server.constants.defaults import DEFAULT_PLANET
+    # from src.sim_server.constants.planets import get_planet_params
+    # planet = get_planet_params(DEFAULT_PLANET["planet_name"])
+    # bank_angle_changed = True
 
-    # point_of_input = {
-    # "h0": 124999, 
-    # "vel0": 6.0836e3, 
-    # "theta0": np.deg2rad(-78.8618), 
-    # "phi0": np.deg2rad(27.1050),
-    # "gamma0": np.deg2rad(-15.5), 
-    # "psi0": np.deg2rad(0),
+    # # point_of_input = {
+    # # "h0": 124999, 
+    # # "vel0": 6.0836e3, 
+    # # "theta0": np.deg2rad(-78.8618), 
+    # # "phi0": np.deg2rad(27.1050),
+    # # "gamma0": np.deg2rad(-15.5), 
+    # # "psi0": np.deg2rad(0),
+    # # }
+    # bank_angle_input = {
+    #     "bank_angle": np.deg2rad(30.0), # [rad] Bank Angle 
     # }
-    bank_angle_input = {
-        "bank_angle": np.deg2rad(30.0), # [rad] Bank Angle 
-    }
 
-    # I will use the example point along the trajectory which is approximatelly number 10000 out of 16157
-    # if the bank angle input remains the same, the final error should remain the same, as documented in pptx
+    # # I will use the example point along the trajectory which is approximatelly number 10000 out of 16157
+    # # if the bank angle input remains the same, the final error should remain the same, as documented in pptx
 
-    point_of_input_Cartesian = {
-        "x": 1.205532181396078e+06,
-        "y": -2.796002637077214e+06,
-        "z": 1.558152803402915e+06,
-        "vx": 7.762841024785303e+02,
-        "vy": 4.340321796247736e+02,
-        "vz": 0.882049683132209e+02,
-    }
+    # point_of_input_Cartesian = {
+    #     "x": 1.205532181396078e+06,
+    #     "y": -2.796002637077214e+06,
+    #     "z": 1.558152803402915e+06,
+    #     "vx": 7.762841024785303e+02,
+    #     "vy": 4.340321796247736e+02,
+    #     "vz": 0.882049683132209e+02,
+    # }
 
-    point_of_input_Spherical = Cartesian_to_Spherical(point_of_input_Cartesian)
-    new_init = {
-        "h0": point_of_input_Spherical["r"] - planet["rp"], # [m] Initial altitude us beeded as input 
-        "vel0": point_of_input_Spherical["V"],
-        "theta0": point_of_input_Spherical["theta"],
-        "phi0": point_of_input_Spherical["phi"],
-        "gamma0": point_of_input_Spherical["gamma"],
-        "psi0": point_of_input_Spherical["psi"],
-    }
+    # point_of_input_Spherical = Cartesian_to_Spherical(point_of_input_Cartesian)
+    # new_init = {
+    #     "h0": point_of_input_Spherical["r"] - planet["rp"], # [m] Initial altitude us beeded as input 
+    #     "vel0": point_of_input_Spherical["V"],
+    #     "theta0": point_of_input_Spherical["theta"],
+    #     "phi0": point_of_input_Spherical["phi"],
+    #     "gamma0": point_of_input_Spherical["gamma"],
+    #     "psi0": point_of_input_Spherical["psi"],
+    # }
 
-    if bank_angle_changed == True:
-        main(init=new_init, control=bank_angle_input)
+    # if bank_angle_changed == True:
+    #     main(init=new_init, control=bank_angle_input)
    

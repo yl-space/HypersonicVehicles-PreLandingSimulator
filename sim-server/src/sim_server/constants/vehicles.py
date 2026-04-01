@@ -2,6 +2,7 @@ VEHICLES = {
     "default": {
         "beta": 115, # ballistic coefficient [kg/m^2] ref - Li ,Jiang 2014  MSL
         "LD": 0.24, # lift-to-drag ratio ref - ref - Li ,Jiang 2014  MSL 
+        "nose_radius": 1, # [m] ref - Girija2022
     }
 }
 
