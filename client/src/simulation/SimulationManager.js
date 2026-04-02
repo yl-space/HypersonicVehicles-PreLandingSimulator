@@ -334,7 +334,7 @@ export class SimulationManager {
         </svg>Dragon</span>`;
         this._spacecraftLabel.style.cssText = `
             position: absolute; z-index: 50; pointer-events: none;
-            transform: translate(-50%, -100%); padding-bottom: 8px;
+            transform: translate(4px, -50%);
             display: none;
         `;
         const overlay = document.getElementById('ui-overlay') || document.body;
