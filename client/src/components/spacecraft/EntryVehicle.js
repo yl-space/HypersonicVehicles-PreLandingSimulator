@@ -110,6 +110,33 @@ export class EntryVehicle {
         }
     }
 
+    /**
+     * Fix Starship material colors lost in Fusion 360 → Blender → GLTF export.
+     * All materials export as uniform grey (0.8, 0.8, 0.8). Restore correct
+     * physically-based colors from material names.
+     */
+    _applyStarshipMaterials() {
+        const colorMap = {
+            'Steel_-_Satin':            { color: 0xC0C0C8, metalness: 0.7, roughness: 0.35 },
+            'Mirror':                    { color: 0xE8E8F0, metalness: 0.95, roughness: 0.05 },
+            'Plastic_-_Glossy_(Black)':  { color: 0x1A1A1A, metalness: 0.0, roughness: 0.2 },
+            'Plastic_-_Matte_(Black)':   { color: 0x2A2A2A, metalness: 0.0, roughness: 0.8 },
+            'Material':                  { color: 0xB0B0B8, metalness: 0.5, roughness: 0.4 },
+        };
+
+        const group = this.vehicleLOD || this.group;
+        group.traverse(obj => {
+            if (!obj.isMesh || !obj.material) return;
+            const fix = colorMap[obj.material.name];
+            if (fix) {
+                obj.material.color.setHex(fix.color);
+                obj.material.metalness = fix.metalness;
+                obj.material.roughness = fix.roughness;
+                obj.material.needsUpdate = true;
+            }
+        });
+    }
+
     async loadGLTFModel(modelName = null) {
         try {
             // Use specified model or get from metadata
@@ -928,6 +955,9 @@ export class EntryVehicle {
                     };
                     await this.loadGLTFModel(this.modelMetadata.filename);
                     this._cleanupGLTFModel();
+                    // Fix Fusion 360 export: all materials exported as grey (0.8,0.8,0.8).
+                    // Restore correct colours based on material names.
+                    this._applyStarshipMaterials();
                     this.applyMaterialFixes();
                 }
                 break;
