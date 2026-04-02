@@ -13,6 +13,13 @@ const MODEL_OPTIONS = [
         requiresAssetLoader: true
     },
     {
+        id: 'starship',
+        label: 'Starship',
+        badge: 'Starship',
+        description: 'SpaceX Starship GLTF model (9m dia, 52m height)',
+        requiresAssetLoader: true
+    },
+    {
         id: 'backup',
         label: 'High-L/D system',
         badge: 'Backup',

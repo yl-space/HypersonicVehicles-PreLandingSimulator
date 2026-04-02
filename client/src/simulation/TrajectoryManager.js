@@ -31,6 +31,8 @@ export class TrajectoryManager {
         // Track last trajectory index to avoid per-frame geometry rebuilds
         this._lastTrajectoryIndex = -1;
         this._fullTrajectoryMode = false;
+        // RTC origin for Float32 precision (set in setTrajectoryData)
+        this._rtcOrigin = new THREE.Vector3();
 
         this.init();
     }
@@ -286,13 +288,17 @@ export class TrajectoryManager {
             this.referenceTrajectoryLine = null;
         }
 
+        // RTC coordinates for reference trajectory too
+        const ox = this._rtcOrigin?.x || 0;
+        const oy = this._rtcOrigin?.y || 0;
+        const oz = this._rtcOrigin?.z || 0;
         const positions = new Float32Array(this.referenceTrajectoryData.length * 3);
 
         for (let i = 0; i < this.referenceTrajectoryData.length; i++) {
             const point = this.referenceTrajectoryData[i];
-            positions[i * 3] = point.position.x;
-            positions[i * 3 + 1] = point.position.y;
-            positions[i * 3 + 2] = point.position.z;
+            positions[i * 3] = point.position.x - ox;
+            positions[i * 3 + 1] = point.position.y - oy;
+            positions[i * 3 + 2] = point.position.z - oz;
         }
 
         const newGeometry = new LineGeometry();
@@ -301,8 +307,8 @@ export class TrajectoryManager {
         this.referenceTrajectoryLine = new Line2(
             newGeometry,
             new LineMaterial({
-                color: 0x00ff00,  // Green for reference
-                opacity: 0.5,     // Lower opacity
+                color: 0x00ff00,
+                opacity: 0.5,
                 transparent: true,
                 linewidth: 2.0,
                 depthTest: true,
@@ -313,9 +319,10 @@ export class TrajectoryManager {
         this.referenceTrajectoryLine.computeLineDistances();
         this.referenceTrajectoryLine.frustumCulled = false;
         this.referenceTrajectoryLine.renderOrder = 20;
+        this.referenceTrajectoryLine.position.set(ox, oy, oz);
         this.updateLineResolution();
-        
-        this.referenceTrajectoryLine.visible = false; // Hidden by default
+
+        this.referenceTrajectoryLine.visible = false;
         this.group.add(this.referenceTrajectoryLine);
     }
 
@@ -353,14 +360,18 @@ export class TrajectoryManager {
             this.futureLine.visible = false;
         }
 
-        // Create Float32Array for positions (more efficient)
+        // RTC (Relative-To-Center): subtract midpoint so Float32 values stay near zero.
+        // Then position the Line2 mesh at the RTC origin in world space.
+        const ox = this._rtcOrigin?.x || 0;
+        const oy = this._rtcOrigin?.y || 0;
+        const oz = this._rtcOrigin?.z || 0;
         const positions = new Float32Array(this.trajectoryData.length * 3);
 
         for (let i = 0; i < this.trajectoryData.length; i++) {
             const point = this.trajectoryData[i];
-            positions[i * 3] = point.position.x;
-            positions[i * 3 + 1] = point.position.y;
-            positions[i * 3 + 2] = point.position.z;
+            positions[i * 3] = point.position.x - ox;
+            positions[i * 3 + 1] = point.position.y - oy;
+            positions[i * 3 + 2] = point.position.z - oz;
         }
 
         // Create new geometry for updated trajectory
@@ -383,6 +394,8 @@ export class TrajectoryManager {
         this.trajectoryLine.computeLineDistances();
         this.trajectoryLine.frustumCulled = false;
         this.trajectoryLine.renderOrder = 20;
+        // Position at RTC origin so world-space coordinates are correct
+        this.trajectoryLine.position.set(ox, oy, oz);
         this.updateLineResolution();
 
         this.group.add(this.trajectoryLine);
@@ -474,27 +487,32 @@ export class TrajectoryManager {
         if (currentIndex === this._lastTrajectoryIndex) return;
         this._lastTrajectoryIndex = currentIndex;
 
-        // Lines drawn in world coordinates (origin = 0,0,0)
-        if (this.pastLine) this.pastLine.position.set(0, 0, 0);
-        if (this.futureLine) this.futureLine.position.set(0, 0, 0);
+        // RTC (Relative-To-Center): position lines at RTC origin, store vertices
+        // relative to it. This keeps Float32 vertex values near zero, eliminating
+        // GPU precision jiggle at Mars-surface distances (~34 units from origin).
+        const ox = this._rtcOrigin?.x || 0;
+        const oy = this._rtcOrigin?.y || 0;
+        const oz = this._rtcOrigin?.z || 0;
+        if (this.pastLine) this.pastLine.position.set(ox, oy, oz);
+        if (this.futureLine) this.futureLine.position.set(ox, oy, oz);
 
-        // Past line: data points 0..currentIndex (only fixed data points, no interpolation)
+        // Past line: data points 0..currentIndex in RTC coords
         let pastPointCount = 0;
         for (let i = 0; i <= currentIndex && pastPointCount * 3 < this.pastPositionBuffer.length - 3; i++) {
             const p = this.trajectoryData[i].position;
-            this.pastPositionBuffer[pastPointCount * 3] = p.x;
-            this.pastPositionBuffer[pastPointCount * 3 + 1] = p.y;
-            this.pastPositionBuffer[pastPointCount * 3 + 2] = p.z;
+            this.pastPositionBuffer[pastPointCount * 3] = p.x - ox;
+            this.pastPositionBuffer[pastPointCount * 3 + 1] = p.y - oy;
+            this.pastPositionBuffer[pastPointCount * 3 + 2] = p.z - oz;
             pastPointCount++;
         }
 
-        // Future line: data points currentIndex+1..end
+        // Future line: data points currentIndex..end in RTC coords
         let futurePointCount = 0;
         for (let i = currentIndex; i < this.trajectoryData.length && futurePointCount * 3 < this.futurePositionBuffer.length - 3; i++) {
             const p = this.trajectoryData[i].position;
-            this.futurePositionBuffer[futurePointCount * 3] = p.x;
-            this.futurePositionBuffer[futurePointCount * 3 + 1] = p.y;
-            this.futurePositionBuffer[futurePointCount * 3 + 2] = p.z;
+            this.futurePositionBuffer[futurePointCount * 3] = p.x - ox;
+            this.futurePositionBuffer[futurePointCount * 3 + 1] = p.y - oy;
+            this.futurePositionBuffer[futurePointCount * 3 + 2] = p.z - oz;
             futurePointCount++;
         }
 
@@ -634,6 +652,14 @@ export class TrajectoryManager {
                 if (maxTime > 0) {
                     this.totalTime = maxTime;
                 }
+
+                // Compute RTC (Relative-To-Center) origin for Float32 precision.
+                // Trajectory points are ~34 units from world origin (Mars surface).
+                // Float32 at 34 units gives ~4 decimal digits — insufficient for
+                // sub-meter rendering precision. Subtracting the midpoint keeps
+                // vertex values near zero, giving full Float32 mantissa precision.
+                const mid = data[Math.floor(data.length / 2)].position;
+                this._rtcOrigin = new THREE.Vector3(mid.x, mid.y, mid.z);
             }
             // Store original data for reset functionality
             if (!this.originalTrajectoryData) {

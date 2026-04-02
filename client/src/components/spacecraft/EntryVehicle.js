@@ -905,6 +905,17 @@ export class EntryVehicle {
                     this.applyMaterialFixes();
                 }
                 break;
+            case 'starship':
+                {
+                    this.useGLTF = true;
+                    this.modelMetadata = {
+                        name: 'Starship',
+                        filename: 'starship/Starship_export/Untitled.gltf'
+                    };
+                    await this.loadGLTFModel(this.modelMetadata.filename);
+                    this.applyMaterialFixes();
+                }
+                break;
             case 'backup':
             default:
                 {
@@ -926,6 +937,7 @@ export class EntryVehicle {
     static getAvailableModels() {
         return [
             { id: 'primary', name: 'Dragon Spacecraft (GLTF)', requiresAssetLoader: true },
+            { id: 'starship', name: 'Starship (GLTF)', requiresAssetLoader: true },
             { id: 'backup', name: 'High-L/D System (GLTF)', requiresAssetLoader: true }
         ];
     }

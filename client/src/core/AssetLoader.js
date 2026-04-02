@@ -478,6 +478,19 @@ export class AssetLoader {
                         scale: 0.00001,  // True scale (meters to scene units)
                         position: { x: 0, y: 0, z: 0 }
                     }
+                },
+                'starship/Starship_export/Untitled.gltf': {
+                    name: 'Starship',
+                    originalAxes: {
+                        forward: '+Z',
+                        up: '+Y',
+                        right: '+X'
+                    },
+                    transformations: {
+                        rotation: { x: -90, y: 0, z: 0 },
+                        scale: 0.00001,  // meters → scene units (Diameter: 9m, Height: 52m)
+                        position: { x: 0, y: 0, z: 0 }
+                    }
                 }
             };
 

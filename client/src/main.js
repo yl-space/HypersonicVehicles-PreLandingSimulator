@@ -169,6 +169,7 @@ function showWelcomeDialog() {
     ];
     const vehicles = [
         { value: 'primary', label: 'Dragon' },
+        { value: 'starship', label: 'Starship' },
         { value: 'backup', label: 'High-L/D System' }
     ];
 
