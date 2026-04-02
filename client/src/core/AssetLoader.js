@@ -482,13 +482,16 @@ export class AssetLoader {
                 'starship/Starship_export/Untitled.gltf': {
                     name: 'Starship',
                     originalAxes: {
-                        forward: '+Z',
+                        forward: '-Z',
                         up: '+Y',
                         right: '+X'
                     },
                     transformations: {
-                        rotation: { x: -90, y: 0, z: 0 },
-                        scale: 0.00001,  // meters → scene units (Diameter: 9m, Height: 52m)
+                        // Model is in centimeters (Fusion 360 export): 5155cm tall.
+                        // Scene scale: 1 unit = 100km = 10,000,000 cm.
+                        // Scale = 1 / 10,000,000 = 0.0000001
+                        rotation: { x: 0, y: 0, z: 0 },  // GLTF already has 90° X rotation in node
+                        scale: 0.0000001,
                         position: { x: 0, y: 0, z: 0 }
                     }
                 }

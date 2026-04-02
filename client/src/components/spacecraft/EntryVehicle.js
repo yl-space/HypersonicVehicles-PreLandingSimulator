@@ -913,6 +913,11 @@ export class EntryVehicle {
                         filename: 'starship/Starship_export/Untitled.gltf'
                     };
                     await this.loadGLTFModel(this.modelMetadata.filename);
+                    // Remove "Cube" node — Blender leftover bounding box
+                    if (this.gltfModel) {
+                        const cube = this.gltfModel.getObjectByName('Cube');
+                        if (cube) cube.visible = false;
+                    }
                     this.applyMaterialFixes();
                 }
                 break;
