@@ -77,10 +77,10 @@ export class EntryVehicle {
         if (this.useGLTF && this.assetLoader) {
             try {
                 await this.loadGLTFModel();
+                this._cleanupGLTFModel();
                 this.applyMaterialFixes();
             } catch (error) {
                 console.error('Failed to load GLTF model during init:', error);
-                // If GLTF fails, keep no spacecraft rather than procedural cone
                 this.useGLTF = false;
             }
         }
@@ -98,6 +98,16 @@ export class EntryVehicle {
         }
 
         return this; // Return this for chaining
+    }
+
+    /** Hide Blender leftover nodes (e.g. "Cube" default object) */
+    _cleanupGLTFModel() {
+        if (!this.gltfModel) return;
+        const cube = this.gltfModel.getObjectByName('Cube');
+        if (cube) {
+            cube.visible = false;
+            if (cube.geometry) cube.geometry.dispose();
+        }
     }
 
     async loadGLTFModel(modelName = null) {
@@ -913,11 +923,7 @@ export class EntryVehicle {
                         filename: 'starship/Starship_export/Untitled.gltf'
                     };
                     await this.loadGLTFModel(this.modelMetadata.filename);
-                    // Remove "Cube" node — Blender leftover bounding box
-                    if (this.gltfModel) {
-                        const cube = this.gltfModel.getObjectByName('Cube');
-                        if (cube) cube.visible = false;
-                    }
+                    this._cleanupGLTFModel();
                     this.applyMaterialFixes();
                 }
                 break;
