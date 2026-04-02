@@ -319,6 +319,27 @@ export class SimulationManager {
 
         // Add planet switching buttons to existing UI
         this.addPlanetControls();
+
+        // ── Spacecraft label (NASA Eyes style: ⊙ name) ──
+        this._spacecraftLabel = document.createElement('div');
+        this._spacecraftLabel.id = 'spacecraft-label';
+        this._spacecraftLabel.innerHTML = `<span style="
+            display: inline-flex; align-items: center; gap: 5px;
+            color: rgba(255,255,255,0.75); font: 13px 'Roboto', Arial, sans-serif;
+            letter-spacing: 0.5px; pointer-events: none; white-space: nowrap;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+        "><svg width="12" height="12" viewBox="0 0 12 12" style="opacity:0.6">
+            <circle cx="6" cy="6" r="5" stroke="rgba(255,255,255,0.7)" stroke-width="1" fill="none"/>
+            <circle cx="6" cy="6" r="1.5" fill="rgba(255,255,255,0.7)"/>
+        </svg>Dragon</span>`;
+        this._spacecraftLabel.style.cssText = `
+            position: absolute; z-index: 50; pointer-events: none;
+            transform: translate(-50%, -100%); padding-bottom: 8px;
+            display: none;
+        `;
+        const overlay = document.getElementById('ui-overlay') || document.body;
+        overlay.appendChild(this._spacecraftLabel);
+        this._labelScreenPos = new THREE.Vector3();
     }
     
     addPlanetControls() {
@@ -711,8 +732,31 @@ export class SimulationManager {
             this.state.currentTime,
             this.state.vehicleData,
             this.state.controls.bankAngle || 0,
-            this.cameraController.camera  // FIX: Pass camera for LOD updates
+            this.cameraController.camera
         );
+
+        // ── Spacecraft label: project 3D position to 2D screen (NASA Eyes style) ──
+        if (this._spacecraftLabel && this.entryVehicle) {
+            const show = this.cameraController.mode === 'trajectory';
+            this._spacecraftLabel.style.display = show ? 'block' : 'none';
+            if (show) {
+                const pos = this.entryVehicle.getObject3D().position.clone();
+                const cam = this.cameraController.camera;
+                this._labelScreenPos.copy(pos).project(cam);
+                const hw = this.sceneManager.renderer.domElement.clientWidth * 0.5;
+                const hh = this.sceneManager.renderer.domElement.clientHeight * 0.5;
+                const sx = (this._labelScreenPos.x * hw) + hw;
+                const sy = -(this._labelScreenPos.y * hh) + hh;
+                // Only show if in front of camera
+                if (this._labelScreenPos.z > 0 && this._labelScreenPos.z < 1) {
+                    this._spacecraftLabel.style.left = `${sx}px`;
+                    this._spacecraftLabel.style.top = `${sy}px`;
+                    this._spacecraftLabel.style.display = 'block';
+                } else {
+                    this._spacecraftLabel.style.display = 'none';
+                }
+            }
+        }
 
         // Update current planet
         if (this.currentPlanet) {
