@@ -110,10 +110,11 @@ export class Atmosphere {
         this.material.uniforms.fresnelPower.value =
             THREE.MathUtils.lerp(3.0, 1.5, density);
 
-        // Scene fog density: extremely subtle — only noticeable at very low altitude.
-        // Previous 0.0006 was far too strong, washing out the sky at 50+ miles.
-        // At Mars surface scale (~34 scene units), fog density must be tiny.
-        this._fogDensity = THREE.MathUtils.lerp(0, 0.00008, density);
+        // Scene fog: FogExp2 uses exp(-d²·dist²), so even tiny densities fog
+        // objects at starfield distance (5000 units). Keep density minimal so
+        // only nearby tiles (~34 units) get subtle tinting. Stars at 5000 units
+        // will be slightly dimmed but not washed out.
+        this._fogDensity = THREE.MathUtils.lerp(0, 0.00003, density);
     }
 
     /** Returns fog parameters for SimulationManager to apply to the scene */
