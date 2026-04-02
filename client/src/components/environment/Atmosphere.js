@@ -1,12 +1,14 @@
 /**
  * Atmosphere.js
- * Ultra-thin Mars limb line — barely visible warm gradient at planet edge.
+ * Mars atmospheric limb glow using the Stemkoski atmosphere technique.
  *
- * Uses AdditiveBlending so the haze ADDS light to the scene instead of
- * blocking it (NormalBlending caused a solid dark wall at the horizon).
- * Shell is only 0.3% above surface — razor thin.
- * Very high Fresnel power (8+) concentrates the glow to the extreme
- * silhouette edge only.
+ * A BackSide sphere 20% larger than the planet with a view-angle-dependent
+ * intensity: pow(c - dot(vNormal, viewDir), p). This creates a soft glow
+ * that fades from the planet edge into space, softening the planet's
+ * hard silhouette — matching the user's reference image.
+ *
+ * Ref: stemkoski.github.io/Three.js/Atmosphere.html
+ * Ref: discourse.threejs.org/t/creating-a-pseudo-realistic-planetary-atmosphere
  */
 
 import * as THREE from 'three';
@@ -25,53 +27,47 @@ export class Atmosphere {
     }
 
     init() {
-        // Razor-thin: 0.3% above surface (~10 km at Mars scale)
-        const atmRadius = this.planetRadius * 1.003;
-        const geometry = new THREE.SphereGeometry(atmRadius, 128, 80);
+        // 20% larger than planet — the glow extends well beyond the silhouette
+        const atmRadius = this.planetRadius * 1.2;
+        const geometry = new THREE.SphereGeometry(atmRadius, 64, 48);
 
-        // #977264 as additive glow
+        // #977264 = rgb(151, 114, 100) → normalised (0.592, 0.447, 0.392)
         this.material = new THREE.ShaderMaterial({
             uniforms: {
-                glowColor:    { value: new THREE.Vector3(0.592, 0.447, 0.392) },
-                intensity:    { value: 0.15 },
-                fresnelPower: { value: 8.0 },
+                glowColor: { value: new THREE.Vector3(0.592, 0.447, 0.392) },
+                coeff:     { value: 0.6 },   // controls glow spread (0→1)
+                power:     { value: 4.0 },   // controls falloff sharpness
             },
 
             vertexShader: /* glsl */`
-                varying vec3 vNormal;
-                varying vec3 vWorldPos;
+                varying vec3 vVertexNormal;
+                varying vec3 vVertexWorldPosition;
                 void main() {
-                    vNormal = normalize(normalMatrix * normal);
-                    vec4 wp = modelMatrix * vec4(position, 1.0);
-                    vWorldPos = wp.xyz;
-                    gl_Position = projectionMatrix * viewMatrix * wp;
+                    vVertexNormal = normalize(normalMatrix * normal);
+                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                    vVertexWorldPosition = worldPos.xyz;
+                    gl_Position = projectionMatrix * viewMatrix * worldPos;
                 }
             `,
 
             fragmentShader: /* glsl */`
                 uniform vec3  glowColor;
-                uniform float intensity;
-                uniform float fresnelPower;
+                uniform float coeff;
+                uniform float power;
 
-                varying vec3 vNormal;
-                varying vec3 vWorldPos;
+                varying vec3 vVertexNormal;
+                varying vec3 vVertexWorldPosition;
 
                 void main() {
-                    vec3 viewDir = normalize(cameraPosition - vWorldPos);
-                    float NdV = abs(dot(viewDir, vNormal));
-
-                    // Very high power = only the extreme grazing edge glows
-                    float fresnel = pow(clamp(1.0 - NdV, 0.0, 1.0), fresnelPower);
-
-                    float alpha = fresnel * intensity;
-
-                    gl_FragColor = vec4(glowColor * alpha, alpha);
+                    vec3 viewDir = normalize(cameraPosition - vVertexWorldPosition);
+                    float intensity = pow(coeff - dot(vVertexNormal, viewDir), power);
+                    gl_FragColor = vec4(glowColor, 1.0) * intensity;
                 }
             `,
 
             transparent: true,
             side: THREE.BackSide,
-            blending: THREE.AdditiveBlending,  // Adds light, never blocks/darkens
+            blending: THREE.AdditiveBlending,
             depthWrite: false,
         });
 
@@ -92,12 +88,9 @@ export class Atmosphere {
         const density = t * t * (3.0 - 2.0 * t);
         this._density = density;
 
-        // Very subtle: 0.15 → 0.3 max intensity
-        this.material.uniforms.intensity.value =
-            THREE.MathUtils.lerp(0.15, 0.3, density) * this.intensityScale;
-        // Power stays high even near surface — never becomes a wide band
-        this.material.uniforms.fresnelPower.value =
-            THREE.MathUtils.lerp(8.0, 6.0, density);
+        // Glow slightly stronger during atmospheric entry
+        this.material.uniforms.coeff.value =
+            THREE.MathUtils.lerp(0.6, 0.7, density) * this.intensityScale;
 
         this._fogDensity = THREE.MathUtils.lerp(0, 0.00003, density);
     }
