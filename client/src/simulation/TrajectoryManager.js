@@ -425,8 +425,20 @@ export class TrajectoryManager {
     updateTrajectoryDisplay(currentTime) {
         if (this.trajectoryData.length < 2) return;
 
-        // CRITICAL: Switch to past/future line visualization during normal playback
-        // Hide the white optimized trajectory line and show the dynamic past/future lines
+        // When full trajectory is shown (trajectory camera mode), only update the
+        // position marker — do NOT touch line visibility or geometry. The static
+        // trajectoryLine handles display; touching past/future lines causes drift
+        // and jiggle because setPositions() is called every frame.
+        if (this._fullTrajectoryMode) {
+            // Only update the marker position
+            const currentData = this.getDataAtTime(currentTime);
+            if (currentData?.position && this.currentPositionMarker) {
+                this.currentPositionMarker.position.copy(currentData.position);
+            }
+            return; // Skip all dynamic line updates
+        }
+
+        // Normal mode: switch to past/future line visualization
         if (this.trajectoryLine) {
             this.trajectoryLine.visible = false;
         }
@@ -800,6 +812,7 @@ export class TrajectoryManager {
      * @param {boolean} showFull - true = show full static line, false = dynamic
      */
     setFullTrajectoryVisible(showFull) {
+        this._fullTrajectoryMode = showFull;
         if (showFull) {
             // Ensure the full trajectory line exists
             if (!this.trajectoryLine && this.trajectoryData.length > 1) {
