@@ -127,6 +127,10 @@ export class EntryVehicle {
             this.gltfModel = model;
             this.state.modelLoaded = true;
 
+            // Remove Blender leftover nodes BEFORE LOD creation (they get cloned into all levels)
+            const cube = model.getObjectByName('Cube');
+            if (cube) { cube.removeFromParent(); }
+
             // Create LOD from GLTF model
             this.createGLTFLOD(model);
 
