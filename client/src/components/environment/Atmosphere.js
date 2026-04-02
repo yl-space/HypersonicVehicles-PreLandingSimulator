@@ -34,9 +34,10 @@ export class Atmosphere {
         // #977264 = (0.592, 0.447, 0.392)
         this.material = new THREE.ShaderMaterial({
             uniforms: {
+                // #977264 = (151, 114, 100) / 255 = (0.592, 0.447, 0.392)
                 glowColor: { value: new THREE.Vector3(0.592, 0.447, 0.392) },
-                coeff:     { value: 0.65 },
-                power:     { value: 3.5 },
+                coeff:     { value: 0.55 },
+                power:     { value: 6.0 },
             },
 
             vertexShader: /* glsl */`
@@ -60,8 +61,12 @@ export class Atmosphere {
                     // At the center (facing camera): dot ≈ 1
                     // coeff - dot gives high values at the rim, low at center.
                     // pow sharpens the falloff.
-                    float intensity = pow(coeff - dot(vNormal, vec3(0.0, 0.0, 1.0)), power);
-                    gl_FragColor = vec4(glowColor, 1.0) * intensity;
+                    float raw = coeff - dot(vNormal, vec3(0.0, 0.0, 1.0));
+                    float intensity = pow(max(raw, 0.0), power);
+                    // Clamp intensity to prevent white saturation with AdditiveBlending.
+                    // At max 0.35, the additive colour stays warm brown, never white.
+                    intensity = min(intensity, 0.35);
+                    gl_FragColor = vec4(glowColor * intensity, intensity);
                 }
             `,
 
@@ -90,7 +95,7 @@ export class Atmosphere {
 
         // Slightly increase glow during atmospheric entry
         this.material.uniforms.coeff.value =
-            THREE.MathUtils.lerp(0.65, 0.75, density) * this.intensityScale;
+            THREE.MathUtils.lerp(0.55, 0.65, density) * this.intensityScale;
 
         this._fogDensity = THREE.MathUtils.lerp(0, 0.00003, density);
     }
