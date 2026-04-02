@@ -135,15 +135,17 @@ export class TrajectoryManager {
     }
     
     createPositionMarker() {
-        // Position marker (invisible by default)
-        const markerGeometry = new THREE.SphereGeometry(0.00002, 8, 8);
+        // Position marker — visible in trajectory mode as a bright dot at spacecraft location
+        const markerGeometry = new THREE.SphereGeometry(0.02, 12, 12);
         const markerMaterial = new THREE.MeshBasicMaterial({
-            color: 0xff0000,
+            color: 0xffffff,
             transparent: true,
-            opacity: 0.0
+            opacity: 0.0,
+            depthTest: false,
         });
 
         this.currentPositionMarker = new THREE.Mesh(markerGeometry, markerMaterial);
+        this.currentPositionMarker.renderOrder = 25;
         this.currentPositionMarker.castShadow = false;
         this.currentPositionMarker.visible = false;
 
@@ -781,13 +783,50 @@ export class TrajectoryManager {
     
     updateTrajectoryVisibility(time) {
         const progress = time / this.totalTime;
-        
+
         if (this.pastLine) {
             this.pastLine.material.opacity = 0.9;
         }
-        
+
         if (this.futureLine) {
             this.futureLine.material.opacity = 0.5 * (1 - progress * 0.5);
+        }
+    }
+
+    /**
+     * Switch between dynamic past/future lines and the full static trajectory.
+     * In trajectory camera mode, show the complete path so it doesn't appear
+     * to drift as past/future segments change.
+     * @param {boolean} showFull - true = show full static line, false = dynamic
+     */
+    setFullTrajectoryVisible(showFull) {
+        if (showFull) {
+            // Ensure the full trajectory line exists
+            if (!this.trajectoryLine && this.trajectoryData.length > 1) {
+                this.createOptimizedTrajectory();
+            }
+            if (this.trajectoryLine) {
+                this.trajectoryLine.visible = true;
+                this.trajectoryLine.material.opacity = 0.8;
+            }
+            // Hide dynamic past/future to avoid overlap
+            if (this.pastLine) this.pastLine.visible = false;
+            if (this.futureLine) this.futureLine.visible = false;
+            // Show position marker as bright dot (spacecraft is sub-pixel at this distance)
+            if (this.currentPositionMarker) {
+                this.currentPositionMarker.visible = true;
+                this.currentPositionMarker.material.opacity = 1.0;
+            }
+        } else {
+            // Hide full static line, show dynamic
+            if (this.trajectoryLine) this.trajectoryLine.visible = false;
+            if (this.pastLine) this.pastLine.visible = true;
+            if (this.futureLine) this.futureLine.visible = true;
+            // Hide position marker in follow/orbit modes
+            if (this.currentPositionMarker) {
+                this.currentPositionMarker.visible = false;
+                this.currentPositionMarker.material.opacity = 0;
+            }
         }
     }
 

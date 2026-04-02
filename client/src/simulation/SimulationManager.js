@@ -1046,13 +1046,20 @@ export class SimulationManager {
     }
     
     setCameraMode(mode) {
-        // For trajectory view, compute fixed camera position from trajectory data
-        if (mode.toLowerCase() === 'trajectory') {
+        const isTrajectory = mode.toLowerCase() === 'trajectory';
+
+        // For trajectory view, compute fixed camera position and show full path
+        if (isTrajectory) {
             const points = this.trajectoryManager.getAllTrajectoryPositions?.();
             if (points && points.length > 1) {
                 this.cameraController.computeTrajectoryView(points);
             }
         }
+
+        // In trajectory mode, show the full static trajectory line (no drift).
+        // In other modes, show dynamic past/future split.
+        this.trajectoryManager.setFullTrajectoryVisible(isTrajectory);
+
         this.cameraController.setMode(mode);
     }
     
