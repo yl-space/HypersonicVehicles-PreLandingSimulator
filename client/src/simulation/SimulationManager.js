@@ -242,14 +242,14 @@ export class SimulationManager {
             this.sceneManager.addToAllScenes(trajectoryObject);
         }
 
-        // ── Nose camera: PerspectiveCamera at spacecraft nose ──
+        // ── Nose camera: PerspectiveCamera at spacecraft nose tip ──
+        // Three.js cameras look along LOCAL -Z by default. The spacecraft's
+        // forward direction is +Z (velocity). Rotate 180° around Y so the
+        // camera looks along +Z = forward = toward the trajectory.
         this.noseCamera = new THREE.PerspectiveCamera(90, 1, 0.000001, 10000);
-        // Position it at the forward tip of the spacecraft hull.
-        // Spacecraft +Z = forward (velocity direction), nose is at +Z = VEHICLE_HEIGHT_UNITS.
-        // We offset slightly forward so the hull isn't in view.
-        const noseOffset = 0.00004; // ~4 m ahead of spacecraft center
-        this.noseCamera.position.set(0, 0, noseOffset);
-        this.noseCamera.rotation.set(0, 0, 0); // look along +Z (forward)
+        const h = this.entryVehicle.vehicleHeight || 0.00003;
+        this.noseCamera.position.set(0, 0, h * 1.2); // ahead of the nose tip
+        this.noseCamera.rotation.set(0, Math.PI, 0); // flip to look along +Z
         this.entryVehicle.getObject3D().add(this.noseCamera);
 
         // Off-screen render target (256x256, matching the PFD canvas)

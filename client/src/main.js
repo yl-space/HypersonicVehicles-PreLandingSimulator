@@ -278,12 +278,22 @@ window.closeWelcomeDialog = function() {
  * Show startup dialog again (Back button handler)
  */
 window.showStartupDialog = function() {
-    // Pause simulation
-    if (window.MarsEDL.simulation) {
-        window.MarsEDL.simulation.pause();
+    const sim = window.MarsEDL.simulation;
+    if (sim) {
+        // Full reset: stop playback, reset time/phase/controls to initial state
+        sim.pause();
+        sim.resetToStart();
+        // Reset camera to follow mode
+        sim.cameraController?.setMode('follow');
+        sim.cameraController?.reset();
+        // Reset trajectory display
+        if (sim.trajectoryManager) {
+            sim.trajectoryManager._lastTrajectoryIndex = -1;
+            sim.trajectoryManager.setFullTrajectoryVisible(false);
+        }
     }
 
-    // Show the welcome dialog again
+    // Show the welcome dialog again for fresh configuration
     showWelcomeDialog();
 };
 

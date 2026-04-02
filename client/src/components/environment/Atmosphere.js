@@ -1,16 +1,10 @@
 /**
  * Atmosphere.js
- * Mars atmospheric limb haze — replica of NASA Eyes Mars 2020.
+ * Minimal Mars atmospheric limb haze.
  *
- * Two visual layers:
- * 1. BackSide Fresnel shell: warm orange limb glow that softens the
- *    planet's silhouette edge against space.
- * 2. Scene fog: altitude-driven THREE.FogExp2 that tints the entire
- *    scene warm brown during atmospheric entry (read by SimulationManager).
- *
- * The shell is 3% above planet radius — thicker than 1.5% to properly
- * soften the hard planet edge visible in earlier versions. Colour is
- * warm orange (0.85, 0.55, 0.30) matching the NASA reference.
+ * Very thin shell (1% above planet) with high Fresnel power for extremely
+ * blurred/soft edges. Colour: gradient of #977264 (warm Mars dust).
+ * Scene fog provides subtle atmospheric tint during entry.
  */
 
 import * as THREE from 'three';
@@ -24,24 +18,24 @@ export class Atmosphere {
         this.material = null;
         this._density = 0;
 
-        // Fog parameters for scene-wide atmospheric tint
+        // Fog parameters
         this._fogDensity = 0;
-        this._fogColor = new THREE.Color(0.45, 0.28, 0.15); // warm Mars dust
+        this._fogColor = new THREE.Color(0x977264);
 
         this.init();
     }
 
     init() {
-        // 3% above planet — wide enough to soften the limb edge
-        const atmRadius = this.planetRadius * 1.03;
+        // Minimal shell — just 1% above surface for thin limb haze
+        const atmRadius = this.planetRadius * 1.01;
         const geometry = new THREE.SphereGeometry(atmRadius, 128, 80);
 
+        // #977264 → RGB (0.592, 0.447, 0.392)
         this.material = new THREE.ShaderMaterial({
             uniforms: {
-                // Warm orange matching NASA Eyes Mars 2020 limb colour
-                glowColor:     { value: new THREE.Vector3(0.85, 0.55, 0.30) },
-                intensity:     { value: 0.5 },
-                fresnelPower:  { value: 3.0 },
+                glowColor:    { value: new THREE.Vector3(0.592, 0.447, 0.392) },
+                intensity:    { value: 0.4 },
+                fresnelPower: { value: 5.0 }, // high power = very blurred/soft edge
             },
 
             vertexShader: /* glsl */`
@@ -65,14 +59,18 @@ export class Atmosphere {
 
                 void main() {
                     vec3 viewDir = normalize(cameraPosition - vWorldPos);
-
-                    // Fresnel: strongest at grazing angles (planet limb)
                     float NdV = abs(dot(viewDir, vNormal));
-                    float fresnel = pow(clamp(1.0 - NdV, 0.0, 1.0), fresnelPower);
+
+                    // High Fresnel power = concentrated at extreme grazing angles only.
+                    // Smoothstep on top for extra-soft fade at the outer edge.
+                    float rawFresnel = clamp(1.0 - NdV, 0.0, 1.0);
+                    float fresnel = pow(rawFresnel, fresnelPower);
+                    // Extra smoothstep blur: fade 0→1 over the outer 60% of the Fresnel band
+                    fresnel *= smoothstep(0.0, 0.6, rawFresnel);
 
                     float alpha = fresnel * intensity;
 
-                    gl_FragColor = vec4(glowColor, clamp(alpha, 0.0, 0.55));
+                    gl_FragColor = vec4(glowColor, clamp(alpha, 0.0, 0.4));
                 }
             `,
 
@@ -86,12 +84,8 @@ export class Atmosphere {
     }
 
     setIntensity(v) { this.intensityScale = THREE.MathUtils.clamp(v, 0, 1); }
+    setPlanetCenter(c) { /* No uniform needed */ }
 
-    setPlanetCenter(c) { /* No planetCenter uniform needed */ }
-
-    /**
-     * Altitude-driven dynamics: limb glow + scene fog intensify during descent.
-     */
     updateDynamics(spacecraftAltitudeKm = this.referenceAltitudeKm, planetCenter = null) {
         if (!this.material) return;
 
@@ -100,29 +94,21 @@ export class Atmosphere {
         const norm = THREE.MathUtils.clamp(alt / this.referenceAltitudeKm, 0, 1);
 
         const t = 1 - norm;
-        const density = t * t * (3.0 - 2.0 * t); // smoothstep
+        const density = t * t * (3.0 - 2.0 * t);
         this._density = density;
 
-        // Limb glow: 0.5 at distance → 0.9 near surface
+        // Intensity: barely visible at distance, slightly stronger near surface
         this.material.uniforms.intensity.value =
-            THREE.MathUtils.lerp(0.5, 0.9, density) * this.intensityScale;
-        // Soften Fresnel as spacecraft enters atmosphere
+            THREE.MathUtils.lerp(0.4, 0.7, density) * this.intensityScale;
+        // Lower power near surface = slightly wider glow during entry
         this.material.uniforms.fresnelPower.value =
-            THREE.MathUtils.lerp(3.0, 1.5, density);
+            THREE.MathUtils.lerp(5.0, 3.0, density);
 
-        // Scene fog: FogExp2 uses exp(-d²·dist²), so even tiny densities fog
-        // objects at starfield distance (5000 units). Keep density minimal so
-        // only nearby tiles (~34 units) get subtle tinting. Stars at 5000 units
-        // will be slightly dimmed but not washed out.
         this._fogDensity = THREE.MathUtils.lerp(0, 0.00003, density);
     }
 
-    /** Returns fog parameters for SimulationManager to apply to the scene */
-    getFog() {
-        return { color: this._fogColor, density: this._fogDensity };
-    }
-
-    getDensity()  { return this._density; }
+    getFog() { return { color: this._fogColor, density: this._fogDensity }; }
+    getDensity() { return this._density; }
     getObject3D() { return this.mesh; }
 
     dispose() {
