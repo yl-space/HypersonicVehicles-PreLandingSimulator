@@ -446,34 +446,33 @@ export class TrajectoryManager {
         }
 
         const currentData = this.getDataAtTime(currentTime);
-        const hasOrigin = !!currentData?.position;
-        const originX = hasOrigin ? currentData.position.x : 0;
-        const originY = hasOrigin ? currentData.position.y : 0;
-        const originZ = hasOrigin ? currentData.position.z : 0;
 
-        // Floating-origin for the line buffers to reduce precision wobble at close zoom
+        // CRITICAL FIX: Draw trajectory lines in world coordinates (origin = 0,0,0).
+        // Previous floating-origin approach shifted the origin to the spacecraft's
+        // current position each frame, causing the trajectory to visually "drift forward"
+        // because all points were recalculated relative to a constantly-moving reference.
         if (this.pastLine) {
-            this.pastLine.position.set(originX, originY, originZ);
+            this.pastLine.position.set(0, 0, 0);
         }
         if (this.futureLine) {
-            this.futureLine.position.set(originX, originY, originZ);
+            this.futureLine.position.set(0, 0, 0);
         }
 
-        // Update past line using pre-allocated buffer
+        // Update past line — all points from trajectory data in world coords
         let pastPointCount = 0;
         for (let i = 0; i <= currentIndex && pastPointCount * 3 < this.pastPositionBuffer.length - 3; i++) {
             const p = this.trajectoryData[i].position;
-            this.pastPositionBuffer[pastPointCount * 3] = p.x - originX;
-            this.pastPositionBuffer[pastPointCount * 3 + 1] = p.y - originY;
-            this.pastPositionBuffer[pastPointCount * 3 + 2] = p.z - originZ;
+            this.pastPositionBuffer[pastPointCount * 3] = p.x;
+            this.pastPositionBuffer[pastPointCount * 3 + 1] = p.y;
+            this.pastPositionBuffer[pastPointCount * 3 + 2] = p.z;
             pastPointCount++;
         }
 
         if (currentData?.position) {
             if (pastPointCount * 3 < this.pastPositionBuffer.length - 3) {
-                this.pastPositionBuffer[pastPointCount * 3] = currentData.position.x - originX;
-                this.pastPositionBuffer[pastPointCount * 3 + 1] = currentData.position.y - originY;
-                this.pastPositionBuffer[pastPointCount * 3 + 2] = currentData.position.z - originZ;
+                this.pastPositionBuffer[pastPointCount * 3] = currentData.position.x;
+                this.pastPositionBuffer[pastPointCount * 3 + 1] = currentData.position.y;
+                this.pastPositionBuffer[pastPointCount * 3 + 2] = currentData.position.z;
                 pastPointCount++;
             }
 
@@ -481,20 +480,20 @@ export class TrajectoryManager {
             this.currentPositionMarker.position.copy(currentData.position);
         }
 
-        // Update future line using pre-allocated buffer
+        // Update future line — world coords
         let futurePointCount = 0;
         if (currentData?.position && futurePointCount * 3 < this.futurePositionBuffer.length - 3) {
-            this.futurePositionBuffer[futurePointCount * 3] = currentData.position.x - originX;
-            this.futurePositionBuffer[futurePointCount * 3 + 1] = currentData.position.y - originY;
-            this.futurePositionBuffer[futurePointCount * 3 + 2] = currentData.position.z - originZ;
+            this.futurePositionBuffer[futurePointCount * 3] = currentData.position.x;
+            this.futurePositionBuffer[futurePointCount * 3 + 1] = currentData.position.y;
+            this.futurePositionBuffer[futurePointCount * 3 + 2] = currentData.position.z;
             futurePointCount++;
         }
 
         for (let i = currentIndex + 1; i < this.trajectoryData.length && futurePointCount * 3 < this.futurePositionBuffer.length - 3; i++) {
             const p = this.trajectoryData[i].position;
-            this.futurePositionBuffer[futurePointCount * 3] = p.x - originX;
-            this.futurePositionBuffer[futurePointCount * 3 + 1] = p.y - originY;
-            this.futurePositionBuffer[futurePointCount * 3 + 2] = p.z - originZ;
+            this.futurePositionBuffer[futurePointCount * 3] = p.x;
+            this.futurePositionBuffer[futurePointCount * 3 + 1] = p.y;
+            this.futurePositionBuffer[futurePointCount * 3 + 2] = p.z;
             futurePointCount++;
         }
 

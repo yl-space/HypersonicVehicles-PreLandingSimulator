@@ -736,18 +736,18 @@ export class SimulationManager {
         );
 
         // ── Spacecraft label: project 3D position to 2D screen (NASA Eyes style) ──
-        if (this._spacecraftLabel && this.entryVehicle) {
-            const show = this.cameraController.mode === 'trajectory';
-            this._spacecraftLabel.style.display = show ? 'block' : 'none';
+        // Uses vehicleData.position (from trajectory interpolation) for exact match
+        // with the spacecraft model position. Previously used entryVehicle.getObject3D()
+        // which could be offset from the actual trajectory data point.
+        if (this._spacecraftLabel) {
+            const show = this.cameraController.mode === 'trajectory' && this.state.vehicleData?.position;
             if (show) {
-                const pos = this.entryVehicle.getObject3D().position.clone();
+                const pos = this.state.vehicleData.position;
                 const cam = this.cameraController.camera;
-                this._labelScreenPos.copy(pos).project(cam);
-                const hw = this.sceneManager.renderer.domElement.clientWidth * 0.5;
-                const hh = this.sceneManager.renderer.domElement.clientHeight * 0.5;
-                const sx = (this._labelScreenPos.x * hw) + hw;
-                const sy = -(this._labelScreenPos.y * hh) + hh;
-                // Only show if in front of camera
+                this._labelScreenPos.set(pos.x, pos.y, pos.z).project(cam);
+                const el = this.sceneManager.renderer.domElement;
+                const sx = (this._labelScreenPos.x + 1) * 0.5 * el.clientWidth;
+                const sy = (-this._labelScreenPos.y + 1) * 0.5 * el.clientHeight;
                 if (this._labelScreenPos.z > 0 && this._labelScreenPos.z < 1) {
                     this._spacecraftLabel.style.left = `${sx}px`;
                     this._spacecraftLabel.style.top = `${sy}px`;
@@ -755,6 +755,8 @@ export class SimulationManager {
                 } else {
                     this._spacecraftLabel.style.display = 'none';
                 }
+            } else {
+                this._spacecraftLabel.style.display = 'none';
             }
         }
 
