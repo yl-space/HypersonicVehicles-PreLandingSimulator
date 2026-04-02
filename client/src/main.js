@@ -244,11 +244,6 @@ window.closeWelcomeDialog = function() {
     window.MarsEDL.config.trajectory = trajectory;
     window.MarsEDL.config.vehicle = vehicle;
 
-    // Apply vehicle selection if simulation is ready
-    if (window.MarsEDL.simulation && window.MarsEDL.simulation.entryVehicle) {
-        window.MarsEDL.simulation.entryVehicle.switchModel(vehicle);
-    }
-
     // Update mode indicator to show SIMULATION and collapse rate drawer
     if (window.MarsEDL.simulation) {
         window.MarsEDL.simulation.updateModeIndicator('SIMULATION');
@@ -258,8 +253,13 @@ window.closeWelcomeDialog = function() {
     }
 
     dialog.classList.remove('visible');
-    setTimeout(() => {
+    setTimeout(async () => {
         dialog.remove();
+        // Await vehicle switch BEFORE starting playback — the GLTF load is async
+        // and play() would start with the old model if not awaited.
+        if (window.MarsEDL.simulation?.entryVehicle && vehicle !== 'primary') {
+            await window.MarsEDL.simulation.entryVehicle.switchModel(vehicle);
+        }
         window.MarsEDL.simulation.play();
     }, 300);
 };
