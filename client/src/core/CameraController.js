@@ -22,10 +22,10 @@ export class CameraController {
         
         // Camera state (spacecraft-centric with planet collision prevention)
         this.state = {
-            distance: 0.00006,    // ~6 m from spacecraft
+            distance: 0.00012,    // ~12 m from spacecraft (NASA-style wider framing)
             height: 0.000015,     // ~1.5 m above
             angle: 0,
-            defaultDistance: 0.00006,
+            defaultDistance: 0.00012,
             minDistance: 0.00001, // ~1 m
             maxDistance: 0.01   // cap nearby context
         };
