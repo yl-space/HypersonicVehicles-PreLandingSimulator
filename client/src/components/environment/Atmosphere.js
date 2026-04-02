@@ -110,9 +110,10 @@ export class Atmosphere {
         this.material.uniforms.fresnelPower.value =
             THREE.MathUtils.lerp(3.0, 1.5, density);
 
-        // Scene fog density: 0 at high alt → 0.0006 at surface
-        // This creates the warm brown atmospheric haze visible in NASA reference
-        this._fogDensity = THREE.MathUtils.lerp(0, 0.0006, density);
+        // Scene fog density: extremely subtle — only noticeable at very low altitude.
+        // Previous 0.0006 was far too strong, washing out the sky at 50+ miles.
+        // At Mars surface scale (~34 scene units), fog density must be tiny.
+        this._fogDensity = THREE.MathUtils.lerp(0, 0.00008, density);
     }
 
     /** Returns fog parameters for SimulationManager to apply to the scene */

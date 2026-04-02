@@ -1000,6 +1000,13 @@ export class SimulationManager {
     }
     
     setCameraMode(mode) {
+        // For trajectory view, compute fixed camera position from trajectory data
+        if (mode.toLowerCase() === 'trajectory') {
+            const points = this.trajectoryManager.getAllTrajectoryPositions?.();
+            if (points && points.length > 1) {
+                this.cameraController.computeTrajectoryView(points);
+            }
+        }
         this.cameraController.setMode(mode);
     }
     
