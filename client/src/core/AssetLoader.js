@@ -497,10 +497,12 @@ export class AssetLoader {
                 }
             };
 
-            // Merge default config with provided config
+            // Merge: modelConfigs (keyed by filename) takes precedence over
+            // the generic config passed from EntryVehicle/ModelSelector, because
+            // modelConfigs has the correct per-model scale/rotation/axes.
             const finalConfig = {
+                ...config,
                 ...modelConfigs[modelName],
-                ...config
             };
 
             return this.prepareGLTFModel(gltf, finalConfig);
