@@ -28,7 +28,9 @@ export class TrajectoryManager {
         // Line2 material resolution (pixels)
         this.lineResolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
 
-        // Backend integration removed - now handled by TrajectoryService in SimulationManager
+        // Track last trajectory index to avoid per-frame geometry rebuilds
+        this._lastTrajectoryIndex = -1;
+        this._fullTrajectoryMode = false;
 
         this.init();
     }
@@ -461,18 +463,22 @@ export class TrajectoryManager {
 
         const currentData = this.getDataAtTime(currentTime);
 
-        // CRITICAL FIX: Draw trajectory lines in world coordinates (origin = 0,0,0).
-        // Previous floating-origin approach shifted the origin to the spacecraft's
-        // current position each frame, causing the trajectory to visually "drift forward"
-        // because all points were recalculated relative to a constantly-moving reference.
-        if (this.pastLine) {
-            this.pastLine.position.set(0, 0, 0);
-        }
-        if (this.futureLine) {
-            this.futureLine.position.set(0, 0, 0);
+        // Update marker position every frame (smooth movement)
+        if (currentData?.position && this.currentPositionMarker) {
+            this.currentPositionMarker.position.copy(currentData.position);
         }
 
-        // Update past line — all points from trajectory data in world coords
+        // ONLY rebuild line geometry when currentIndex changes (spacecraft crosses
+        // to next data point). This prevents per-frame setPositions() calls that
+        // cause visible jiggle from Float32Array buffer rebuilds + GPU re-uploads.
+        if (currentIndex === this._lastTrajectoryIndex) return;
+        this._lastTrajectoryIndex = currentIndex;
+
+        // Lines drawn in world coordinates (origin = 0,0,0)
+        if (this.pastLine) this.pastLine.position.set(0, 0, 0);
+        if (this.futureLine) this.futureLine.position.set(0, 0, 0);
+
+        // Past line: data points 0..currentIndex (only fixed data points, no interpolation)
         let pastPointCount = 0;
         for (let i = 0; i <= currentIndex && pastPointCount * 3 < this.pastPositionBuffer.length - 3; i++) {
             const p = this.trajectoryData[i].position;
@@ -482,28 +488,9 @@ export class TrajectoryManager {
             pastPointCount++;
         }
 
-        if (currentData?.position) {
-            if (pastPointCount * 3 < this.pastPositionBuffer.length - 3) {
-                this.pastPositionBuffer[pastPointCount * 3] = currentData.position.x;
-                this.pastPositionBuffer[pastPointCount * 3 + 1] = currentData.position.y;
-                this.pastPositionBuffer[pastPointCount * 3 + 2] = currentData.position.z;
-                pastPointCount++;
-            }
-
-            // Update marker position
-            this.currentPositionMarker.position.copy(currentData.position);
-        }
-
-        // Update future line — world coords
+        // Future line: data points currentIndex+1..end
         let futurePointCount = 0;
-        if (currentData?.position && futurePointCount * 3 < this.futurePositionBuffer.length - 3) {
-            this.futurePositionBuffer[futurePointCount * 3] = currentData.position.x;
-            this.futurePositionBuffer[futurePointCount * 3 + 1] = currentData.position.y;
-            this.futurePositionBuffer[futurePointCount * 3 + 2] = currentData.position.z;
-            futurePointCount++;
-        }
-
-        for (let i = currentIndex + 1; i < this.trajectoryData.length && futurePointCount * 3 < this.futurePositionBuffer.length - 3; i++) {
+        for (let i = currentIndex; i < this.trajectoryData.length && futurePointCount * 3 < this.futurePositionBuffer.length - 3; i++) {
             const p = this.trajectoryData[i].position;
             this.futurePositionBuffer[futurePointCount * 3] = p.x;
             this.futurePositionBuffer[futurePointCount * 3 + 1] = p.y;
@@ -511,10 +498,9 @@ export class TrajectoryManager {
             futurePointCount++;
         }
 
-        // Update geometries efficiently for Line2
+        // Rebuild geometries only on index change
         if (pastPointCount > 1) {
-            const pastPositions = this.pastPositionBuffer.subarray(0, pastPointCount * 3);
-            this.pastLine.geometry.setPositions(pastPositions);
+            this.pastLine.geometry.setPositions(this.pastPositionBuffer.subarray(0, pastPointCount * 3));
             this.pastLine.computeLineDistances();
             this.pastLine.visible = true;
         } else if (this.pastLine) {
@@ -522,8 +508,7 @@ export class TrajectoryManager {
         }
 
         if (futurePointCount > 1) {
-            const futurePositions = this.futurePositionBuffer.subarray(0, futurePointCount * 3);
-            this.futureLine.geometry.setPositions(futurePositions);
+            this.futureLine.geometry.setPositions(this.futurePositionBuffer.subarray(0, futurePointCount * 3));
             this.futureLine.computeLineDistances();
             this.futureLine.visible = true;
         } else if (this.futureLine) {
