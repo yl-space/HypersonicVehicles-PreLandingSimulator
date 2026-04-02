@@ -1,10 +1,12 @@
 /**
  * Atmosphere.js
- * Minimal Mars atmospheric limb haze.
+ * Ultra-thin Mars limb line — barely visible warm gradient at planet edge.
  *
- * Very thin shell (1% above planet) with high Fresnel power for extremely
- * blurred/soft edges. Colour: gradient of #977264 (warm Mars dust).
- * Scene fog provides subtle atmospheric tint during entry.
+ * Uses AdditiveBlending so the haze ADDS light to the scene instead of
+ * blocking it (NormalBlending caused a solid dark wall at the horizon).
+ * Shell is only 0.3% above surface — razor thin.
+ * Very high Fresnel power (8+) concentrates the glow to the extreme
+ * silhouette edge only.
  */
 
 import * as THREE from 'three';
@@ -17,25 +19,22 @@ export class Atmosphere {
         this.mesh = null;
         this.material = null;
         this._density = 0;
-
-        // Fog parameters
         this._fogDensity = 0;
         this._fogColor = new THREE.Color(0x977264);
-
         this.init();
     }
 
     init() {
-        // Minimal shell — just 1% above surface for thin limb haze
-        const atmRadius = this.planetRadius * 1.01;
+        // Razor-thin: 0.3% above surface (~10 km at Mars scale)
+        const atmRadius = this.planetRadius * 1.003;
         const geometry = new THREE.SphereGeometry(atmRadius, 128, 80);
 
-        // #977264 → RGB (0.592, 0.447, 0.392)
+        // #977264 as additive glow
         this.material = new THREE.ShaderMaterial({
             uniforms: {
                 glowColor:    { value: new THREE.Vector3(0.592, 0.447, 0.392) },
-                intensity:    { value: 0.4 },
-                fresnelPower: { value: 5.0 }, // high power = very blurred/soft edge
+                intensity:    { value: 0.15 },
+                fresnelPower: { value: 8.0 },
             },
 
             vertexShader: /* glsl */`
@@ -61,22 +60,18 @@ export class Atmosphere {
                     vec3 viewDir = normalize(cameraPosition - vWorldPos);
                     float NdV = abs(dot(viewDir, vNormal));
 
-                    // High Fresnel power = concentrated at extreme grazing angles only.
-                    // Smoothstep on top for extra-soft fade at the outer edge.
-                    float rawFresnel = clamp(1.0 - NdV, 0.0, 1.0);
-                    float fresnel = pow(rawFresnel, fresnelPower);
-                    // Extra smoothstep blur: fade 0→1 over the outer 60% of the Fresnel band
-                    fresnel *= smoothstep(0.0, 0.6, rawFresnel);
+                    // Very high power = only the extreme grazing edge glows
+                    float fresnel = pow(clamp(1.0 - NdV, 0.0, 1.0), fresnelPower);
 
                     float alpha = fresnel * intensity;
 
-                    gl_FragColor = vec4(glowColor, clamp(alpha, 0.0, 0.4));
+                    gl_FragColor = vec4(glowColor * alpha, alpha);
                 }
             `,
 
             transparent: true,
             side: THREE.BackSide,
-            blending: THREE.NormalBlending,
+            blending: THREE.AdditiveBlending,  // Adds light, never blocks/darkens
             depthWrite: false,
         });
 
@@ -84,7 +79,7 @@ export class Atmosphere {
     }
 
     setIntensity(v) { this.intensityScale = THREE.MathUtils.clamp(v, 0, 1); }
-    setPlanetCenter(c) { /* No uniform needed */ }
+    setPlanetCenter(c) {}
 
     updateDynamics(spacecraftAltitudeKm = this.referenceAltitudeKm, planetCenter = null) {
         if (!this.material) return;
@@ -97,12 +92,12 @@ export class Atmosphere {
         const density = t * t * (3.0 - 2.0 * t);
         this._density = density;
 
-        // Intensity: barely visible at distance, slightly stronger near surface
+        // Very subtle: 0.15 → 0.3 max intensity
         this.material.uniforms.intensity.value =
-            THREE.MathUtils.lerp(0.4, 0.7, density) * this.intensityScale;
-        // Lower power near surface = slightly wider glow during entry
+            THREE.MathUtils.lerp(0.15, 0.3, density) * this.intensityScale;
+        // Power stays high even near surface — never becomes a wide band
         this.material.uniforms.fresnelPower.value =
-            THREE.MathUtils.lerp(5.0, 3.0, density);
+            THREE.MathUtils.lerp(8.0, 6.0, density);
 
         this._fogDensity = THREE.MathUtils.lerp(0, 0.00003, density);
     }
