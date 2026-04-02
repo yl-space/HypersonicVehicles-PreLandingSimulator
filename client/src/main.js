@@ -255,12 +255,22 @@ window.closeWelcomeDialog = function() {
     dialog.classList.remove('visible');
     setTimeout(async () => {
         dialog.remove();
-        // Await vehicle switch BEFORE starting playback — the GLTF load is async
-        // and play() would start with the old model if not awaited.
-        if (window.MarsEDL.simulation?.entryVehicle && vehicle !== 'primary') {
-            await window.MarsEDL.simulation.entryVehicle.switchModel(vehicle);
+        const sim = window.MarsEDL.simulation;
+        // Await vehicle switch BEFORE starting playback
+        if (sim?.entryVehicle && vehicle !== 'primary') {
+            await sim.entryVehicle.switchModel(vehicle);
         }
-        window.MarsEDL.simulation.play();
+        // Recalibrate camera distance based on actual vehicle size
+        if (sim?.entryVehicle && sim?.cameraController) {
+            const idealDist = sim.entryVehicle.getIdealCameraDistance();
+            sim.cameraController.setDefaultDistance(idealDist);
+        }
+        // Reposition nose camera based on vehicle height
+        if (sim?.noseCamera && sim?.entryVehicle) {
+            const h = sim.entryVehicle.vehicleHeight || 0.00003;
+            sim.noseCamera.position.set(0, 0, h * 1.2);
+        }
+        sim.play();
     }, 300);
 };
 

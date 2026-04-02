@@ -487,11 +487,10 @@ export class AssetLoader {
                         right: '+X'
                     },
                     transformations: {
-                        // Model exported from Fusion 360 in centimeters.
-                        // Vertex bounds: X ±939cm, Z -5455 to -300cm (height ~5155cm = 51.55m)
-                        // Oleksii dimensions: Diameter 9m (900cm), Height 52m (5200cm)
-                        // Scene: 1 unit = 100km = 10,000,000 cm → scale = 1e-7
-                        rotation: { x: 90, y: 0, z: 180 },
+                        // Model from Fusion 360 in centimeters (5155cm = 51.55m tall).
+                        // GLTF node has 90° X quaternion. Config rotation aligns nose to +Z:
+                        // After GLTF quat: nose → +Y. After config -90° X: nose → +Z (forward).
+                        rotation: { x: -90, y: 0, z: 0 },
                         scale: 0.0000001,
                         position: { x: 0, y: 0, z: 0 }
                     }

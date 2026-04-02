@@ -100,6 +100,14 @@ export class EntryVehicle {
         return this; // Return this for chaining
     }
 
+    /**
+     * Get ideal camera follow distance based on actual vehicle size.
+     * Returns scene units — typically 3-4x the vehicle height for good framing.
+     */
+    getIdealCameraDistance() {
+        return (this.vehicleHeight || VEHICLE_HEIGHT_UNITS) * 4;
+    }
+
     /** Hide Blender leftover nodes (e.g. "Cube" default object) */
     _cleanupGLTFModel() {
         if (!this.gltfModel) return;
@@ -116,22 +124,26 @@ export class EntryVehicle {
      * physically-based colors from material names.
      */
     _applyStarshipMaterials() {
+        // Fusion 360 export loses all PBR colors (everything becomes grey 0.8).
+        // Restore realistic SpaceX Starship materials by name.
         const colorMap = {
-            'Steel_-_Satin':            { color: 0xC0C0C8, metalness: 0.7, roughness: 0.35 },
-            'Mirror':                    { color: 0xE8E8F0, metalness: 0.95, roughness: 0.05 },
-            'Plastic_-_Glossy_(Black)':  { color: 0x1A1A1A, metalness: 0.0, roughness: 0.2 },
-            'Plastic_-_Matte_(Black)':   { color: 0x2A2A2A, metalness: 0.0, roughness: 0.8 },
-            'Material':                  { color: 0xB0B0B8, metalness: 0.5, roughness: 0.4 },
+            'Steel_-_Satin':            { color: 0xA8A8B0, metalness: 0.8, roughness: 0.3 },
+            'Mirror':                    { color: 0xD0D0D8, metalness: 0.95, roughness: 0.05 },
+            'Plastic_-_Glossy_(Black)':  { color: 0x101010, metalness: 0.0, roughness: 0.15 },
+            'Plastic_-_Matte_(Black)':   { color: 0x1A1A1A, metalness: 0.0, roughness: 0.85 },
+            'Material':                  { color: 0x909098, metalness: 0.6, roughness: 0.35 },
         };
 
         const group = this.vehicleLOD || this.group;
         group.traverse(obj => {
             if (!obj.isMesh || !obj.material) return;
-            const fix = colorMap[obj.material.name];
+            const name = obj.material.name || 'Material'; // unnamed → default
+            const fix = colorMap[name];
             if (fix) {
                 obj.material.color.setHex(fix.color);
                 obj.material.metalness = fix.metalness;
                 obj.material.roughness = fix.roughness;
+                obj.material.side = THREE.DoubleSide; // Starship has thin-wall geometry
                 obj.material.needsUpdate = true;
             }
         });
@@ -161,7 +173,15 @@ export class EntryVehicle {
             // Create LOD from GLTF model
             this.createGLTFLOD(model);
 
-            console.log('GLTF model loaded successfully:', metadata);
+            // Compute actual vehicle dimensions from loaded geometry for dynamic scaling
+            // of camera distance, nose camera offset, vector lengths, etc.
+            const bbox = new THREE.Box3().setFromObject(this.vehicleLOD || this.group);
+            const size = bbox.getSize(new THREE.Vector3());
+            this.vehicleHeight = Math.max(size.x, size.y, size.z); // longest axis = height
+            this.vehicleRadius = Math.min(size.x, size.y, size.z) * 0.5; // shortest = radius
+            // Fallback to Dragon defaults if bounding box is degenerate
+            if (this.vehicleHeight < 1e-8) this.vehicleHeight = VEHICLE_HEIGHT_UNITS;
+            if (this.vehicleRadius < 1e-8) this.vehicleRadius = VEHICLE_RADIUS_UNITS;
 
             // Store metadata for reference (merge carefully to avoid circular references)
             this.modelMetadata = Object.assign({}, this.modelMetadata, {
