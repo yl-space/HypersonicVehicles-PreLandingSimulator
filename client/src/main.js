@@ -52,7 +52,7 @@ async function init() {
         // Initialize simulation
         const simulation = new SimulationManager({
             container: document.getElementById('canvas-container'),
-            dataPath: '/data/MSL_position_J2000.csv',
+            dataPath: '/data/MSL_position_IAU_MARS_trimmed_at_parachute.csv',
             autoStart: false,
             showStats: getUrlParam('stats') === 'true',
             

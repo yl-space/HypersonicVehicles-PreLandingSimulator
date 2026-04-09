@@ -10,7 +10,7 @@ const router = express.Router();
  */
 router.get('/msl-trajectory', async (req, res) => {
     try {
-        const dataPath = path.join(__dirname, '../database/data/MSL_position_J2000.csv');
+        const dataPath = path.join(__dirname, '../database/data/MSL_position_IAU_MARS_trimmed_at_parachute.csv');
         
         // Check if file exists
         try {
@@ -26,7 +26,7 @@ router.get('/msl-trajectory', async (req, res) => {
         const csvData = await fs.readFile(dataPath, 'utf8');
         
         res.setHeader('Content-Type', 'text/csv');
-        res.setHeader('Content-Disposition', 'attachment; filename="MSL_position_J2000.csv"');
+        res.setHeader('Content-Disposition', 'attachment; filename="MSL_position_IAU_MARS_trimmed_at_parachute.csv"');
         res.send(csvData);
         
     } catch (error) {
@@ -44,7 +44,7 @@ router.get('/msl-trajectory', async (req, res) => {
  */
 router.get('/msl-trajectory/metadata', async (req, res) => {
     try {
-        const dataPath = path.join(__dirname, '../database/data/MSL_position_J2000.csv');
+        const dataPath = path.join(__dirname, '../database/data/MSL_position_IAU_MARS_trimmed_at_parachute.csv');
         
         // Check if file exists
         try {
@@ -100,7 +100,7 @@ router.get('/msl-trajectory/metadata', async (req, res) => {
         ) - MarsRadius;
         
         const metadata = {
-            filename: 'MSL_position_J2000.csv',
+            filename: 'MSL_position_IAU_MARS_trimmed_at_parachute.csv',
             format: 'CSV',
             columns: header,
             dataPoints: lines.length - 1,
@@ -110,7 +110,7 @@ router.get('/msl-trajectory/metadata', async (req, res) => {
                 start: startAltitude,
                 end: endAltitude
             },
-            coordinateSystem: 'J2000',
+            coordinateSystem: 'IAU_MARS',
             mission: 'Mars Science Laboratory (JSL)',
             description: 'JSL trajectory data from Entry Interface to Parachute Deployment'
         };
@@ -133,10 +133,10 @@ router.get('/msl-trajectory/metadata', async (req, res) => {
 router.get('/msl-trajectory/range', async (req, res) => {
     try {
         const startTime = parseFloat(req.query.start) || 0;
-        const endTime = parseFloat(req.query.end) || 260.65;
+        const endTime = parseFloat(req.query.end) || 260;
         const limit = parseInt(req.query.limit) || 1000;
         
-        const dataPath = path.join(__dirname, '../database/data/MSL_position_J2000.csv');
+        const dataPath = path.join(__dirname, '../database/data/MSL_position_IAU_MARS_trimmed_at_parachute.csv');
         
         // Check if file exists
         try {
@@ -210,7 +210,7 @@ router.get('/msl-trajectory/at-time', async (req, res) => {
             });
         }
         
-        const dataPath = path.join(__dirname, '../database/data/MSL_position_J2000.csv');
+        const dataPath = path.join(__dirname, '../database/data/MSL_position_IAU_MARS_trimmed_at_parachute.csv');
         
         // Check if file exists
         try {

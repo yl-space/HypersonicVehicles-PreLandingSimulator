@@ -29,7 +29,7 @@ export class SimulationManager {
     constructor(options = {}) {
         this.options = {
             container: document.getElementById('canvas-container'),
-            dataPath: '/assets/data/MSL_position_J2000.csv',
+            dataPath: '/assets/data/MSL_position_IAU_MARS_trimmed_at_parachute.csv',
             autoStart: false,
             showStats: false,
             ...options
