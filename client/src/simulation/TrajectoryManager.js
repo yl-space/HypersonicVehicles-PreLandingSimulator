@@ -707,6 +707,12 @@ export class TrajectoryManager {
 
         console.log(`[TrajectoryManager] New trajectory: ${this.trajectoryData.length} total points, duration ${this.totalTime.toFixed(2)}s`);
 
+        // Update RTC origin to new trajectory midpoint for optimal Float32 precision
+        if (this.trajectoryData.length > 0) {
+            const mid = this.trajectoryData[Math.floor(this.trajectoryData.length / 2)].position;
+            this._rtcOrigin = new THREE.Vector3(mid.x, mid.y, mid.z);
+        }
+
         // Rebuild visualization
         this.createOptimizedTrajectory();
         this.updateInstancedPoints();
@@ -729,6 +735,9 @@ export class TrajectoryManager {
                 if (Number.isFinite(lastTime) && lastTime > 0) {
                     this.totalTime = lastTime;
                 }
+                // Restore RTC origin to original trajectory midpoint
+                const mid = this.trajectoryData[Math.floor(this.trajectoryData.length / 2)].position;
+                this._rtcOrigin = new THREE.Vector3(mid.x, mid.y, mid.z);
             }
             // Rebuild visualization
             this.createOptimizedTrajectory();
@@ -852,6 +861,68 @@ export class TrajectoryManager {
                 this.currentPositionMarker.material.opacity = 0;
             }
         }
+    }
+
+    /**
+     * Diagnostic: verify that the static trajectoryLine and dynamic
+     * pastLine+futureLine reference the same data and RTC origin.
+     * Call from browser console: simManager.trajectoryManager.verifyTrajectoryConsistency()
+     */
+    verifyTrajectoryConsistency() {
+        const results = {
+            dataPoints: this.trajectoryData.length,
+            rtcOrigin: this._rtcOrigin?.toArray(),
+            fullTrajectoryMode: this._fullTrajectoryMode,
+        };
+
+        // Compare first and last points of trajectoryData
+        if (this.trajectoryData.length > 0) {
+            const first = this.trajectoryData[0];
+            const last = this.trajectoryData[this.trajectoryData.length - 1];
+            results.firstPoint = { time: first.time, pos: first.position.toArray() };
+            results.lastPoint  = { time: last.time,  pos: last.position.toArray() };
+        }
+
+        // Check trajectoryLine (static) world-space endpoints
+        if (this.trajectoryLine?.geometry) {
+            const posAttr = this.trajectoryLine.geometry.getAttribute('instanceStart');
+            if (posAttr && posAttr.count > 0) {
+                const mPos = this.trajectoryLine.position;
+                results.staticLine = {
+                    meshPosition: mPos.toArray(),
+                    firstVertex: [posAttr.getX(0) + mPos.x, posAttr.getY(0) + mPos.y, posAttr.getZ(0) + mPos.z],
+                };
+            }
+        }
+
+        // Check pastLine + futureLine world-space overlap at current index
+        if (this.pastLine?.geometry && this.futureLine?.geometry) {
+            const pastAttr = this.pastLine.geometry.getAttribute('instanceStart');
+            const futureAttr = this.futureLine.geometry.getAttribute('instanceStart');
+            if (pastAttr && futureAttr && pastAttr.count > 0 && futureAttr.count > 0) {
+                const pPos = this.pastLine.position;
+                const fPos = this.futureLine.position;
+                // Last past point should equal first future point (overlap at currentIndex)
+                const lastPastIdx = pastAttr.count - 1;
+                results.dynamicLines = {
+                    pastMeshPos: pPos.toArray(),
+                    futureMeshPos: fPos.toArray(),
+                    lastPastWorld: [
+                        pastAttr.getX(lastPastIdx) + pPos.x,
+                        pastAttr.getY(lastPastIdx) + pPos.y,
+                        pastAttr.getZ(lastPastIdx) + pPos.z
+                    ],
+                    firstFutureWorld: [
+                        futureAttr.getX(0) + fPos.x,
+                        futureAttr.getY(0) + fPos.y,
+                        futureAttr.getZ(0) + fPos.z
+                    ],
+                };
+            }
+        }
+
+        console.table(results);
+        return results;
     }
 
     updateLineResolution() {
