@@ -549,8 +549,11 @@ export class PlanetTileManager {
         const desired = [];
         this.rootTiles.forEach(root => this.collectVisible(root, camera, pixelsPerRad, desired));
 
-        // Retain desired tiles and their ancestors to avoid deleting the tree
-        const retained = new Set();
+        // Retain desired tiles and their ancestors to avoid deleting the tree.
+        // Root tiles are ALWAYS retained — they are the minimum LOD fallback and
+        // must never be disposed, even when back-facing.  Disposing them leaves
+        // a permanent black hole because removeTile() nulls the mesh.
+        const retained = new Set(this.rootTiles);
         desired.forEach(tile => {
             let current = tile;
             while (current) {
@@ -560,7 +563,7 @@ export class PlanetTileManager {
             }
         });
 
-        // Only remove tiles not in the retained set
+        // Only remove non-root tiles that are not in the retained set
         this.tileCache.forEach((tile) => {
             if (!retained.has(tile)) {
                 this.removeTile(tile);
