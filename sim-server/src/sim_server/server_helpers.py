@@ -80,13 +80,20 @@ def serialize_simulation_results_to_lists(results: dict) -> dict:
 
 def serialize_simulation_results_to_arrow(results: dict) -> bytes:
     """Convert results dict to Apache Arrow IPC stream bytes."""
-    # Convert all values to Arrow arrays (if not already)
+    # Convert per-timestep arrays to Arrow columns.  Skip non-array
+    # entries like phases_entry (a small dict) that don't match the
+    # row count of the trajectory arrays.
     arrow_ready = {}
+    expected_len = None
     for key, value in results.items():
         try:
-            arrow_ready[key] = pa.array(value)
+            arr = pa.array(value)
+            if expected_len is None:
+                expected_len = len(arr)
+            if len(arr) == expected_len:
+                arrow_ready[key] = arr
+            # else: skip mismatched-length columns (e.g. phases_entry)
         except Exception:
-            # If not convertible, skip or handle as needed
             pass
     table = pa.table(arrow_ready)
     sink = pa.BufferOutputStream()
