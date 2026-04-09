@@ -718,8 +718,12 @@ export class SimulationManager {
                 this.handlePhaseTransition(currentPhase);
             }
             
-            // Update trajectory display
-            this.trajectoryManager.updateTrajectoryDisplay(this.state.currentTime);
+            // Update trajectory display — pass camera position for camera-relative
+            // RTC rendering which maximises Float32 precision near the viewpoint.
+            this.trajectoryManager.updateTrajectoryDisplay(
+                this.state.currentTime,
+                this.cameraController?.camera?.position
+            );
         }
     }
     

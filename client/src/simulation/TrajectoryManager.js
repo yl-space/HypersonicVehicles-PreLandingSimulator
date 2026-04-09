@@ -51,7 +51,7 @@ export class TrajectoryManager {
         // Materials with increased visibility (Line2 uses screen-space widths)
         this.pastMaterial = new LineMaterial({
             color: 0xffffff,  // Bright white for traveled path
-            linewidth: 2.5,   // pixels
+            linewidth: 3.5,   // pixels (wider for visual stability)
             opacity: 0.95,
             transparent: true,
             depthTest: true,
@@ -61,7 +61,7 @@ export class TrajectoryManager {
 
         this.futureMaterial = new LineMaterial({
             color: 0x6b1e1e,  // Maroon for future path
-            linewidth: 2.0,   // pixels
+            linewidth: 3.0,   // pixels (wider for visual stability)
             opacity: 0.85,
             transparent: true,
             dashed: true,
@@ -385,7 +385,7 @@ export class TrajectoryManager {
                 color: 0x6b1e1e,  // Maroon for full path
                 opacity: 0.55,    // More visible
                 transparent: true,
-                linewidth: 2.0,   // pixels
+                linewidth: 3.0,   // pixels (wider for visual stability)
                 depthTest: true,
                 depthWrite: false,
                 toneMapped: false
@@ -437,7 +437,14 @@ export class TrajectoryManager {
         }
     }
     
-    updateTrajectoryDisplay(currentTime) {
+    /**
+     * @param {number} currentTime
+     * @param {THREE.Vector3} [cameraPosition] - camera world position for
+     *   camera-relative RTC.  When supplied the dynamic past/future lines store
+     *   vertices relative to the camera instead of the trajectory midpoint,
+     *   maximising Float32 precision near the viewpoint.
+     */
+    updateTrajectoryDisplay(currentTime, cameraPosition) {
         if (this.trajectoryData.length < 2) return;
 
         // When full trajectory is shown (trajectory camera mode), only update the
@@ -487,12 +494,15 @@ export class TrajectoryManager {
         if (currentIndex === this._lastTrajectoryIndex) return;
         this._lastTrajectoryIndex = currentIndex;
 
-        // RTC (Relative-To-Center): position lines at RTC origin, store vertices
-        // relative to it. This keeps Float32 vertex values near zero, eliminating
-        // GPU precision jiggle at Mars-surface distances (~34 units from origin).
-        const ox = this._rtcOrigin?.x || 0;
-        const oy = this._rtcOrigin?.y || 0;
-        const oz = this._rtcOrigin?.z || 0;
+        // Camera-relative RTC: when a camera position is available, use it as
+        // the RTC origin for dynamic lines.  Vertex coordinates stay near zero
+        // (best Float32 precision) exactly where the camera is looking, which
+        // eliminates the jiggle caused by subtracting two large ~34-unit values
+        // in the GPU model-view-projection matrix.
+        // Falls back to the trajectory-midpoint RTC if no camera position given.
+        const ox = cameraPosition?.x ?? this._rtcOrigin?.x ?? 0;
+        const oy = cameraPosition?.y ?? this._rtcOrigin?.y ?? 0;
+        const oz = cameraPosition?.z ?? this._rtcOrigin?.z ?? 0;
         if (this.pastLine) this.pastLine.position.set(ox, oy, oz);
         if (this.futureLine) this.futureLine.position.set(ox, oy, oz);
 
@@ -519,7 +529,8 @@ export class TrajectoryManager {
         // Rebuild geometries only on index change
         if (pastPointCount > 1) {
             this.pastLine.geometry.setPositions(this.pastPositionBuffer.subarray(0, pastPointCount * 3));
-            this.pastLine.computeLineDistances();
+            // No computeLineDistances() for solid line — not needed and avoids
+            // unnecessary GPU work.
             this.pastLine.visible = true;
         } else if (this.pastLine) {
             this.pastLine.visible = false;
