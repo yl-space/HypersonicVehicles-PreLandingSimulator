@@ -971,7 +971,7 @@ export class EntryVehicle {
                     this.useGLTF = true;
                     this.modelMetadata = {
                         name: 'Starship',
-                        filename: 'starship/Starship_export/Untitled.gltf'
+                        filename: 'Starship_updated_binary.glb'
                     };
                     await this.loadGLTFModel(this.modelMetadata.filename);
                     this._cleanupGLTFModel();

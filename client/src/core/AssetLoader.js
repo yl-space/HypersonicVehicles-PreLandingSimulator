@@ -479,7 +479,7 @@ export class AssetLoader {
                         position: { x: 0, y: 0, z: 0 }
                     }
                 },
-                'starship/Starship_export/Untitled.gltf': {
+                'Starship_updated_binary.glb': {
                     name: 'Starship',
                     originalAxes: {
                         forward: '+Z',
@@ -487,9 +487,9 @@ export class AssetLoader {
                         right: '+X'
                     },
                     transformations: {
-                        // Model from Fusion 360 in centimeters (5155cm = 51.55m tall).
-                        // GLTF node has 90° X quaternion. Config rotation aligns nose to +Z:
-                        // After GLTF quat: nose → +Y. After config -90° X: nose → +Z (forward).
+                        // Updated model (no legs) exported from Blender in centimeters
+                        // (5155cm = 51.55m tall). GLTF node has 90° X quaternion.
+                        // Config rotation aligns nose to +Z (forward).
                         rotation: { x: -90, y: 0, z: 0 },
                         scale: 0.0000001,
                         position: { x: 0, y: 0, z: 0 }
