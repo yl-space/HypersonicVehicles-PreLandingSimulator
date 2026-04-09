@@ -604,14 +604,17 @@ export class PlanetTileManager {
         const cameraDir = camera.position.clone().sub(worldCenter).normalize();
         const dotProduct = tileNormal.dot(cameraDir);
 
-        // If tile is facing away from camera (back side of planet), skip it
-        // Use small threshold to include tiles near the horizon
-        if (dotProduct < -0.2) {
-            // Hide this tile's mesh if it exists
+        // Back-face culling: skip tiles facing away from the camera.
+        // BUT never cull root-level tiles — they each cover 90°×90° of the
+        // planet, so the tile-center dot product is unreliable (the camera
+        // can be directly above a tile edge while the center is on the far
+        // side).  Root tiles are cheap (8 segments) and must always render
+        // to guarantee a visible planet surface.
+        if (tile.z > this.minLevel && dotProduct < -0.2) {
             if (tile.mesh && this.group.children.includes(tile.mesh)) {
                 this.group.remove(tile.mesh);
             }
-            return; // Don't process or subdivide back-facing tiles
+            return;
         }
 
         const dist = camera.position.distanceTo(worldCenter);
