@@ -1353,14 +1353,17 @@ export class SimulationManager {
             // Get current state in meters (unscaled) for backend
             const currentData = this.state.vehicleData;
 
-            // Prepare current state in backend format
+            // Prepare current state in Z-up backend convention.
+            // trajectoryData stores positionMeters/velocityMeters in original
+            // backend coords (Z-up), and position/velocity in scene coords (Y-up).
             const currentState = {
                 positionMeters: currentData.positionMeters || new THREE.Vector3(
                     currentData.position.x / 0.00001,
-                    currentData.position.y / 0.00001,
-                    currentData.position.z / 0.00001
+                    currentData.position.z / 0.00001,  // scene z → backend y
+                    currentData.position.y / 0.00001   // scene y → backend z
                 ),
-                velocityMetersPerSec: currentData.velocity  // Already in m/s
+                velocityMeters: currentData.velocityMeters,
+                velocityMetersPerSec: currentData.velocityMeters || currentData.velocity
             };
 
             console.log('[SimulationManager] Sending current state to backend:', {

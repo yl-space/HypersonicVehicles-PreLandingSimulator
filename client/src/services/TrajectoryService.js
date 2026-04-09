@@ -165,9 +165,11 @@ export class TrajectoryService {
                 x_m: currentState.positionMeters.x,
                 y_m: currentState.positionMeters.y,
                 z_m: currentState.positionMeters.z,
-                vx_m_s: currentState.velocityMetersPerSec.x,
-                vy_m_s: currentState.velocityMetersPerSec.y,
-                vz_m_s: currentState.velocityMetersPerSec.z
+                // Use Z-up backend-convention velocity (velocityMeters) if
+                // available; fall back to scene-convention velocity with un-swap.
+                vx_m_s: (currentState.velocityMeters || currentState.velocityMetersPerSec).x,
+                vy_m_s: (currentState.velocityMeters || currentState.velocityMetersPerSec).y,
+                vz_m_s: (currentState.velocityMeters || currentState.velocityMetersPerSec).z
             }
         };
 
@@ -251,38 +253,50 @@ export class TrajectoryService {
         const numPoints = data.time_s.length;
 
         for (let i = 0; i < numPoints; i++) {
-            // Position in meters (Mars-centered J2000 inertial)
+            // Backend outputs Z-up (physics convention: z = r·sin(lat)).
+            // Three.js tiles use Y-up (y = r·sin(lat)).
+            // Store originals for backend round-trip, swap Y↔Z for scene.
             const posMeters = new THREE.Vector3(
                 data.x_m[i],
                 data.y_m[i],
                 data.z_m[i]
             );
 
-            // Velocity in m/s
             const velMetersPerSec = new THREE.Vector3(
                 data.vx_m_s[i],
                 data.vy_m_s[i],
                 data.vz_m_s[i]
             );
 
-            // Calculate derived quantities
+            // Derived quantities (rotation-invariant)
             const distanceFromCenter = posMeters.length();
             const altitude = (distanceFromCenter - this.config.marsRadius) / 1000; // km
             const velocityMagnitude = velMetersPerSec.length();
 
-            // Scale position for visualization
-            const posScaled = posMeters.clone().multiplyScalar(this.config.scaleFactorVisualization);
+            // Swap Y↔Z: backend Z-up → scene Y-up
+            const posScene = new THREE.Vector3(
+                data.x_m[i],
+                data.z_m[i],   // backend z (pole) → scene y
+                data.y_m[i]    // backend y (equatorial) → scene z
+            ).multiplyScalar(this.config.scaleFactorVisualization);
+
+            const velScene = new THREE.Vector3(
+                data.vx_m_s[i],
+                data.vz_m_s[i],   // swap
+                data.vy_m_s[i]    // swap
+            );
 
             trajectory.push({
                 time: data.time_s[i],
-                position: posScaled,                    // Scaled for Three.js rendering
-                velocity: velMetersPerSec,              // m/s
+                position: posScene,                     // Y-up, scaled for Three.js
+                velocity: velScene,                     // Y-up, m/s (for attitude)
                 altitude: altitude,                     // km above surface
                 velocityMagnitude: velocityMagnitude,   // m/s
                 distanceToLanding: altitude,            // km (approximate)
-                bankAngle: this.currentParams.control.bank_angle * (180 / Math.PI), // degrees
+                bankAngle: this.currentParams.control.bank_angle * (180 / Math.PI),
 
-                positionMeters: posMeters
+                positionMeters: posMeters,              // Z-up original for backend
+                velocityMeters: velMetersPerSec         // Z-up original for backend
             });
         }
 
@@ -314,38 +328,46 @@ export class TrajectoryService {
         const numPoints = data.length;
 
         for (let i = 0; i < numPoints; i++) {
-            // Position in meters (Mars-centered J2000 inertial)
+            // Backend Z-up originals (for backend round-trip)
             const posMeters = new THREE.Vector3(
                 data[i].x_m,
                 data[i].y_m,
                 data[i].z_m
             );
-
-            // Velocity in m/s
             const velMetersPerSec = new THREE.Vector3(
                 data[i].vx_m_s,
                 data[i].vy_m_s,
                 data[i].vz_m_s
             );
 
-            // Calculate derived quantities
             const distanceFromCenter = posMeters.length();
-            const altitude = (distanceFromCenter - this.config.marsRadius) / 1000; // km
+            const altitude = (distanceFromCenter - this.config.marsRadius) / 1000;
             const velocityMagnitude = velMetersPerSec.length();
 
-            // Scale position for visualization
-            const posScaled = posMeters.clone().multiplyScalar(this.config.scaleFactorVisualization);
+            // Swap Y↔Z: backend Z-up → scene Y-up
+            const posScene = new THREE.Vector3(
+                data[i].x_m,
+                data[i].z_m,
+                data[i].y_m
+            ).multiplyScalar(this.config.scaleFactorVisualization);
+
+            const velScene = new THREE.Vector3(
+                data[i].vx_m_s,
+                data[i].vz_m_s,
+                data[i].vy_m_s
+            );
 
             trajectory.push({
                 time: data[i].time_s,
-                position: posScaled,                    // Scaled for Three.js rendering
-                velocity: velMetersPerSec,              // m/s
-                altitude: altitude,                     // km above surface
-                velocityMagnitude: velocityMagnitude,   // m/s
-                distanceToLanding: altitude,            // km (approximate)
-                bankAngle: this.currentParams.control.bank_angle * (180 / Math.PI), // degrees
+                position: posScene,
+                velocity: velScene,
+                altitude: altitude,
+                velocityMagnitude: velocityMagnitude,
+                distanceToLanding: altitude,
+                bankAngle: this.currentParams.control.bank_angle * (180 / Math.PI),
 
-                positionMeters: posMeters
+                positionMeters: posMeters,
+                velocityMeters: velMetersPerSec
             });
         }
 

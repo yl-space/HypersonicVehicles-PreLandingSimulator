@@ -222,12 +222,13 @@ export class TrajectoryManager {
         let prevPosition = null;
         
         // First pass: get landing site position (last point in trajectory)
+        // CSV data is in Z-up (IAU_MARS) convention; rawDistance uses original coords.
         const lastRow = rows[rows.length - 1];
         const landingX = convertMSL ? -parseFloat(lastRow.x || 0) : parseFloat(lastRow.x || 0);
         const landingY = convertMSL ? -parseFloat(lastRow.y || 0) : parseFloat(lastRow.y || 0);
         const landingZ = parseFloat(lastRow.z || 0);
         const landingSite = new THREE.Vector3(landingX, landingY, landingZ);
-        
+
         // Process CSV data
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
@@ -235,16 +236,17 @@ export class TrajectoryManager {
             const x = convertMSL ? -parseFloat(row.x || 0) : parseFloat(row.x || 0);
             const y = convertMSL ? -parseFloat(row.y || 0) : parseFloat(row.y || 0);
             const z = parseFloat(row.z || 0);
-            
+
             if (!isNaN(time) && !isNaN(x) && !isNaN(y) && !isNaN(z)) {
                 const currentPos = new THREE.Vector3(x, y, z);
                 const rawDistance = Math.sqrt(x * x + y * y + z * z);
                 const altitude = rawDistance - this.marsRadius;
-                
+
+                // Swap Y↔Z: CSV Z-up (IAU_MARS) → scene Y-up (Three.js tiles)
                 const position = new THREE.Vector3(
                     x * this.SCALE_FACTOR,
-                    y * this.SCALE_FACTOR,
-                    z * this.SCALE_FACTOR
+                    z * this.SCALE_FACTOR,   // CSV z (pole) → scene y
+                    y * this.SCALE_FACTOR    // CSV y (equatorial) → scene z
                 );
                 
                 let velocityVector = new THREE.Vector3(0, -1, 0);
