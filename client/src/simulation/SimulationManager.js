@@ -540,10 +540,11 @@ export class SimulationManager {
 
             // Load reference trajectory from CSV (MSL position)
             try {
-                const referenceData = await this.dataManager.loadTrajectoryCSV("MSL_position_J2000.csv");
+                const referenceData = await this.dataManager.loadTrajectoryCSV("MSL_position_IAU_MARS_trimmed_at_parachute.csv");
 
                 if (referenceData && referenceData.rows) {
-                    this.trajectoryManager.setReferenceTrajectoryFromCSV(referenceData.rows);
+                    // IAU_MARS body-fixed frame matches simulation output — no X/Y negation needed
+                    this.trajectoryManager.setReferenceTrajectoryFromCSV(referenceData.rows, false);
                 } else {
                     this.trajectoryManager.setReferenceTrajectory(trajectoryData);
                 }

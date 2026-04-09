@@ -6,7 +6,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 export class TrajectoryManager {
     constructor() {
         this.trajectoryData = [];
-        this.totalTime = 260.65;
+        this.totalTime = 260;
         this.marsRadius = 3390000; // meters (NASA data)
         // Scale factor: 1 unit = 100 km for consistency with planet scales
         this.SCALE_FACTOR = 0.00001; // Convert meters to visualization units
