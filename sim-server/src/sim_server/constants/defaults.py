@@ -6,12 +6,12 @@ DEFAULT_PLANET = {
 }
 
 DEFAULT_INIT = {
-    "h0": 124999, # [m] Critical altitude (i.e. altitude to start entry) [m] ref - 125e3 - Li ,Jiang 2014  MSL; Note- Girija 2022 is 120e3. I made I lower for the dataset
-    "vel0": 6.0836e3, # [m/s] MSL SPICE data
-    "theta0": np.deg2rad(-78.8618), #Initial longitude of probe [rad] ref: SPICE J2000 MSL initial position
-    "phi0": np.deg2rad(27.1050), #Initial latitude of probe [rad] ref: SPICE J2000 MSL initial position
-    "gamma0": np.deg2rad(-15.5), #flight path angle [rad] (should be negative)  ref - Li ,Jiang 2014  MSL
-    "psi0": np.deg2rad(0), #Initial heading angle [rad]
+    "h0": 125000, # [m] Entry altitude ref - 125e3 - Li, Jiang 2014 MSL
+    "vel0": 6.0836e3, # [m/s] MSL entry velocity
+    "theta0": np.deg2rad(126.7413), # [rad] Longitude — IAU_MARS body-fixed (from SPICE IAU_MARS data)
+    "phi0": np.deg2rad(-3.9222), # [rad] Latitude — IAU_MARS body-fixed (from SPICE IAU_MARS data)
+    "gamma0": np.deg2rad(-15.5), # [rad] Flight path angle (negative = descending) ref - Li, Jiang 2014 MSL
+    "psi0": np.deg2rad(93.3454), # [rad] Heading angle — IAU_MARS body-fixed (from SPICE IAU_MARS data)
 }
 
 DEFAULT_VEHICLE = {
