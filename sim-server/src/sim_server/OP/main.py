@@ -19,7 +19,7 @@ def compute_total_heat_rate(states: np.ndarray, planet: dict, vehicle: dict) -> 
     h = r - planet["rp"]
     altitudes_data = planet["atmosphere_model"].iloc[:,0]
     rhos_data = planet["atmosphere_model"].iloc[:,3]
-    rho = np.interp(h, altitudes_data, rhos_data)
+    rho = np.interp(h, altitudes_data, rhos_data, right=0.0)
 
     V = states[3]
 
