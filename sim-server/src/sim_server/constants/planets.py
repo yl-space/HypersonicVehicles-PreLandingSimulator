@@ -7,7 +7,8 @@ PLANETS = {
     "mars": {
         "mu": 4.2828e13, #[m^3/s^-2] ref- Curtis, H., “Appendix A - Physical Data,” Orbital Mechanics for Engineering Students, Elsevier, 2013
         "rp": 3396e3, #[m] ref- Curtis, H., “Appendix A - Physical Data,” Orbital Mechanics for Engineering Students, Elsevier, 2013
-        "atmosphere_model": pd.read_csv(DATA_FOLDER / "mars-gram-avg.csv", delimiter="\t") #AMAT: Girija 2021
+        "atmosphere_model": pd.read_csv(DATA_FOLDER / "mars-gram-avg.csv", delimiter="\t"), #AMAT: Girija 2021
+        "atmosphere_composition_constant": 1.898 * 10**(-8) # Ref: Girija2022
     }
 }
 
