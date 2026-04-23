@@ -645,7 +645,21 @@ export class TrajectoryManager {
         }
         
         const t = (time - prev.time) / (next.time - prev.time || 1);
-        
+
+        // Preserve Z-up backend-convention state when present on the raw
+        // points.  Required for:
+        //   - Side-panel physics (FlightComputer reads positionMeters)
+        //   - Bank-angle round-trip (modifyTrajectoryFromCurrentState sends
+        //     velocityMeters back to the backend in Z-up)
+        const positionMeters =
+            (prev.positionMeters instanceof THREE.Vector3 && next.positionMeters instanceof THREE.Vector3)
+                ? prev.positionMeters.clone().lerp(next.positionMeters, t)
+                : undefined;
+        const velocityMeters =
+            (prev.velocityMeters instanceof THREE.Vector3 && next.velocityMeters instanceof THREE.Vector3)
+                ? prev.velocityMeters.clone().lerp(next.velocityMeters, t)
+                : undefined;
+
         return {
             time,
             position: prev.position.clone().lerp(next.position, t),
@@ -662,7 +676,9 @@ export class TrajectoryManager {
                 prev.distanceToLanding,
                 next.distanceToLanding,
                 t
-            )
+            ),
+            positionMeters,
+            velocityMeters,
         };
     }
     
@@ -686,7 +702,21 @@ export class TrajectoryManager {
         }
         
         const t = (time - prev.time) / (next.time - prev.time || 1);
-        
+
+        // Preserve Z-up backend-convention state when present on the raw
+        // points.  Required for:
+        //   - Side-panel physics (FlightComputer reads positionMeters)
+        //   - Bank-angle round-trip (modifyTrajectoryFromCurrentState sends
+        //     velocityMeters back to the backend in Z-up)
+        const positionMeters =
+            (prev.positionMeters instanceof THREE.Vector3 && next.positionMeters instanceof THREE.Vector3)
+                ? prev.positionMeters.clone().lerp(next.positionMeters, t)
+                : undefined;
+        const velocityMeters =
+            (prev.velocityMeters instanceof THREE.Vector3 && next.velocityMeters instanceof THREE.Vector3)
+                ? prev.velocityMeters.clone().lerp(next.velocityMeters, t)
+                : undefined;
+
         return {
             time,
             position: prev.position.clone().lerp(next.position, t),
@@ -703,7 +733,9 @@ export class TrajectoryManager {
                 prev.distanceToLanding,
                 next.distanceToLanding,
                 t
-            )
+            ),
+            positionMeters,
+            velocityMeters,
         };
     }
     
