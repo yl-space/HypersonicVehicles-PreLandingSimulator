@@ -51,7 +51,7 @@ export class TrajectoryManager {
         // Materials with increased visibility (Line2 uses screen-space widths)
         this.pastMaterial = new LineMaterial({
             color: 0xffffff,  // Bright white for traveled path
-            linewidth: 3.5,   // pixels (wider for visual stability)
+            linewidth: 5.0,   // pixels — thicker line eliminates sub-pixel flicker/wobble in Follow/Orbit
             opacity: 0.95,
             transparent: true,
             depthTest: true,
@@ -61,7 +61,7 @@ export class TrajectoryManager {
 
         this.futureMaterial = new LineMaterial({
             color: 0x6b1e1e,  // Maroon for future path
-            linewidth: 3.0,   // pixels (wider for visual stability)
+            linewidth: 4.5,   // pixels — thicker line eliminates sub-pixel flicker/wobble in Follow/Orbit
             opacity: 0.85,
             transparent: true,
             dashed: true,
@@ -310,9 +310,9 @@ export class TrajectoryManager {
             newGeometry,
             new LineMaterial({
                 color: 0x00ff00,
-                opacity: 0.5,
+                opacity: 0.6,
                 transparent: true,
-                linewidth: 2.0,
+                linewidth: 4.0,   // pixels — matches primary trajectory for visual consistency
                 depthTest: true,
                 depthWrite: false,
                 toneMapped: false
@@ -387,7 +387,7 @@ export class TrajectoryManager {
                 color: 0x6b1e1e,  // Maroon for full path
                 opacity: 0.55,    // More visible
                 transparent: true,
-                linewidth: 3.0,   // pixels (wider for visual stability)
+                linewidth: 4.5,   // pixels — thicker line eliminates sub-pixel flicker/wobble in Follow/Orbit
                 depthTest: true,
                 depthWrite: false,
                 toneMapped: false
