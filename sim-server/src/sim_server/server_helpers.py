@@ -79,11 +79,18 @@ def serialize_simulation_results_to_lists(results: dict) -> dict:
 
 
 def serialize_simulation_results_to_arrow(results: dict) -> bytes:
-    """Convert results dict to Apache Arrow IPC stream bytes."""
-    # Convert per-timestep arrays to Arrow columns.  Skip non-array
-    # entries like phases_entry (a small dict) that don't match the
-    # row count of the trajectory arrays.
+    """Convert results dict to Apache Arrow IPC stream bytes.
+
+    Per-timestep arrays become Arrow columns.  Scalar/dict entries that
+    don't fit the row count (phases_entry, etc.) are serialized as JSON
+    into the schema metadata under the 'aux' key so the frontend can
+    recover them after Arrow deserialization.
+    """
+    import json
+    import math
+
     arrow_ready = {}
+    aux = {}
     expected_len = None
     for key, value in results.items():
         try:
@@ -92,10 +99,29 @@ def serialize_simulation_results_to_arrow(results: dict) -> bytes:
                 expected_len = len(arr)
             if len(arr) == expected_len:
                 arrow_ready[key] = arr
-            # else: skip mismatched-length columns (e.g. phases_entry)
+                continue
         except Exception:
             pass
-    table = pa.table(arrow_ready)
+        # Fallback: try to JSON-encode into aux
+        try:
+            # Normalise NaN/Inf to None (JSON-safe)
+            def _clean(v):
+                if isinstance(v, dict):
+                    return {k: _clean(x) for k, x in v.items()}
+                if isinstance(v, (list, tuple)):
+                    return [_clean(x) for x in v]
+                if isinstance(v, float) and not math.isfinite(v):
+                    return None
+                return v
+            aux[key] = _clean(value)
+        except Exception:
+            pass
+
+    schema = pa.schema(
+        [(k, v.type) for k, v in arrow_ready.items()],
+        metadata={b'aux': json.dumps(aux).encode('utf-8')} if aux else None
+    )
+    table = pa.table(arrow_ready, schema=schema)
     sink = pa.BufferOutputStream()
     with pa.ipc.new_stream(sink, table.schema) as writer:
         writer.write_table(table)
