@@ -791,6 +791,26 @@ export class EntryVehicle {
      * @param {THREE.Vector3} position - Position vector (for radial reference)
      * @param {number} bankAngle - Bank angle in degrees (optional, defaults to current)
      */
+    /**
+     * Apply scientifically-accurate spacecraft attitude from trajectory state.
+     *
+     * Uses velocity + radial to build a spacecraft-centric frame:
+     *   local +Z = forward (velocity direction)
+     *   local +Y = "up" (perpendicular to velocity, in plane with radial)
+     *   local +X = right (perpendicular to orbital plane)
+     *
+     * Then applies:
+     *   - Bank angle: rotation around the forward axis (around velocity vector)
+     *   - Angle of Attack (AoA): rotation around the right axis (pitch)
+     *
+     * IMPORTANT: AoA is applied here as a VISUAL pitch offset only — the
+     * backend physics (Vinh's equations in sim-server/OP/entryeoms.py) use
+     * a fixed L/D ratio and do not accept AoA as a control input.  Changing
+     * the AoA slider updates the rendered attitude but does NOT alter the
+     * trajectory that the sim-server returns.  A future backend update that
+     * exposes an aerodynamic database (CL-α, CD-α) would make AoA a true
+     * control input.
+     */
     setScientificAttitude(velocity, position, bankAngle = null) {
         if (!velocity || !position || velocity.length() < 0.001) return;
 
@@ -799,13 +819,12 @@ export class EntryVehicle {
             this.attitude.bankAngle = bankAngle;
         }
 
-        // Normalize velocity vector
         const velNorm = velocity.clone().normalize();
 
-        // Calculate angular momentum (perpendicular to orbital plane)
+        // Angular momentum = r × v (perpendicular to orbital plane)
         const angularMomentum = new THREE.Vector3().crossVectors(position, velocity);
 
-        // Handle edge case
+        // Edge case: pure vertical fall (r ∥ v)
         if (angularMomentum.length() < 0.001) {
             angularMomentum.crossVectors(velNorm, new THREE.Vector3(0, 1, 0));
             if (angularMomentum.length() < 0.001) {
@@ -814,24 +833,13 @@ export class EntryVehicle {
         }
         angularMomentum.normalize();
 
-        // Build spacecraft reference frame with flat base facing velocity
-        // Forward (+Z in spacecraft frame) = along velocity
+        // Spacecraft frame: +Z forward, +Y up, +X right
         const forward = velNorm.clone();
-
-        // Right (+X in spacecraft frame) = perpendicular to orbital plane
-        // This is the angular momentum direction (or its negative)
         const right = angularMomentum.clone();
-
-        // Ensure right vector points generally "right" relative to velocity
-        // (can adjust based on convention)
-
-        // Up (+Y in spacecraft frame) = perpendicular to forward and right
         const up = new THREE.Vector3().crossVectors(forward, right).normalize();
-
-        // Recalculate right to ensure orthogonal frame
         right.crossVectors(up, forward).normalize();
 
-        // Apply bank angle rotation around forward axis (velocity axis)
+        // Bank angle — rotation around the forward (velocity) axis.
         if (Math.abs(this.attitude.bankAngle) > 0.001) {
             const bankRad = THREE.MathUtils.degToRad(this.attitude.bankAngle);
             const bankQuat = new THREE.Quaternion();
@@ -840,14 +848,22 @@ export class EntryVehicle {
             up.applyQuaternion(bankQuat);
         }
 
-        // Create rotation matrix: [right, up, forward] maps to [X, Y, Z]
+        // Angle of Attack — rotation around the right (pitch) axis.
+        // Positive AoA pitches the nose up (forward tilts toward +up);
+        // MSL trim AoA of -16° pitches the nose down relative to velocity.
+        if (Math.abs(this.attitude.angleOfAttack) > 0.001) {
+            const aoaRad = THREE.MathUtils.degToRad(this.attitude.angleOfAttack);
+            const aoaQuat = new THREE.Quaternion();
+            aoaQuat.setFromAxisAngle(right, aoaRad);
+            forward.applyQuaternion(aoaQuat);
+            up.applyQuaternion(aoaQuat);
+            // right stays fixed (rotation axis)
+        }
+
         const rotationMatrix = new THREE.Matrix4();
         rotationMatrix.makeBasis(right, up, forward);
 
-        // Extract quaternion and normalize to prevent accumulated floating-point drift
         this.attitude.quaternion.setFromRotationMatrix(rotationMatrix).normalize();
-
-        // Apply to spacecraft group
         this.group.quaternion.copy(this.attitude.quaternion);
     }
 

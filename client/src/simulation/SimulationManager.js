@@ -735,7 +735,16 @@ export class SimulationManager {
                 // This maintains trim angle of attack and bank angle per MSL EDL standards
                 const velocityVector = this.trajectoryManager.getVelocityVector(this.state.currentTime);
                 if (velocityVector && velocityVector.length() > 0.001) {
-                    // Use scientific attitude calculation (trim AoA + bank angle from controls)
+                    // Push current AoA to the vehicle so setScientificAttitude
+                    // applies it as the pitch offset.  Note: AoA is visual-only;
+                    // the backend trajectory is not affected (see comment in
+                    // EntryVehicle.setScientificAttitude).
+                    if (this.state.controls.angleOfAttack !== undefined &&
+                        this.entryVehicle.attitude) {
+                        this.entryVehicle.attitude.angleOfAttack =
+                            this.state.controls.angleOfAttack;
+                    }
+
                     this.entryVehicle.setScientificAttitude(
                         velocityVector,
                         this.state.vehicleData.position,
@@ -1200,6 +1209,82 @@ export class SimulationManager {
         `;
         document.body.appendChild(el);
         this.markerTooltipEl = el;
+
+        // Lat/lon coordinate tooltip — appears when hovering over the Mars
+        // surface (or a grid line) without a named feature.  Compact styling
+        // so it doesn't compete with the feature tooltip.
+        const coordEl = document.createElement('div');
+        coordEl.className = 'coord-tooltip';
+        coordEl.style.cssText = `
+            position: fixed;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.75);
+            color: #f6dcb3;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 4px 8px;
+            border: 1px solid rgba(255, 180, 100, 0.4);
+            border-radius: 3px;
+            white-space: nowrap;
+            z-index: 9998;
+            display: none;
+            letter-spacing: 0.02em;
+        `;
+        document.body.appendChild(coordEl);
+        this._coordTooltipEl = coordEl;
+
+        // Reusable raycaster / vectors for coordinate lookup (avoid GC churn)
+        this._coordRaycaster = new THREE.Raycaster();
+        this._coordMouse = new THREE.Vector2();
+        this._coordSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 0);
+    }
+
+    /**
+     * Convert a Y-up scene position on the Mars sphere to (lat °N, lon °E).
+     * Uses the tile convention: y = r·sin(lat), atan2(z, x) = lon (east-+).
+     */
+    _sceneToLatLon(pointWorld) {
+        const r = pointWorld.length();
+        if (r < 1e-6) return null;
+        const lat = Math.asin(Math.max(-1, Math.min(1, pointWorld.y / r))) * 180 / Math.PI;
+        let lon = Math.atan2(pointWorld.z, pointWorld.x) * 180 / Math.PI;
+        if (lon < 0) lon += 360;  // normalise to 0..360°E
+        return { lat, lon };
+    }
+
+    /**
+     * Raycast from the cursor into the Mars sphere and return the surface
+     * (lat, lon) hit, or null if the ray misses.
+     */
+    _getLatLonAtCursor(mouseClientX, mouseClientY) {
+        if (!this.cameraController?.camera || !this.mars) return null;
+        const canvas = this.sceneManager.renderer.domElement;
+        const rect = canvas.getBoundingClientRect();
+        this._coordMouse.x = ((mouseClientX - rect.left) / rect.width) * 2 - 1;
+        this._coordMouse.y = -((mouseClientY - rect.top) / rect.height) * 2 + 1;
+
+        this._coordRaycaster.setFromCamera(this._coordMouse, this.cameraController.camera);
+        this._coordSphere.radius = this.mars.getRadius();
+
+        const hit = new THREE.Vector3();
+        if (!this._coordRaycaster.ray.intersectSphere(this._coordSphere, hit)) return null;
+        return this._sceneToLatLon(hit);
+    }
+
+    _showCoordTooltip(latLon, mouseX, mouseY) {
+        const el = this._coordTooltipEl;
+        if (!el || !latLon) return;
+        const { lat, lon } = latLon;
+        const latStr = lat >= 0 ? `${lat.toFixed(2)}°N` : `${Math.abs(lat).toFixed(2)}°S`;
+        const lonStr = `${lon.toFixed(2)}°E`;
+        el.textContent = `${latStr}   ${lonStr}`;
+        el.style.left = `${mouseX + 12}px`;
+        el.style.top  = `${mouseY + 12}px`;
+        el.style.display = 'block';
+    }
+
+    _hideCoordTooltip() {
+        if (this._coordTooltipEl) this._coordTooltipEl.style.display = 'none';
     }
 
     handleMarkerHover(event) {
@@ -1240,10 +1325,21 @@ export class SimulationManager {
                 this.showMarkerTooltip(feature);
             }
             this.updateMarkerTooltipPosition();
-        } else if (this.hoveredFeature) {
-            this.hoveredFeature = null;
-            this.marsTerrainMarkers.clearHighlights();
-            this.hideMarkerTooltip();
+            // Named feature wins — hide the coordinate tooltip
+            this._hideCoordTooltip();
+        } else {
+            if (this.hoveredFeature) {
+                this.hoveredFeature = null;
+                this.marsTerrainMarkers.clearHighlights();
+                this.hideMarkerTooltip();
+            }
+            // No named feature under cursor — show lat/lon if ray hits Mars.
+            const latLon = this._getLatLonAtCursor(event.clientX, event.clientY);
+            if (latLon) {
+                this._showCoordTooltip(latLon, event.clientX, event.clientY);
+            } else {
+                this._hideCoordTooltip();
+            }
         }
     }
 
