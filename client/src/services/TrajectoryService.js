@@ -72,8 +72,25 @@ export class TrajectoryService {
                         signal: AbortSignal.timeout(this.config.timeout)
                     }));
 
+                    // Extract auxiliary (non-columnar) data from schema metadata:
+                    // phases_entry and other scalars serialized as JSON under 'aux'.
+                    let aux = null;
+                    try {
+                        const metadata = response.schema?.metadata;
+                        if (metadata) {
+                            // metadata may be a Map or plain object depending on arrow-js version
+                            const rawAux = metadata.get ? metadata.get('aux') : metadata.aux;
+                            if (rawAux) aux = JSON.parse(rawAux);
+                        }
+                    } catch (e) {
+                        console.warn('[TrajectoryService] Failed to parse Arrow schema aux metadata:', e);
+                    }
+
                     // Transform backend format to frontend format
                     const trajectory = this.transformBackendArrowResponse(response.toArray());
+                    if (aux?.phases_entry) {
+                        trajectory.phasesEntry = aux.phases_entry;
+                    }
 
                     return trajectory;
                 } catch (arrowError) {
@@ -300,13 +317,20 @@ export class TrajectoryService {
             });
         }
 
+        // Attach backend-computed phase transition timestamps for PhaseController.
+        // phases_entry = { "12_e": t12, "23_e": t23, "34_e": t34, "45_e": t45 }
+        if (data.phases_entry) {
+            trajectory.phasesEntry = data.phases_entry;
+        }
+
         console.log('[TrajectoryService] Transformed trajectory:', {
             points: trajectory.length,
             duration: trajectory[trajectory.length - 1].time.toFixed(2) + 's',
             initialAltitude: trajectory[0].altitude.toFixed(2) + 'km',
             finalAltitude: trajectory[trajectory.length - 1].altitude.toFixed(2) + 'km',
             initialVelocity: (trajectory[0].velocityMagnitude / 1000).toFixed(2) + 'km/s',
-            finalVelocity: (trajectory[trajectory.length - 1].velocityMagnitude / 1000).toFixed(2) + 'km/s'
+            finalVelocity: (trajectory[trajectory.length - 1].velocityMagnitude / 1000).toFixed(2) + 'km/s',
+            phasesEntry: trajectory.phasesEntry
         });
 
         return trajectory;

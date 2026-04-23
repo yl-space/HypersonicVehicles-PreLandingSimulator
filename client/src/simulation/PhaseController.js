@@ -71,6 +71,48 @@ export class PhaseController {
             this.phases = customPhases;
         }
     }
+
+    /**
+     * Override phase transition times from backend-computed values.
+     * Backend returns phases_entry = {12_e, 23_e, 34_e, 45_e}
+     * representing transitions 1→2, 2→3, 3→4, 4→5.
+     * NaN / undefined values are ignored (hardcoded defaults remain).
+     *
+     * @param {Object} phasesEntry - backend phases_entry object
+     */
+    setPhaseTimestamps(phasesEntry) {
+        if (!phasesEntry) return;
+
+        const isValid = t => typeof t === 'number' && Number.isFinite(t);
+
+        const t12 = phasesEntry['12_e'];
+        const t23 = phasesEntry['23_e'];
+        const t34 = phasesEntry['34_e'];
+        const t45 = phasesEntry['45_e'];
+
+        // Apply to phases (indices: 0=EIP, 1=Guidance, 2=Heading, 3=SUFR, 4=Chute, 5=HS-Sep)
+        if (isValid(t12) && this.phases[1]) {
+            this.phases[1].time = t12;
+            if (this.phases[0]) this.phases[0].nextPhaseTime = t12;
+        }
+        if (isValid(t23) && this.phases[2]) {
+            this.phases[2].time = t23;
+            if (this.phases[1]) this.phases[1].nextPhaseTime = t23;
+        }
+        if (isValid(t34) && this.phases[3]) {
+            this.phases[3].time = t34;
+            if (this.phases[2]) this.phases[2].nextPhaseTime = t34;
+        }
+        if (isValid(t45) && this.phases[4]) {
+            this.phases[4].time = t45;
+            if (this.phases[3]) this.phases[3].nextPhaseTime = t45;
+        }
+
+        console.log('[PhaseController] Backend phase timestamps applied:', {
+            t12, t23, t34, t45,
+            updatedPhases: this.phases.map(p => ({ name: p.name, time: p.time }))
+        });
+    }
     
     getCurrentPhase(time) {
         let phaseIndex = 0;

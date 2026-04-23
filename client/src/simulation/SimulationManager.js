@@ -538,6 +538,12 @@ export class SimulationManager {
             // Set trajectory data in TrajectoryManager
             this.trajectoryManager.setTrajectoryData(trajectoryData);
 
+            // Apply backend-computed phase transition timestamps (t12..t45).
+            // Backend attaches phasesEntry on the trajectory array property.
+            if (trajectoryData.phasesEntry && this.phaseController) {
+                this.phaseController.setPhaseTimestamps(trajectoryData.phasesEntry);
+            }
+
             // Load reference trajectory from CSV (MSL position)
             try {
                 const referenceData = await this.dataManager.loadTrajectoryCSV("MSL_position_IAU_MARS_trimmed_at_parachute.csv");
