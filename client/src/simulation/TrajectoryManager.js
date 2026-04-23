@@ -217,19 +217,41 @@ export class TrajectoryManager {
         this.createReferenceTrajectory();
     }
     
+    /**
+     * Build the green reference trajectory from an array of CSV rows.
+     *
+     * Supports two CSV schemas:
+     *   • Position only:  Time, x, y, z
+     *   • Position + velocity:  Time, x, y, z, vx, vy, vz
+     *
+     * When the velocity columns are present they are used directly (matches
+     * the SPICE truth).  Otherwise velocity is estimated from consecutive
+     * position differences as a fallback.
+     *
+     * All input coordinates are in Z-up IAU_MARS (metres / metres·s⁻¹).
+     * The stored `position` is scaled Three.js Y-up (tile frame); the
+     * original Z-up `positionMeters` / `velocityMeters` are preserved
+     * alongside for physics-based computations (side-panel equations).
+     *
+     * @param {Array} rows - parsed CSV rows
+     * @param {boolean} convertMSL - legacy X/Y negation (J2000 hack).
+     *        Set to `false` for IAU_MARS data.
+     */
     setReferenceTrajectoryFromCSV(rows, convertMSL = true) {
         this.referenceTrajectoryData = [];
         let prevPosition = null;
-        
-        // First pass: get landing site position (last point in trajectory)
-        // CSV data is in Z-up (IAU_MARS) convention; rawDistance uses original coords.
+
+        // Detect velocity columns from the first valid row.
+        const probe = rows.find(r => r && (r.vx !== undefined || r.vX !== undefined));
+        const hasVelocityColumns = !!probe;
+
+        // Landing site position (last point) — in Z-up metres
         const lastRow = rows[rows.length - 1];
         const landingX = convertMSL ? -parseFloat(lastRow.x || 0) : parseFloat(lastRow.x || 0);
         const landingY = convertMSL ? -parseFloat(lastRow.y || 0) : parseFloat(lastRow.y || 0);
         const landingZ = parseFloat(lastRow.z || 0);
         const landingSite = new THREE.Vector3(landingX, landingY, landingZ);
 
-        // Process CSV data
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
             const time = parseFloat(row.Time || row.time || 0);
@@ -237,46 +259,80 @@ export class TrajectoryManager {
             const y = convertMSL ? -parseFloat(row.y || 0) : parseFloat(row.y || 0);
             const z = parseFloat(row.z || 0);
 
-            if (!isNaN(time) && !isNaN(x) && !isNaN(y) && !isNaN(z)) {
-                const currentPos = new THREE.Vector3(x, y, z);
-                const rawDistance = Math.sqrt(x * x + y * y + z * z);
-                const altitude = rawDistance - this.marsRadius;
+            if (isNaN(time) || isNaN(x) || isNaN(y) || isNaN(z)) continue;
 
-                // Swap Y↔Z: CSV Z-up (IAU_MARS) → scene Y-up (Three.js tiles)
-                const position = new THREE.Vector3(
-                    x * this.SCALE_FACTOR,
-                    z * this.SCALE_FACTOR,   // CSV z (pole) → scene y
-                    y * this.SCALE_FACTOR    // CSV y (equatorial) → scene z
-                );
-                
-                let velocityVector = new THREE.Vector3(0, -1, 0);
-                let velocityMagnitude = 5900 * (1 - time / this.totalTime);
-                
-                if (prevPosition && i > 0) {
-                    const prevTime = this.referenceTrajectoryData[this.referenceTrajectoryData.length - 1].time;
-                    const dt = time - prevTime;
-                    if (dt > 0) {
-                        velocityVector = position.clone().sub(prevPosition).divideScalar(dt);
-                        velocityMagnitude = velocityVector.length() / this.SCALE_FACTOR;
-                    }
+            // Backend-convention (Z-up) position/velocity — preserved for physics
+            const positionMeters = new THREE.Vector3(x, y, z);
+
+            const rawDistance = positionMeters.length();
+            const altitude = rawDistance - this.marsRadius;
+
+            // Swap Y↔Z: CSV Z-up (IAU_MARS) → scene Y-up (Three.js tiles)
+            const position = new THREE.Vector3(
+                x * this.SCALE_FACTOR,
+                z * this.SCALE_FACTOR,   // CSV z (pole) → scene y
+                y * this.SCALE_FACTOR    // CSV y (equatorial) → scene z
+            );
+
+            // Velocity: prefer CSV columns (SPICE truth), fall back to
+            // finite-difference over successive positions.
+            let velocityMeters = null;
+            if (hasVelocityColumns) {
+                const vx = convertMSL ? -parseFloat(row.vx || row.vX || 0) : parseFloat(row.vx || row.vX || 0);
+                const vy = convertMSL ? -parseFloat(row.vy || row.vY || 0) : parseFloat(row.vy || row.vY || 0);
+                const vz = parseFloat(row.vz || row.vZ || 0);
+                if (!isNaN(vx) && !isNaN(vy) && !isNaN(vz)) {
+                    velocityMeters = new THREE.Vector3(vx, vy, vz);
                 }
-                
-                // Calculate distance to landing site (in meters, then convert to km)
-                const distanceToLanding = currentPos.distanceTo(landingSite) * 0.001;
-                
-                this.referenceTrajectoryData.push({
-                    time,
-                    position,
-                    altitude: altitude * 0.001, // km
-                    velocity: velocityVector.clone(), // Ensure it's a Vector3
-                    velocityMagnitude,
-                    distanceToLanding // km
-                });
-                
-                prevPosition = position.clone();
             }
+
+            let velocityVector;    // Y-up, in SCALED scene units
+            let velocityMagnitude; // m/s
+
+            if (velocityMeters) {
+                velocityMagnitude = velocityMeters.length();
+                // Scene-frame velocity: apply same Y↔Z swap + SCALE_FACTOR
+                velocityVector = new THREE.Vector3(
+                    velocityMeters.x,
+                    velocityMeters.z,
+                    velocityMeters.y
+                ).multiplyScalar(this.SCALE_FACTOR);
+            } else if (prevPosition && i > 0) {
+                // Fallback: finite-difference on scaled positions
+                const prevTime = this.referenceTrajectoryData[this.referenceTrajectoryData.length - 1].time;
+                const dt = time - prevTime;
+                if (dt > 0) {
+                    velocityVector = position.clone().sub(prevPosition).divideScalar(dt);
+                    velocityMagnitude = velocityVector.length() / this.SCALE_FACTOR;
+                } else {
+                    velocityVector = new THREE.Vector3(0, -1, 0);
+                    velocityMagnitude = 0;
+                }
+            } else {
+                velocityVector = new THREE.Vector3(0, -1, 0);
+                velocityMagnitude = 5900 * (1 - time / Math.max(this.totalTime, 1));
+            }
+
+            const distanceToLanding = positionMeters.distanceTo(landingSite) * 0.001;
+
+            this.referenceTrajectoryData.push({
+                time,
+                position,                              // Y-up scaled for rendering
+                altitude: altitude * 0.001,            // km
+                velocity: velocityVector.clone(),      // Y-up, scaled
+                velocityMagnitude,                     // m/s
+                distanceToLanding,                     // km
+                positionMeters,                        // Z-up m for physics
+                velocityMeters: velocityMeters?.clone() // Z-up m/s for physics (if available)
+            });
+
+            prevPosition = position.clone();
         }
-        
+
+        console.log(`[TrajectoryManager] Loaded reference trajectory: ` +
+                    `${this.referenceTrajectoryData.length} pts, ` +
+                    `velocity ${hasVelocityColumns ? 'from CSV columns' : 'finite-differenced'}`);
+
         this.createReferenceTrajectory();
     }
 

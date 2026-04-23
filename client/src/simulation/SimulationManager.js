@@ -29,7 +29,7 @@ export class SimulationManager {
     constructor(options = {}) {
         this.options = {
             container: document.getElementById('canvas-container'),
-            dataPath: '/assets/data/MSL_position_IAU_MARS_trimmed_at_parachute.csv',
+            dataPath: '/assets/data/MSL_reference_position_velocity.csv',
             autoStart: false,
             showStats: false,
             ...options
@@ -538,15 +538,24 @@ export class SimulationManager {
             // Set trajectory data in TrajectoryManager
             this.trajectoryManager.setTrajectoryData(trajectoryData);
 
-            // Load reference trajectory from CSV (MSL position)
+            // Reference trajectory (green overlay) comes STRICTLY from the
+            // hand-prepared SPICE CSV — never from the simulator.  The
+            // simulator trajectory (primary past/future/full line) is
+            // kept entirely distinct.
+            // New CSV includes position + velocity columns (x,y,z,vx,vy,vz).
             try {
-                const referenceData = await this.dataManager.loadTrajectoryCSV("MSL_position_IAU_MARS_trimmed_at_parachute.csv");
+                const referenceData = await this.dataManager.loadTrajectoryCSV(
+                    "MSL_reference_position_velocity.csv"
+                );
 
                 if (referenceData && referenceData.rows) {
-                    // IAU_MARS body-fixed frame matches simulation output — no X/Y negation needed
-                    this.trajectoryManager.setReferenceTrajectoryFromCSV(referenceData.rows, false);
+                    // IAU_MARS body-fixed frame — no X/Y negation needed
+                    this.trajectoryManager.setReferenceTrajectoryFromCSV(
+                        referenceData.rows,
+                        false
+                    );
                 } else {
-                    this.trajectoryManager.setReferenceTrajectory(trajectoryData);
+                    console.warn('[SimulationManager] Reference CSV returned no rows');
                 }
             } catch (refError) {
                 console.warn('[SimulationManager] Failed to load reference trajectory:', refError);
