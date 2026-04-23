@@ -29,7 +29,8 @@ def entryeoms(t: float, x: np.ndarray, planet: dict, vehicle: dict, control: dic
     h = r - planet["rp"]
     altitudes_data = planet["atmosphere_model"].iloc[:,0]
     rhos_data = planet["atmosphere_model"].iloc[:,3]
-    rho = np.interp(h, altitudes_data, rhos_data)
+    # Extrapolation: right=0 allows exoatmospheric flight above EI (density=0 above max altitude)
+    rho = np.interp(h, altitudes_data, rhos_data, right=0.0)
 
     # Kinematics
     raddot = V * np.sin(gamma)

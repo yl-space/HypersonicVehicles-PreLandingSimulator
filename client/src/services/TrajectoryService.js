@@ -25,12 +25,12 @@ export class TrajectoryService {
             planet: { planet_name: 'mars' },
             init: {
                 coord_type: 'spherical',
-                h0: 125000,                    // [m] Entry altitude
-                vel0: 6083.6,                  // [m/s] Entry velocity
+                h0: 125964.3,                  // [m] Entry altitude (MSL SPICE)
+                vel0: 5844.585,                // [m/s] Entry velocity (MSL SPICE)
                 theta0: 2.2121,                // [rad] Longitude (126.7413° IAU_MARS)
                 phi0: -0.0685,                 // [rad] Latitude (-3.9222° IAU_MARS)
-                gamma0: -0.270,                // [rad] Flight path angle (-15.5°)
-                psi0: 1.6292                   // [rad] Heading (93.3454° IAU_MARS)
+                gamma0: -0.28149,              // [rad] Flight path angle (-16.1304° IAU_MARS)
+                psi0: -0.05839                 // [rad] Heading (-3.3454° IAU_MARS)
             },
             vehicle: { vehicle_name: 'default' },
             control: { bank_angle: 0.0 }       // [rad] Bank angle
