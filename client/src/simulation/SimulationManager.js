@@ -16,6 +16,8 @@ import { MarsLatLonGrid } from '../components/environment/MarsLatLonGrid.js';
 import { Atmosphere } from '../components/environment/Atmosphere.js';
 import { TrajectoryManager } from './TrajectoryManager.js';
 import { PhaseController } from './PhaseController.js';
+import { AtmosphericModel } from './AtmosphericModel.js';
+import { FlightComputer } from './FlightComputer.js';
 import { Timeline } from '../ui/Timeline.js';
 import { PhaseInfo } from '../ui/PhaseInfo.js';
 import { Controls } from '../ui/Controls.js';
@@ -142,6 +144,14 @@ export class SimulationManager {
         this.trajectoryManager = new TrajectoryManager();
         this.phaseController = new PhaseController();
         this.dataManager = new DataManager();
+
+        // Atmospheric model + flight computer for side-panel instruments.
+        // Loads mars-gram-avg.csv asynchronously; before load, FlightComputer
+        // returns 0 for density-dependent quantities (Mach/g-load).
+        this.atmosphericModel = new AtmosphericModel();
+        this.atmosphericModel.load().catch(err =>
+            console.warn('[SimulationManager] Atmospheric model load failed:', err));
+        this.flightComputer = new FlightComputer(this.atmosphericModel);
 
         // Initialize backend-only trajectory service
         this.trajectoryService = new TrajectoryService({
@@ -831,26 +841,40 @@ export class SimulationManager {
             this.timeline.setControlValue('bankAngle',      this.state.controls.bankAngle      ?? 0);
             this.timeline.setControlValue('angleOfAttack',  this.state.controls.angleOfAttack  ?? -16);
 
-            // Feed cockpit instrument readouts
+            // Feed cockpit instrument readouts using the PDF equations:
+            //   h     = (|r| − Rp) / 1000         [km]
+            //   V     = |V⃗|                      [m/s]
+            //   Mach  = V / a(h)                  (a from mars-gram-avg.csv)
+            //   gload = √(L² + D²) / (m · gEarth) (ρ from mars-gram-avg.csv)
             if (this.state.vehicleData) {
                 const vd = this.state.vehicleData;
-                let velocity = 0;
-                if (typeof vd.velocityMagnitude === 'number' && !isNaN(vd.velocityMagnitude)) {
-                    velocity = vd.velocityMagnitude;
-                } else if (vd.velocity && typeof vd.velocity.length === 'function') {
-                    velocity = vd.velocity.length() * 100000;
+
+                // Prefer Z-up backend-convention state if available (positionMeters,
+                // velocityMeters from TrajectoryService) — magnitude is rotation-
+                // invariant, but altitude is a radius and works either way.
+                const posM = vd.positionMeters || vd.position;   // m or scene units
+                const velM = vd.velocityMeters || vd.velocity;   // m/s
+
+                // If only scene position is available, un-scale back to meters.
+                let posForCompute = posM;
+                if (posM && !vd.positionMeters && typeof posM.x === 'number') {
+                    posForCompute = { x: posM.x * 1e5, y: posM.y * 1e5, z: posM.z * 1e5 };
                 }
-                const altKm = vd.altitude || 0;
-                const soundSpeed = Math.max(150, 240 - altKm * 0.5);
-                const mach = velocity / soundSpeed;
-                const gForce = Math.min(velocity / 5000, 8);
+
+                const instruments = this.flightComputer.computeAll(posForCompute, velM);
+
+                // Fall back to vd.altitude / velocityMagnitude if state is missing.
+                const altKm = Number.isFinite(instruments.altitudeKm)
+                    ? instruments.altitudeKm : (vd.altitude || 0);
+                const velMs = Number.isFinite(instruments.velocityMS)
+                    ? instruments.velocityMS : (vd.velocityMagnitude || 0);
 
                 this.timeline.setTelemetry({
                     altitudeMiles:  altKm * 0.621371,
-                    velocityMph:    velocity * 0.621371,
+                    velocityMph:    velMs * 2.23694,       // m/s → mph
                     distanceMiles:  (vd.distanceToLanding || 0) * 0.621371,
-                    mach,
-                    gForce,
+                    mach:           instruments.mach,
+                    gForce:         instruments.gLoad,
                 });
             }
         }
