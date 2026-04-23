@@ -2,7 +2,9 @@
  * MarsFeatureService - Dynamic Mars feature data loader
  *
  * Fetches Mars terrain features from official USGS Planetary Nomenclature database
- * via our backend proxy (to avoid CORS issues).
+ * via our backend proxy (to avoid CORS issues), and supplements them with
+ * hand-curated landmarks from CustomLandmarks.js (craters along the MSL entry
+ * corridor, Gale Crater features, Aeolis Mons, etc.).
  *
  * Data Source: USGS/IAU Gazetteer of Planetary Nomenclature
  * https://planetarynames.wr.usgs.gov/
@@ -10,6 +12,7 @@
  * All feature data is fetched dynamically from the official source to ensure accuracy.
  * Landing site data is from NASA official mission documentation.
  */
+import { CUSTOM_LANDMARKS } from './CustomLandmarks.js';
 
 // Feature type descriptions from USGS/IAU nomenclature
 // Source: https://planetarynames.wr.usgs.gov/DescriptorTerms
@@ -278,10 +281,26 @@ export class MarsFeatureService {
             source: 'NASA/Official Space Agency'
         }));
 
+        // De-duplicate: a custom landmark with the same (case-insensitive) name
+        // as an API-fetched feature is skipped to avoid double markers.
+        const apiNames = new Set(this.features.map(f => (f.name || '').toLowerCase()));
+        const customFeatures = CUSTOM_LANDMARKS
+            .filter(c => !apiNames.has((c.name || '').toLowerCase()))
+            .map(c => ({
+                name: c.name,
+                lat: c.lat,
+                lon: c.lon,
+                diameter: c.diameter ?? 30,
+                type: c.type || 'AA',
+                description: c.description || '',
+                source: c.source || 'Custom landmarks',
+            }));
+
         return {
             features: this.features,
             landingSites: landingSiteFeatures,
-            all: [...this.features, ...landingSiteFeatures],
+            customFeatures,
+            all: [...this.features, ...landingSiteFeatures, ...customFeatures],
             source: this.dataSource,
             featureTypes: FEATURE_TYPES
         };
