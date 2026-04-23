@@ -281,11 +281,57 @@ export class MarsFeatureService {
             source: 'NASA/Official Space Agency'
         }));
 
-        // De-duplicate: a custom landmark with the same (case-insensitive) name
-        // as an API-fetched feature is skipped to avoid double markers.
-        const apiNames = new Set(this.features.map(f => (f.name || '').toLowerCase()));
+        // De-duplicate against API features:
+        //   (a) Normalised name (strip suffix "Crater", "Mons", "Vallis", etc.)
+        //   (b) Proximity (<100 km) with same type
+        // This removes the "Knobel" + "Knobel Crater" double-label problem
+        // and other near-duplicates between our custom list and USGS.
+        const normaliseName = (s) =>
+            (s || '')
+                .toLowerCase()
+                .replace(/[_\-\s]+/g, ' ')
+                .replace(/\s+(crater|mons|vallis|valles|planum|planitia|mensa|mensae|tholus|fossa|catena|dorsum|rupes|sulcus|scopulus|labyrinthus|chasma|patera)$/g, '')
+                .trim();
+
+        const apiIndex = this.features.map(f => ({
+            name: normaliseName(f.name),
+            lat: Number(f.lat),
+            lon: Number(f.lon),
+            type: f.type,
+        }));
+
+        // Haversine-ish km on a sphere (Mars radius). Longitude wraps at 360°.
+        const MARS_RADIUS_KM = 3396;
+        const angularDistKm = (a, b) => {
+            const dLat = (a.lat - b.lat) * Math.PI / 180;
+            let dLon = (a.lon - b.lon) * Math.PI / 180;
+            // wrap longitude to [-π, π]
+            if (dLon > Math.PI) dLon -= 2 * Math.PI;
+            if (dLon < -Math.PI) dLon += 2 * Math.PI;
+            const latA = a.lat * Math.PI / 180;
+            const latB = b.lat * Math.PI / 180;
+            const h = Math.sin(dLat / 2) ** 2 +
+                      Math.cos(latA) * Math.cos(latB) * Math.sin(dLon / 2) ** 2;
+            return 2 * MARS_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
+        };
+
+        const PROXIMITY_KM = 100;
+        const isDuplicate = (custom) => {
+            const cNorm = normaliseName(custom.name);
+            return apiIndex.some(a => {
+                if (a.name && a.name === cNorm) return true;
+                if (Number.isFinite(a.lat) && Number.isFinite(a.lon) &&
+                    Number.isFinite(custom.lat) && Number.isFinite(custom.lon) &&
+                    angularDistKm(a, custom) < PROXIMITY_KM) {
+                    // Same type AND close → duplicate
+                    return a.type === custom.type;
+                }
+                return false;
+            });
+        };
+
         const customFeatures = CUSTOM_LANDMARKS
-            .filter(c => !apiNames.has((c.name || '').toLowerCase()))
+            .filter(c => !isDuplicate(c))
             .map(c => ({
                 name: c.name,
                 lat: c.lat,
@@ -295,6 +341,11 @@ export class MarsFeatureService {
                 description: c.description || '',
                 source: c.source || 'Custom landmarks',
             }));
+
+        if (CUSTOM_LANDMARKS.length !== customFeatures.length) {
+            console.log(`[MarsFeatureService] Deduped ${CUSTOM_LANDMARKS.length - customFeatures.length} ` +
+                        `custom landmarks against USGS data (kept ${customFeatures.length}/${CUSTOM_LANDMARKS.length}).`);
+        }
 
         return {
             features: this.features,

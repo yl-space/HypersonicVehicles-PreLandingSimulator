@@ -549,21 +549,30 @@ export class PlanetTileManager {
         const desired = [];
         this.rootTiles.forEach(root => this.collectVisible(root, camera, pixelsPerRad, desired));
 
-        // Retain desired tiles and their ancestors to avoid deleting the tree.
-        // Root tiles are ALWAYS retained — they are the minimum LOD fallback and
-        // must never be disposed, even when back-facing.  Disposing them leaves
-        // a permanent black hole because removeTile() nulls the mesh.
-        const retained = new Set(this.rootTiles);
-        desired.forEach(tile => {
-            let current = tile;
-            while (current) {
-                if (retained.has(current)) break;
-                retained.add(current);
-                current = current.parent;
+        // Retention policy: walk the entire tree from the root tiles and
+        // retain every tile reachable from them.  Back-face-culled children
+        // are still reachable through their parent's `children` array even
+        // though collectVisible short-circuits the recursion, so they stay
+        // alive until their parent is explicitly disposed.
+        //
+        // Previously we built `retained` from the desired list + ancestors.
+        // That disposed back-facing children whose parent was also back-
+        // facing, leaving the parent holding dead-object references in its
+        // children array — which then prevented re-subdivision and made the
+        // planet stick at the coarse level-1 tile coverage.
+        const retained = new Set();
+        const walkTree = (tile) => {
+            if (!tile || retained.has(tile)) return;
+            retained.add(tile);
+            if (tile.children) {
+                for (const child of tile.children) walkTree(child);
             }
-        });
+        };
+        this.rootTiles.forEach(walkTree);
 
-        // Only remove non-root tiles that are not in the retained set
+        // Anything not reachable from a root tile is an orphan — remove it.
+        // This GC path typically hits nothing unless we explicitly prune the
+        // tree (future LRU eviction).
         this.tileCache.forEach((tile) => {
             if (!retained.has(tile)) {
                 this.removeTile(tile);
@@ -604,12 +613,11 @@ export class PlanetTileManager {
         const cameraDir = camera.position.clone().sub(worldCenter).normalize();
         const dotProduct = tileNormal.dot(cameraDir);
 
-        // Back-face culling: skip tiles facing away from the camera.
-        // BUT never cull root-level tiles — they each cover 90°×90° of the
-        // planet, so the tile-center dot product is unreliable (the camera
-        // can be directly above a tile edge while the center is on the far
-        // side).  Root tiles are cheap (8 segments) and must always render
-        // to guarantee a visible planet surface.
+        // Back-face culling: hide tiles facing away from the camera.
+        // Root tiles are never culled — they each cover 90°×90° of the
+        // planet, so the tile-center dot product is unreliable.
+        // Retention is handled by the tree-walk in update(), so we can
+        // simply early-return here without worrying about tile eviction.
         if (tile.z > this.minLevel && dotProduct < -0.2) {
             if (tile.mesh && this.group.children.includes(tile.mesh)) {
                 this.group.remove(tile.mesh);

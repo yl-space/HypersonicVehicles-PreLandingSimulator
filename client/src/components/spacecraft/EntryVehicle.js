@@ -980,18 +980,12 @@ export class EntryVehicle {
                     this._applyStarshipMaterials();
                     this.applyMaterialFixes();
 
-                    // Belly-flop entry orientation.  After the generic GLTF+config
-                    // pipeline the Starship's nose points along local +Z, which
-                    // setScientificAttitude aligns with velocity — meaning the
-                    // nose leads the airflow.  That is wrong for MSL-like entry.
-                    // For belly-flop, the heat-tiled belly (-Y in the model frame
-                    // after prep) should face the velocity direction and the body
-                    // axis should be roughly horizontal.
-                    // -90° around X rotates: belly (-Y) → +Z (velocity),
-                    //                        nose  (+Z) → +Y (perpendicular).
-                    if (this.vehicleLOD) {
-                        this.vehicleLOD.rotation.x = -Math.PI / 2;
-                    }
+                    // No extra LOD rotation needed.  The GLTF node quaternion
+                    // (+90° X) and the AssetLoader config rotation (-90° X)
+                    // cancel, leaving the model's local +Z axis (nose tip)
+                    // unchanged.  setScientificAttitude then maps local +Z to
+                    // velocity, so the nose points along the trajectory —
+                    // matching a nose-first entry attitude.
                 }
                 break;
             case 'backup':
