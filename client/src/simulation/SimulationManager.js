@@ -548,12 +548,6 @@ export class SimulationManager {
             // Set trajectory data in TrajectoryManager
             this.trajectoryManager.setTrajectoryData(trajectoryData);
 
-            // Apply backend-computed phase transition timestamps (t12..t45).
-            // Backend attaches phasesEntry on the trajectory array property.
-            if (trajectoryData.phasesEntry && this.phaseController) {
-                this.phaseController.setPhaseTimestamps(trajectoryData.phasesEntry);
-            }
-
             // Reference trajectory (green overlay) comes STRICTLY from the
             // hand-prepared SPICE CSV — never from the simulator.  The
             // simulator trajectory (primary past/future/full line) is
@@ -585,7 +579,8 @@ export class SimulationManager {
                 }
             }
 
-            // Load mission configuration
+            // Load mission configuration — must come BEFORE applying backend
+            // phase timestamps, otherwise setPhases() overwrites our overrides.
             const missionConfig = await this.dataManager.loadMissionConfig();
 
             // PhaseController expects setPhases with array
@@ -593,6 +588,18 @@ export class SimulationManager {
                 this.phaseController.setPhases(missionConfig.phases);
                 if (this.timeline) {
                     this.timeline.setPhases(missionConfig.phases);
+                }
+            }
+
+            // Apply backend-computed phase transition timestamps (t12..t45)
+            // AFTER mission config is applied so they take effect on the final
+            // phases array.  Backend attaches phasesEntry on the trajectory
+            // array property (both JSON and Arrow paths).
+            if (trajectoryData.phasesEntry && this.phaseController) {
+                this.phaseController.setPhaseTimestamps(trajectoryData.phasesEntry);
+                // Re-sync timeline markers with updated phase times
+                if (this.timeline) {
+                    this.timeline.setPhases(this.phaseController.phases);
                 }
             }
 
