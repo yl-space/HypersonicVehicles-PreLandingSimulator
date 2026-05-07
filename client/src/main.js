@@ -3,7 +3,6 @@
  */
 
 import { SimulationManager } from './simulation/SimulationManager.js';
-import { listTrajectoryPresets, getTrajectoryPreset } from './config/TrajectoryPresets.js';
 
 // Register Service Worker for tile caching
 if ('serviceWorker' in navigator) {
@@ -165,7 +164,9 @@ function showWelcomeDialog() {
     const planets = [
         { value: 'mars', label: 'Mars' }
     ];
-    const trajectories = listTrajectoryPresets();
+    const trajectories = [
+        { value: 'msl', label: 'MSL (Curiosity) - Real Data' }
+    ];
     const vehicles = [
         { value: 'primary', label: 'Dragon' },
         { value: 'starship', label: 'Starship' },
@@ -240,17 +241,25 @@ function showWelcomeDialog() {
 
     // Populate spec panel + react to selection changes
     const renderSpec = () => {
-        const trajId = document.getElementById('sim-trajectory')?.value || 'msl';
         const vehId  = document.getElementById('sim-vehicle')?.value  || 'primary';
-        const planetId = document.getElementById('sim-planet')?.value || 'mars';
 
-        const preset = getTrajectoryPreset(trajId);
+        // MSL nominal trajectory facts (from sim-server DEFAULT_INIT, SPICE-derived).
+        // When backend exposes preset trajectories, this block can be made
+        // dynamic — for now it reflects the only scenario the backend serves.
         const trajGrid = document.getElementById('spec-trajectory');
-        if (trajGrid && preset) {
-            trajGrid.innerHTML = Object.entries(preset.spec)
+        if (trajGrid) {
+            const trajSpec = {
+                'Entry altitude':    '125.96 km',
+                'Entry velocity':    '5,845 m/s',
+                'Flight path angle': '-16.13°',
+                'Heading':           '-3.35°',
+                'Lat / Lon (entry)': '-3.92° N / 126.74° E',
+                'Profile':           'Shallow ballistic',
+            };
+            trajGrid.innerHTML = Object.entries(trajSpec)
                 .map(([k, v]) => `<div class="spec-row"><span class="spec-label">${k}</span><span class="spec-value">${v}</span></div>`)
                 .join('') +
-                `<div class="spec-row spec-desc">${preset.description}</div>`;
+                `<div class="spec-row spec-desc">Reference Mars Science Laboratory entry — initial conditions match sim-server's SPICE-derived defaults.</div>`;
         }
 
         // Vehicle params per the side-panel-equations PDF (Table 1).
@@ -288,7 +297,9 @@ function showWelcomeDialog() {
         }
     };
 
-    ['sim-trajectory', 'sim-vehicle', 'sim-planet'].forEach(id => {
+    // Re-render the spec panel when the user changes vehicle / planet
+    // (trajectory dropdown is single-option until backend exposes presets).
+    ['sim-vehicle', 'sim-planet'].forEach(id => {
         document.getElementById(id)?.addEventListener('change', renderSpec);
     });
     renderSpec();
@@ -313,22 +324,6 @@ window.closeWelcomeDialog = async function() {
     window.MarsEDL.config.planet = planet;
     window.MarsEDL.config.trajectory = trajectory;
     window.MarsEDL.config.vehicle = vehicle;
-
-    // Apply trajectory preset → push initial conditions to TrajectoryService
-    // and trigger a re-fetch so the simulator uses the selected scenario.
-    try {
-        const preset = getTrajectoryPreset(trajectory);
-        const sim = window.MarsEDL.simulation;
-        if (sim?.trajectoryService && preset) {
-            sim.trajectoryService.setInitialConditions(preset.init);
-            // Re-pull trajectory using the preset (only when changing from default)
-            if (trajectory !== 'msl' && sim.loadData) {
-                await sim.loadData();
-            }
-        }
-    } catch (e) {
-        console.warn('[main] Failed to apply trajectory preset:', e);
-    }
 
     // Update mode indicator to show SIMULATION and collapse rate drawer
     if (window.MarsEDL.simulation) {
