@@ -24,10 +24,11 @@ export class Mars {
         this.useTileLOD = this.renderMode === 'tile';
         this.tileBaseUrl = options.tileBaseUrl || 'https://trek.nasa.gov/tiles/Mars/EQ/corrected/Mars_Viking_MDIM21_ClrMosaic_global_232m';
         this.tileExtension = options.tileExtension || 'png';
-        // Increased maxTileLevel from 6 to 8 for sharper close-up rendering.
-        // NASA Trek MDIM21 source is 232 m/pixel; level 8 tiles give
-        // ~163 m/pixel which is near source resolution.
-        this.maxTileLevel = options.maxTileLevel ?? 8;
+        // maxTileLevel = 7 — NASA Trek MDIM21's actual max served level
+        // (z=8 returns 404).  Level 7 gives ~325 m/pixel at the surface,
+        // close to the 232 m/px source.  Setting this any higher causes
+        // an infinite 404-fetch loop that hangs the browser.
+        this.maxTileLevel = options.maxTileLevel ?? 7;
         this.tileManager = null;
         this.marsJSBaseUrl = options.marsJSBaseUrl || '/assets/textures/MarsJS';
         

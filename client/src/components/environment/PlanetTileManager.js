@@ -489,10 +489,22 @@ export class PlanetTileManager {
      * Load tile from network and optionally cache in IndexedDB
      */
     loadTileFromNetwork(url, tile, tileKey, done) {
-        // Use fetch to get blob for caching, then create texture
+        // Skip tiles that have already failed (avoid hammering 404s when
+        // the camera approaches the surface and subdivision keeps trying
+        // to fetch tiles past the source resolution limit).
+        if (tile._failed) {
+            tile.loading = false;
+            done();
+            return;
+        }
         fetch(url)
             .then(response => {
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                if (!response.ok) {
+                    // Mark permanently failed so subsequent passes don't
+                    // re-queue the same tile.  Treat 404 as final.
+                    if (response.status === 404) tile._failed = true;
+                    throw new Error(`HTTP ${response.status}`);
+                }
                 return response.blob();
             })
             .then(async (blob) => {
@@ -653,11 +665,11 @@ export class PlanetTileManager {
         // Apparent angular size from camera's perspective
         const apparentAngularSize = 2 * Math.atan2(tileArcSize / 2, dist);
         const screenSize = apparentAngularSize * pixelsPerRad;
-        // Aggressive subdivision: 25 px threshold (was 40) so tiles refine
-        // earlier as the camera approaches.  At low altitude this prevents
-        // the visible "blocky" / pixelated coarse tiles that occur when a
-        // single tile spans hundreds of pixels.
-        const shouldSubdivide = screenSize > 25 && tile.z < this.maxLevel;
+        // Subdivision threshold 30 px — refines earlier than the original
+        // 40 px (sharper close-up tiles) but conservative enough to keep
+        // tile counts bounded at low altitude.  Going below 25 with
+        // maxLevel=7 produces tens of thousands of tile fetches.
+        const shouldSubdivide = screenSize > 30 && tile.z < this.maxLevel;
 
         if (shouldSubdivide) {
             if (!tile.children) {
