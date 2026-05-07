@@ -66,6 +66,49 @@ export const ModelMetadata = {
         source: 'SOLIDWORKS conversion by Oleksii'
     },
 
+    // SpaceX Starship model — used when "Starship" is selected at startup
+    // or via switchModel('starship'). The GLTF was exported from Fusion 360
+    // with +Y up and +X forward; we apply -90° X rotation so the model's
+    // local +Z axis (the nose) ends up pointing along velocity in J2000.
+    starship: {
+        name: 'Starship',
+        filename: 'Starship_updated_binary.glb',
+        originalAxes: {
+            forward: '+Y',
+            up: '+Z',
+            right: '+X',
+            notes: 'Fusion 360 export'
+        },
+        simulationAxes: {
+            forward: '+X',
+            up: '+Z',
+            right: '+Y',
+            notes: 'J2000 inertial reference frame'
+        },
+        transformations: {
+            rotation: {
+                x: -90,
+                y: 0,
+                z: 0,
+                order: 'XYZ'
+            },
+            // Starship is ~50 m tall.  Scale 1e-5 puts the model at
+            // 5e-4 scene units (~50 m), comparable to Dragon at this scale.
+            scale: 0.00001,
+            position: { x: 0, y: 0, z: 0 }
+        },
+        centerOffset: { x: 0, y: 0, z: 0 },
+        visualScale: { near: 0.001, medium: 0.0005, far: 0.0002 },
+        materials: {
+            heatShieldColor: '#222222',
+            bodyColor: '#dddddd',
+            metallic: 0.7,
+            roughness: 0.3
+        },
+        notes: 'SpaceX Starship — converted from Fusion 360 export',
+        source: 'SpaceX'
+    },
+
     // Buran spacecraft model
     buran: {
         name: 'Buran Spacecraft',
@@ -278,8 +321,12 @@ export class ModelSelector {
         return ModelMetadata.buran;
     }
 
+    static getStarshipModel() {
+        return ModelMetadata.starship;
+    }
+
     static getAllModels() {
-        return [ModelMetadata.dragonConverted, ModelMetadata.buran];
+        return [ModelMetadata.dragonConverted, ModelMetadata.starship, ModelMetadata.buran];
     }
 }
 

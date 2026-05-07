@@ -985,11 +985,11 @@ export class EntryVehicle {
             case 'starship':
                 {
                     this.useGLTF = true;
-                    this.modelMetadata = {
-                        name: 'Starship',
-                        filename: 'Starship_updated_binary.glb'
-                    };
-                    await this.loadGLTFModel(this.modelMetadata.filename);
+                    const starshipModel = ModelSelector.getStarshipModel
+                        ? ModelSelector.getStarshipModel()
+                        : { name: 'Starship', filename: 'Starship_updated_binary.glb' };
+                    this.modelMetadata = starshipModel;
+                    await this.loadGLTFModel(starshipModel.filename);
                     this._cleanupGLTFModel();
                     // Fix Fusion 360 export: all materials exported as grey (0.8,0.8,0.8).
                     // Restore correct colours based on material names.
