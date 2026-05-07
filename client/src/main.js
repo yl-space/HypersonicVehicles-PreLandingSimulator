@@ -3,6 +3,7 @@
  */
 
 import { SimulationManager } from './simulation/SimulationManager.js';
+import { listTrajectoryPresets, getTrajectoryPreset } from './config/TrajectoryPresets.js';
 
 // Register Service Worker for tile caching
 if ('serviceWorker' in navigator) {
@@ -159,9 +160,7 @@ function showError(message) {
 /**
  * Show welcome dialog
  */
-async function showWelcomeDialog() {
-    const { listTrajectoryPresets, getTrajectoryPreset } = await import('./config/TrajectoryPresets.js');
-
+function showWelcomeDialog() {
     // Available simulation options (only show what's actually implemented)
     const planets = [
         { value: 'mars', label: 'Mars' }
@@ -318,7 +317,6 @@ window.closeWelcomeDialog = async function() {
     // Apply trajectory preset → push initial conditions to TrajectoryService
     // and trigger a re-fetch so the simulator uses the selected scenario.
     try {
-        const { getTrajectoryPreset } = await import('./config/TrajectoryPresets.js');
         const preset = getTrajectoryPreset(trajectory);
         const sim = window.MarsEDL.simulation;
         if (sim?.trajectoryService && preset) {
