@@ -104,8 +104,30 @@ export class PhaseController {
             if (this.phases[2]) this.phases[2].nextPhaseTime = t34;
         }
         if (isValid(t45) && this.phases[4]) {
+            // Capture original t45 (parachute deploy) before override so we can
+            // shift downstream EDL phases (heat shield sep, backshell sep, sky
+            // crane) by the same delta. Without this, the legacy hardcoded times
+            // (e.g. 260s) fall BEFORE the backend-computed parachute deploy
+            // (e.g. 318s), producing non-monotonic phase ordering.
+            const oldT45 = this.phases[4].time;
+            const delta = t45 - oldT45;
             this.phases[4].time = t45;
             if (this.phases[3]) this.phases[3].nextPhaseTime = t45;
+            if (Number.isFinite(delta) && delta !== 0) {
+                for (let i = 5; i < this.phases.length; i++) {
+                    if (typeof this.phases[i].time === 'number') {
+                        this.phases[i].time += delta;
+                    }
+                    if (typeof this.phases[i].nextPhaseTime === 'number') {
+                        this.phases[i].nextPhaseTime += delta;
+                    }
+                }
+                // Phase 4's nextPhaseTime points at phase 5's time, refresh it.
+                if (this.phases[4] && this.phases[5] &&
+                    typeof this.phases[5].time === 'number') {
+                    this.phases[4].nextPhaseTime = this.phases[5].time;
+                }
+            }
         }
 
         console.log('[PhaseController] Backend phase timestamps applied:', {
