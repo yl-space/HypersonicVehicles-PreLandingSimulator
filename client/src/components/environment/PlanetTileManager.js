@@ -347,8 +347,13 @@ export class PlanetTileManager {
         });
 
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.frustumCulled = false;
-        // Store tile info on mesh for debugging
+        // Enable frustum culling — Three.js will skip rendering tiles whose
+        // bounding sphere is outside the camera's view cone.  This pairs
+        // with our lenient back-face cull (-0.7 dot threshold) to keep the
+        // GPU load bounded: back-face cull keeps the tree small, frustum
+        // culling skips off-screen tiles per-frame.
+        mesh.frustumCulled = true;
+        geometry.computeBoundingSphere();
         mesh.userData.tileKey = `${z}/${x}/${y}`;
         mesh.userData.segments = segments;
 
@@ -613,15 +618,28 @@ export class PlanetTileManager {
         const cameraDir = camera.position.clone().sub(worldCenter).normalize();
         const dotProduct = tileNormal.dot(cameraDir);
 
-        // Back-face culling: hide tiles facing away from the camera.
-        // Root tiles are never culled — they each cover 90°×90° of the
-        // planet, so the tile-center dot product is unreliable.
-        // Retention is handled by the tree-walk in update(), so we can
-        // simply early-return here without worrying about tile eviction.
-        if (tile.z > this.minLevel && dotProduct < -0.2) {
+        // Back-face culling: hide tiles definitively on the far side of
+        // the planet.  The threshold has to account for two things:
+        //   1. Tile angular extent — a level-2 tile spans 45°, so its
+        //      center can be 22° off the camera's sub-satellite even when
+        //      a corner is still in view.
+        //   2. Visible spherical cap shrinks with altitude — at a low
+        //      altitude (e.g. 26 km) the cap is only ~2°, so naive
+        //      tile-center dot product overestimates "back-facing".
+        //
+        // A threshold of -0.7 keeps any tile whose center is within ~135°
+        // of the camera's sub-satellite, which covers all partially-
+        // visible tiles even at the largest tile size (level 1, 90° wide).
+        // The trade-off is a few extra tiles render — negligible vs the
+        // missing-chunk artifact from over-aggressive culling.
+        // Retention is handled by the tree-walk in update().
+        if (tile.z > this.minLevel && dotProduct < -0.7) {
             if (tile.mesh && this.group.children.includes(tile.mesh)) {
                 this.group.remove(tile.mesh);
             }
+            // Back-facing → not visible from camera, so the parent doesn't
+            // need to keep itself rendered to fill any gap on this tile.
+            tile._covered = true;
             return;
         }
 
@@ -648,17 +666,27 @@ export class PlanetTileManager {
                 }
             }
             tile.children.forEach(child => this.collectVisible(child, camera, pixelsPerRad, desired));
-            // Keep parent mesh visible until all children are loaded to avoid gaps
-            const allChildrenLoaded = tile.children.every(c => c.loaded);
+            // A child is "covering its area" if either:
+            //   - its mesh is in the render group (front-facing leaf), OR
+            //   - it has subdivided further AND those grandchildren are
+            //     covering it (recursive — represented by the child's
+            //     own `_covered` flag set during its collectVisible call).
+            // Otherwise the child is back-face culled or still loading,
+            // and the parent must stay visible to avoid a hole.
+            const allChildrenCovered = tile.children.every(
+                c => (c.mesh && this.group.children.includes(c.mesh)) || c._covered === true
+            );
             if (tile.mesh) {
-                if (allChildrenLoaded) {
+                if (allChildrenCovered) {
                     if (this.group.children.includes(tile.mesh)) {
                         this.group.remove(tile.mesh);
                     }
+                    tile._covered = true;
                 } else {
                     if (!this.group.children.includes(tile.mesh)) {
                         this.group.add(tile.mesh);
                     }
+                    tile._covered = false;
                 }
             }
         } else {
@@ -669,6 +697,7 @@ export class PlanetTileManager {
             if (tile.mesh && !this.group.children.includes(tile.mesh)) {
                 this.group.add(tile.mesh);
             }
+            tile._covered = !!tile.mesh; // leaf tile covers its own area
             desired.push(tile);
         }
     }
