@@ -5,6 +5,8 @@
   "main": "server/index.js",
   "type": "module",
   "scripts": {
+    "setup": "node setup.js",
+    "start:all": "node start.js",
     "start": "node server/index.js",
     "dev": "node server/index.js --development",
     "prod": "node server/index.js --production",
