@@ -78,10 +78,12 @@ export class PlanetTileManager {
      * Higher zoom = more segments for better detail
      */
     getSegmentsForLevel(z) {
-        // Higher segment count = smoother curvature = fewer visible seams
-        if (z <= 2) return 8;    // Coarse tiles
-        if (z <= 4) return 16;   // Medium tiles
-        return 24;               // Fine tiles: smooth curvature near spacecraft
+        // Higher segment count = smoother curvature, less polygonal silhouette.
+        // Bumped at all levels — curvature shows most at the horizon, where
+        // even the highest-LOD tiles' silhouettes were visibly faceted.
+        if (z <= 2) return 12;   // Coarse tiles (was 8)
+        if (z <= 4) return 20;   // Medium tiles (was 16)
+        return 32;               // Fine tiles: smooth curvature near spacecraft (was 24)
     }
 
     init() {
@@ -651,8 +653,11 @@ export class PlanetTileManager {
         // Apparent angular size from camera's perspective
         const apparentAngularSize = 2 * Math.atan2(tileArcSize / 2, dist);
         const screenSize = apparentAngularSize * pixelsPerRad;
-        // Aggressive subdivision: 40px threshold ensures high detail near spacecraft
-        const shouldSubdivide = screenSize > 40 && tile.z < this.maxLevel;
+        // Aggressive subdivision: 25 px threshold (was 40) so tiles refine
+        // earlier as the camera approaches.  At low altitude this prevents
+        // the visible "blocky" / pixelated coarse tiles that occur when a
+        // single tile spans hundreds of pixels.
+        const shouldSubdivide = screenSize > 25 && tile.z < this.maxLevel;
 
         if (shouldSubdivide) {
             if (!tile.children) {

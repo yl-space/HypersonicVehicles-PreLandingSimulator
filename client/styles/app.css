@@ -2398,3 +2398,66 @@ select:focus {
     font-weight: 500;
 }
 
+
+/* ==========================================================================
+   Welcome dialog — Mission Spec panel
+   ========================================================================== */
+
+.mission-spec-panel {
+    margin: 18px 0 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    border-top: 1px solid rgba(255, 102, 0, 0.25);
+    padding-top: 14px;
+}
+
+.spec-section h4 {
+    color: #ff6600;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin: 0 0 8px;
+    font-weight: 600;
+}
+
+.spec-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.spec-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 11.5px;
+    line-height: 1.4;
+    padding: 2px 0;
+    border-bottom: 1px dotted rgba(255, 255, 255, 0.06);
+}
+
+.spec-label {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.spec-value {
+    color: #f6dcb3;
+    font-family: 'Courier New', monospace;
+    text-align: right;
+}
+
+.spec-row.spec-desc {
+    display: block;
+    color: rgba(255, 255, 255, 0.45);
+    font-style: italic;
+    font-size: 10.5px;
+    line-height: 1.45;
+    border-bottom: none;
+    padding-top: 6px;
+    padding-bottom: 0;
+}
+
+@media (max-width: 768px) {
+    .mission-spec-panel { grid-template-columns: 1fr; }
+}

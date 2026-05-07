@@ -57,7 +57,7 @@ export class MarsLatLonGrid {
         this.group = new THREE.Group();
         this.group.name = 'MarsLatLonGrid';
 
-        this.marsRadius  = options.marsRadius  ?? 33.9;
+        this.marsRadius  = options.marsRadius  ?? 33.96; // 3,396 km, IAU 2018
         this.gridRadius  = this.marsRadius * SURFACE_OFFSET;
         this.labelRadius = this.marsRadius * LABEL_OFFSET;
         this._lineRefs   = [];

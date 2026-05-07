@@ -198,7 +198,7 @@ export class SimulationManager {
             renderMode: 'tile', // now proxied via sim-server to avoid CORS
             tileBaseUrl: marsTileBaseUrl,
             tileExtension: 'jpg',
-            maxTileLevel: 6, // keep tile loads lighter for faster visibility
+            maxTileLevel: 8, // up to ~163 m/pixel — near MDIM21 source res for crisp surface detail
             marsJSBaseUrl: '/assets/textures/MarsJS'
         });
         this.earth = new Earth();

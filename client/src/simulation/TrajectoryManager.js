@@ -7,7 +7,12 @@ export class TrajectoryManager {
     constructor() {
         this.trajectoryData = [];
         this.totalTime = 260;
-        this.marsRadius = 3390000; // meters (NASA data)
+        // Use 3,396 km — IAU 2018 Mars equatorial radius — matches the
+        // physics backend (sim-server/constants/planets.py PLANETS.mars.rp)
+        // and FlightComputer.PLANET_PARAMS.Rp.  Previously was 3,390,000
+        // which caused a ~6 km altitude offset between the simulator's
+        // physics and the displayed values.
+        this.marsRadius = 3396000;
         // Scale factor: 1 unit = 100 km for consistency with planet scales
         this.SCALE_FACTOR = 0.00001; // Convert meters to visualization units
 

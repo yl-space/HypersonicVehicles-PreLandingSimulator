@@ -159,14 +159,14 @@ function showError(message) {
 /**
  * Show welcome dialog
  */
-function showWelcomeDialog() {
+async function showWelcomeDialog() {
+    const { listTrajectoryPresets, getTrajectoryPreset } = await import('./config/TrajectoryPresets.js');
+
     // Available simulation options (only show what's actually implemented)
     const planets = [
         { value: 'mars', label: 'Mars' }
     ];
-    const trajectories = [
-        { value: 'msl', label: 'MSL (Curiosity) - Real Data' }
-    ];
+    const trajectories = listTrajectoryPresets();
     const vehicles = [
         { value: 'primary', label: 'Dragon' },
         { value: 'starship', label: 'Starship' },
@@ -203,6 +203,21 @@ function showWelcomeDialog() {
                 </div>
             </div>
 
+            <div class="mission-spec-panel" id="mission-spec-panel">
+                <div class="spec-section">
+                    <h4>Trajectory</h4>
+                    <div class="spec-grid" id="spec-trajectory"></div>
+                </div>
+                <div class="spec-section">
+                    <h4>Vehicle</h4>
+                    <div class="spec-grid" id="spec-vehicle"></div>
+                </div>
+                <div class="spec-section">
+                    <h4>Planet</h4>
+                    <div class="spec-grid" id="spec-planet"></div>
+                </div>
+            </div>
+
             <div class="dialog-controls">
                 <h3>Controls:</h3>
                 <ul>
@@ -223,6 +238,62 @@ function showWelcomeDialog() {
     document.body.appendChild(dialog);
     const startBtn = document.getElementById('start-sim-btn');
     if (startBtn) startBtn.addEventListener('click', () => window.closeWelcomeDialog());
+
+    // Populate spec panel + react to selection changes
+    const renderSpec = () => {
+        const trajId = document.getElementById('sim-trajectory')?.value || 'msl';
+        const vehId  = document.getElementById('sim-vehicle')?.value  || 'primary';
+        const planetId = document.getElementById('sim-planet')?.value || 'mars';
+
+        const preset = getTrajectoryPreset(trajId);
+        const trajGrid = document.getElementById('spec-trajectory');
+        if (trajGrid && preset) {
+            trajGrid.innerHTML = Object.entries(preset.spec)
+                .map(([k, v]) => `<div class="spec-row"><span class="spec-label">${k}</span><span class="spec-value">${v}</span></div>`)
+                .join('') +
+                `<div class="spec-row spec-desc">${preset.description}</div>`;
+        }
+
+        // Vehicle params per the side-panel-equations PDF (Table 1).
+        const vehicleParams = {
+            primary:  { name: 'Dragon (MSL-class)',  m: '2,920 kg',  Aref: '15.9043 m²', beta: '115 kg/m²', LD: '0.24',  notes: 'Mars Science Laboratory aeroshell' },
+            starship: { name: 'Starship',            m: '~120,000 kg', Aref: '~450 m²',  beta: '~265 kg/m²', LD: '0.5',  notes: 'SpaceX Starship in belly-flop entry' },
+            backup:   { name: 'High-L/D System',     m: '2,920 kg',  Aref: '15.9043 m²', beta: '115 kg/m²', LD: '0.24',  notes: 'Backup configuration (placeholder)' },
+        };
+        const vp = vehicleParams[vehId] || vehicleParams.primary;
+        const vehGrid = document.getElementById('spec-vehicle');
+        if (vehGrid) {
+            vehGrid.innerHTML = `
+                <div class="spec-row"><span class="spec-label">Model</span><span class="spec-value">${vp.name}</span></div>
+                <div class="spec-row"><span class="spec-label">Mass (m)</span><span class="spec-value">${vp.m}</span></div>
+                <div class="spec-row"><span class="spec-label">Reference area (Aref)</span><span class="spec-value">${vp.Aref}</span></div>
+                <div class="spec-row"><span class="spec-label">Ballistic coeff (β)</span><span class="spec-value">${vp.beta}</span></div>
+                <div class="spec-row"><span class="spec-label">Lift-to-drag (L/D)</span><span class="spec-value">${vp.LD}</span></div>
+                <div class="spec-row spec-desc">${vp.notes}</div>
+            `;
+        }
+
+        // Planet params per PDF Table 2.
+        const planetGrid = document.getElementById('spec-planet');
+        if (planetGrid) {
+            const atmRows = window.MarsEDL?.simulation?.atmosphericModel?.altitudes?.length || '127';
+            const loaded  = window.MarsEDL?.simulation?.atmosphericModel?.loaded ? 'loaded' : 'pending';
+            planetGrid.innerHTML = `
+                <div class="spec-row"><span class="spec-label">Body</span><span class="spec-value">Mars</span></div>
+                <div class="spec-row"><span class="spec-label">Radius (Rp)</span><span class="spec-value">3,396 km</span></div>
+                <div class="spec-row"><span class="spec-label">μ (gravity param)</span><span class="spec-value">4.2828e13 m³/s²</span></div>
+                <div class="spec-row"><span class="spec-label">gEarth (load reference)</span><span class="spec-value">9.80665 m/s²</span></div>
+                <div class="spec-row"><span class="spec-label">Atmosphere data</span><span class="spec-value">mars-gram-avg.csv (${atmRows} rows, ${loaded})</span></div>
+                <div class="spec-row spec-desc">Density ρ and speed of sound a are interpolated linearly from the table; ρ extrapolates to 0, a extrapolates to last value.</div>
+            `;
+        }
+    };
+
+    ['sim-trajectory', 'sim-vehicle', 'sim-planet'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', renderSpec);
+    });
+    renderSpec();
+
     setTimeout(() => {
         dialog.classList.add('visible');
     }, 100);
@@ -231,7 +302,7 @@ function showWelcomeDialog() {
 /**
  * Close welcome dialog
  */
-window.closeWelcomeDialog = function() {
+window.closeWelcomeDialog = async function() {
     const dialog = document.querySelector('.welcome-dialog');
 
     // Read user selections
@@ -243,6 +314,23 @@ window.closeWelcomeDialog = function() {
     window.MarsEDL.config.planet = planet;
     window.MarsEDL.config.trajectory = trajectory;
     window.MarsEDL.config.vehicle = vehicle;
+
+    // Apply trajectory preset → push initial conditions to TrajectoryService
+    // and trigger a re-fetch so the simulator uses the selected scenario.
+    try {
+        const { getTrajectoryPreset } = await import('./config/TrajectoryPresets.js');
+        const preset = getTrajectoryPreset(trajectory);
+        const sim = window.MarsEDL.simulation;
+        if (sim?.trajectoryService && preset) {
+            sim.trajectoryService.setInitialConditions(preset.init);
+            // Re-pull trajectory using the preset (only when changing from default)
+            if (trajectory !== 'msl' && sim.loadData) {
+                await sim.loadData();
+            }
+        }
+    } catch (e) {
+        console.warn('[main] Failed to apply trajectory preset:', e);
+    }
 
     // Update mode indicator to show SIMULATION and collapse rate drawer
     if (window.MarsEDL.simulation) {
@@ -256,6 +344,13 @@ window.closeWelcomeDialog = function() {
     setTimeout(async () => {
         dialog.remove();
         const sim = window.MarsEDL.simulation;
+
+        // Update FlightComputer with vehicle-specific physics so the side
+        // panel's g-load / Mach reflect the chosen craft (per PDF Note 1).
+        if (sim?.flightComputer) {
+            sim.flightComputer.setVehicleById(vehicle);
+        }
+
         // Await vehicle switch BEFORE starting playback
         if (sim?.entryVehicle && vehicle !== 'primary') {
             await sim.entryVehicle.switchModel(vehicle);

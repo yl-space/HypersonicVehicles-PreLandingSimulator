@@ -23,14 +23,40 @@ export const PLANET_PARAMS = {
     gEarth: 9.80665,   // [m/s²] Earth surface gravity (for g-load normalisation)
 };
 
-// ── Spacecraft parameters (MSL / Dragon-like) ─────────────────────────
-// Ref: Li & Jiang 2014, Dyakonov et al. 2012
-export const VEHICLE_PARAMS = {
-    m: 2920,            // [kg] mass
-    Aref: 15.9043,      // [m²] reference area
-    beta: 115,          // [kg/m²] ballistic coefficient
-    LD: 0.24,           // [-]  lift-to-drag ratio
+// ── Spacecraft parameter database ─────────────────────────────────────
+// Per the PDF Note 1: "If we change to Starship, they will change."
+// Each vehicle id in the welcome dialog maps to a parameter set.  The
+// MSL / Dragon-class numbers come from Li & Jiang 2014, Dyakonov et al
+// 2012; the Starship row is an estimate based on public SpaceX
+// specifications and aerodynamic analyses for belly-flop entry.
+//
+// Stored matches sim-server/constants/vehicles.py for β and L/D.
+export const VEHICLE_DATABASE = {
+    primary: {
+        name: 'Dragon (MSL-class)',
+        m: 2920,            // [kg]
+        Aref: 15.9043,      // [m²]
+        beta: 115,          // [kg/m²]
+        LD: 0.24,           // [-]
+    },
+    starship: {
+        name: 'Starship',
+        m: 120000,          // [kg] dry mass estimate
+        Aref: 450,          // [m²] effective belly-flop reference area
+        beta: 265,          // [kg/m²]
+        LD: 0.5,            // [-]
+    },
+    backup: {
+        name: 'High-L/D System',
+        m: 2920,
+        Aref: 15.9043,
+        beta: 115,
+        LD: 0.24,
+    },
 };
+
+// Default to the MSL/Dragon numbers — backwards-compatible export.
+export const VEHICLE_PARAMS = VEHICLE_DATABASE.primary;
 
 export class FlightComputer {
     /**
@@ -42,6 +68,25 @@ export class FlightComputer {
         this.atm = atm;
         this.planet = planetParams;
         this.vehicle = vehicleParams;
+    }
+
+    /**
+     * Swap the active vehicle parameter set.  Called by SimulationManager
+     * when the user changes the vehicle dropdown so that g-load and Mach
+     * computations reflect the selected craft.
+     *
+     * @param {string} id - vehicle id from the welcome dialog
+     *                      ('primary', 'starship', 'backup')
+     */
+    setVehicleById(id) {
+        const params = VEHICLE_DATABASE[id];
+        if (params) {
+            this.vehicle = params;
+            console.log(`[FlightComputer] Vehicle params switched to ${params.name} ` +
+                        `(m=${params.m} kg, Aref=${params.Aref} m², β=${params.beta}, L/D=${params.LD})`);
+        } else {
+            console.warn(`[FlightComputer] Unknown vehicle id "${id}", keeping current params.`);
+        }
     }
 
     /**

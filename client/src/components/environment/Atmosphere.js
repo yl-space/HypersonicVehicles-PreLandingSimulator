@@ -14,7 +14,7 @@
 import * as THREE from 'three';
 
 export class Atmosphere {
-    constructor(planetRadius = 33.9) {
+    constructor(planetRadius = 33.96) { // 3,396 km IAU 2018
         this.planetRadius = planetRadius;
         this.referenceAltitudeKm = 250;
         this.intensityScale = 1.0;

@@ -44,7 +44,7 @@ export class CameraController {
             radius: 0.00009,       // ~9 m orbit
             minPhi: 0.1,           // Prevent camera from going below ground
             maxPhi: Math.PI - 0.1, // Prevent camera flip
-            planetRadius: 33.9     // Mars radius for collision detection
+            planetRadius: 33.96    // Mars radius for collision detection (IAU 2018)
         };
 
         // Follow mode orbit controls (mouse drag in follow mode)

@@ -48,8 +48,8 @@ export class MarsTerrainMarkers {
         this.group = new THREE.Group();
         this.group.name = 'MarsTerrainMarkers';
 
-        // Mars radius in scene units
-        this.marsRadius = options.marsRadius || 33.9;
+        // Mars radius in scene units (33.96 = 3,396 km, IAU 2018)
+        this.marsRadius = options.marsRadius || 33.96;
 
         // Marker settings - subtle pin-point style
         this.baseMarkerSize = 0.05;

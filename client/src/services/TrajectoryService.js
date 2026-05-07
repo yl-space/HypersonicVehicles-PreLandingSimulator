@@ -15,7 +15,7 @@ export class TrajectoryService {
             backendUrl: config.backendUrl || 'http://localhost:3001',
             useArrow: config.useArrow || true,
             timeout: config.timeout || 30000, // 30 seconds for physics calculations
-            marsRadius: 3390000, // meters
+            marsRadius: 3396000, // meters — IAU 2018, matches sim-server PLANETS.mars.rp
             scaleFactorVisualization: 0.00001, // Convert meters to visualization units
             ...config
         };
