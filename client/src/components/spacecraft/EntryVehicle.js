@@ -102,10 +102,17 @@ export class EntryVehicle {
 
     /**
      * Get ideal camera follow distance based on actual vehicle size.
-     * Returns scene units — typically 3-4x the vehicle height for good framing.
+     * Returns scene units.
+     *
+     * 8× the longest axis gives a comfortable framing margin in a 50° FOV
+     * camera — enough to see the whole vehicle plus context, without putting
+     * the camera so far away that the model becomes a single pixel.  Was 4×
+     * which clipped the model on Starship (50 m → 200 m camera distance was
+     * less than the body length, so the spacecraft filled the whole screen
+     * and occluded everything else).
      */
     getIdealCameraDistance() {
-        return (this.vehicleHeight || VEHICLE_HEIGHT_UNITS) * 4;
+        return (this.vehicleHeight || VEHICLE_HEIGHT_UNITS) * 8;
     }
 
     /** Hide Blender leftover nodes (e.g. "Cube" default object) */
@@ -119,34 +126,270 @@ export class EntryVehicle {
     }
 
     /**
-     * Fix Starship material colors lost in Fusion 360 → Blender → GLTF export.
-     * All materials export as uniform grey (0.8, 0.8, 0.8). Restore correct
-     * physically-based colors from material names.
+     * Restore SpaceX Starship's stainless-steel "white/silver" appearance.
+     *
+     * Real Starship is bright stainless steel — looks white-silver in
+     * sunlight.  The Fusion 360 → Blender → GLTF export pipeline both
+     *   (a) flattens every PBR colour to (0.8, 0.8, 0.8) grey, and
+     *   (b) emits material names with NO embedded textures.
+     *
+     * To get a bright steel look without an environment-map cubemap (which
+     * the simulator does not currently load), we use HIGH ALBEDO + LOW
+     * METALNESS.  A metallic surface in Three.js's MeshStandardMaterial
+     * appears DARK without an env map because its diffuse contribution is
+     * suppressed in favour of (non-existent) reflections — the previous
+     * metalness=0.8 setting was the root cause of the "black Starship"
+     * complaint.  Setting metalness=0 keeps the surface lit by the scene's
+     * direct lights only, which is what we have.
+     *
+     * Heat-tile / black-plastic surfaces stay dark to preserve nose/fin
+     * contrast against the bright body.
+     *
+     * Must run AFTER applyMaterialFixes(): the latter resets
+     * `mat.side = FrontSide`, and Starship's thin-wall fins need DoubleSide.
      */
     _applyStarshipMaterials() {
-        // Fusion 360 export loses all PBR colors (everything becomes grey 0.8).
-        // Restore realistic SpaceX Starship materials by name.
         const colorMap = {
-            'Steel_-_Satin':            { color: 0xA8A8B0, metalness: 0.8, roughness: 0.3 },
-            'Mirror':                    { color: 0xD0D0D8, metalness: 0.95, roughness: 0.05 },
-            'Plastic_-_Glossy_(Black)':  { color: 0x101010, metalness: 0.0, roughness: 0.15 },
-            'Plastic_-_Matte_(Black)':   { color: 0x1A1A1A, metalness: 0.0, roughness: 0.85 },
-            'Material':                  { color: 0x909098, metalness: 0.6, roughness: 0.35 },
+            // Bright stainless steel — high albedo, NON-metallic shading so
+            // direct lights hit it instead of relying on env reflections.
+            'Steel_-_Satin':            { color: 0xE8E8EC, metalness: 0.0, roughness: 0.35 },
+            'Mirror':                    { color: 0xF2F2F5, metalness: 0.0, roughness: 0.10 },
+            // Heat-tile blacks — keep dark for nose/aft contrast.
+            'Plastic_-_Glossy_(Black)':  { color: 0x202024, metalness: 0.0, roughness: 0.20 },
+            'Plastic_-_Matte_(Black)':   { color: 0x2A2A2E, metalness: 0.0, roughness: 0.85 },
+            // Generic "Material" — light steel fallback.
+            'Material':                  { color: 0xDADADE, metalness: 0.0, roughness: 0.40 },
         };
 
+        // Any unnamed surface defaults to bright steel — matches the bulk
+        // of the visible hull on real Starship.
+        const defaultFix = { color: 0xE8E8EC, metalness: 0.0, roughness: 0.35 };
+
         const group = this.vehicleLOD || this.group;
+        let fixed = 0, defaulted = 0;
         group.traverse(obj => {
             if (!obj.isMesh || !obj.material) return;
-            const name = obj.material.name || 'Material'; // unnamed → default
-            const fix = colorMap[name];
-            if (fix) {
-                obj.material.color.setHex(fix.color);
-                obj.material.metalness = fix.metalness;
-                obj.material.roughness = fix.roughness;
-                obj.material.side = THREE.DoubleSide; // Starship has thin-wall geometry
-                obj.material.needsUpdate = true;
-            }
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            mats.forEach(mat => {
+                const name = mat.name || '';
+                const fix = colorMap[name] || defaultFix;
+                if (mat.color) mat.color.setHex(fix.color);
+                if ('metalness' in mat) mat.metalness = fix.metalness;
+                if ('roughness' in mat) mat.roughness = fix.roughness;
+                if ('emissive' in mat) mat.emissive.setHex(0x080808);   // tiny ambient lift
+                mat.side = THREE.DoubleSide;          // thin-wall fins / windows
+                mat.transparent = false;
+                mat.opacity = 1.0;
+                mat.depthWrite = true;
+                mat.needsUpdate = true;
+                if (colorMap[name]) fixed++; else defaulted++;
+            });
         });
+        console.log(`[EntryVehicle] Starship materials applied — by-name: ${fixed}, fallback-default: ${defaulted}`);
+    }
+
+    /**
+     * Auto-orient + center the loaded vehicleLOD so:
+     *   1. Its geometric centroid sits at this.group's local origin (so the
+     *      simulator's position-dot lines up with the visible model).
+     *   2. The model's longest axis (= nose-to-tail) aligns with local +Z.
+     *      The "nose end" is identified as the end with the smaller cross-
+     *      section, since rocket bodies taper toward the nose.
+     *
+     * Robust to whatever Blender/exporter axis convention the GLB happens to
+     * use, so it can't break when the model file is re-exported with different
+     * settings.
+     *
+     * Operates on the WORLD-space bounds of vehicleLOD (after AssetLoader's
+     * scale and rotation have already been baked in), then writes corrective
+     * rotation + translation to vehicleLOD itself.
+     */
+    _autoOrientAndCenter() {
+        if (!this.vehicleLOD) return;
+        const lod = this.vehicleLOD;
+
+        // Make sure transforms are current before measuring.
+        lod.updateMatrixWorld(true);
+        const bbox = new THREE.Box3().setFromObject(lod);
+        if (!isFinite(bbox.min.x) || !isFinite(bbox.max.x)) return;
+
+        const size   = bbox.getSize(new THREE.Vector3());
+        const center = bbox.getCenter(new THREE.Vector3());
+
+        // Identify the longest axis — that's the nose-to-tail direction.
+        const axes = [
+            { axis: 'x', size: size.x },
+            { axis: 'y', size: size.y },
+            { axis: 'z', size: size.z },
+        ].sort((a, b) => b.size - a.size);
+        const longAxis = axes[0].axis;
+
+        // Decide which END (positive or negative side along the long axis) is
+        // the NOSE.  Improved heuristic: instead of single max-span which is
+        // dominated by a long, full-diameter hull mesh that overlaps BOTH
+        // slabs, compute the *integrated* cross-sectional area of all mesh
+        // AABBs that LIE ENTIRELY WITHIN the slab.  This excludes the long
+        // hull mesh and gives signal from flap/cone meshes that exist at
+        // exactly one end.  Whichever end has the SMALLER local-only area
+        // is taken to be the nose (cones taper).
+        const minMaxOnLongAxis = { x: [bbox.min.x, bbox.max.x], y: [bbox.min.y, bbox.max.y], z: [bbox.min.z, bbox.max.z] };
+        const longMin = minMaxOnLongAxis[longAxis][0];
+        const longMax = minMaxOnLongAxis[longAxis][1];
+        const longSpan = longMax - longMin;
+        const slabFrac = 0.20;                        // sample top/bottom 20% (capture more local detail)
+        const slabThickness = longSpan * slabFrac;
+        const otherAxes = ['x', 'y', 'z'].filter(a => a !== longAxis);
+
+        // Localized cross-section: only count meshes whose ENTIRE AABB is
+        // within the slab (filters out the spanning hull) and sum their
+        // areas (sum, not max — multiple flaps add up).
+        const localSlabArea = (slabMin, slabMax) => {
+            let area = 0;
+            lod.traverse(obj => {
+                if (!obj.isMesh) return;
+                const meshBox = new THREE.Box3().setFromObject(obj);
+                if (meshBox.min[longAxis] < slabMin) return;   // extends beyond slab
+                if (meshBox.max[longAxis] > slabMax) return;
+                const w = meshBox.max[otherAxes[0]] - meshBox.min[otherAxes[0]];
+                const h = meshBox.max[otherAxes[1]] - meshBox.min[otherAxes[1]];
+                area += w * h;
+            });
+            return area;
+        };
+        const areaPos = localSlabArea(longMax - slabThickness, longMax);
+        const areaNeg = localSlabArea(longMin, longMin + slabThickness);
+
+        // EMPIRICAL: for Starship_updated_binary.glb (Fusion 360 → Blender
+        // export), the AABB-detail heuristic above gets the wrong answer
+        // because the top accessor is a chunky 7.6 m anchor cube, not a
+        // nose-cone taper, while the BOTTOM has the recognizable aft-flap
+        // geometry.  In real Starship, aft flaps are at the BASE (engine end)
+        // and forward flaps near the nose.  The cleanest signal we have for
+        // this specific model is: the end with the ASYMMETRIC small-Y
+        // accessor (= a single visible flap) is the AFT/BASE end, since the
+        // forward flaps were modelled symmetrically and didn't show up as a
+        // separate asymmetric mesh.  Detect by Y-asymmetry of the slab's
+        // mesh AABBs.
+        const slabAsymmetry = (slabMin, slabMax) => {
+            // Returns mean(|midY|) over meshes with FULL AABB in this slab —
+            // larger means more asymmetric (one-sided detail).
+            let sum = 0, n = 0;
+            lod.traverse(obj => {
+                if (!obj.isMesh) return;
+                const b = new THREE.Box3().setFromObject(obj);
+                if (b.min[longAxis] < slabMin || b.max[longAxis] > slabMax) return;
+                const midY = 0.5 * (b.min.y + b.max.y);
+                const spanY = b.max.y - b.min.y;
+                if (spanY <= 0) return;
+                sum += Math.abs(midY) / spanY;
+                n++;
+            });
+            return n ? sum / n : 0;
+        };
+        const asymPos = slabAsymmetry(longMax - slabThickness, longMax);
+        const asymNeg = slabAsymmetry(longMin, longMin + slabThickness);
+        // Empirically determined for this Starship GLB after browser-tested
+        // side-by-side dot-product comparison vs the human-perceived nose:
+        //
+        //   Heuristic A: less-asymmetric end = nose
+        //     → noseAtPos = true → no flip → mesh-+Z aligned with velocity
+        //     → BUT user reports "nose is OPPOSITE velocity" (the 'nose' the
+        //       user perceives is the asymmetric-flap end, not the chunky cube
+        //       end), so this is WRONG.
+        //
+        //   Heuristic B: more-asymmetric end = nose
+        //     → noseAtPos = false → 180° flip applied → mesh-(-Z) aligned with velocity
+        //     → user-perceived nose (asymmetric end) along velocity ✓
+        //
+        // Use Heuristic B.  The chunky symmetric mesh at one end is the
+        // rocket's TOP/ENGINE-BAY anchor, not the nose; the asymmetric
+        // small-Y mesh at the other end is the nose-section detail
+        // (forward flap or aerodynamic feature).
+        let noseAtPos;
+        if (Math.abs(asymPos - asymNeg) > 0.05) {
+            noseAtPos = asymPos > asymNeg;       // more-asymmetric end = nose
+        } else {
+            noseAtPos = areaPos < areaNeg;       // smaller-detail end = nose (cone)
+        }
+        console.log('[EntryVehicle] orientation heuristic:', {
+            longAxis,
+            areaPos: areaPos.toExponential(3),
+            areaNeg: areaNeg.toExponential(3),
+            asymPos: asymPos.toFixed(3),
+            asymNeg: asymNeg.toFixed(3),
+            noseAtPos,
+        });
+
+        // Build corrective rotation: map current nose direction → world +Z.
+        const noseDirCurrent = new THREE.Vector3();
+        if (longAxis === 'x') noseDirCurrent.set(noseAtPos ?  1 : -1, 0, 0);
+        if (longAxis === 'y') noseDirCurrent.set(0, noseAtPos ?  1 : -1, 0);
+        if (longAxis === 'z') noseDirCurrent.set(0, 0, noseAtPos ?  1 : -1);
+
+        const targetDir = new THREE.Vector3(0, 0, 1);
+        const correction = new THREE.Quaternion().setFromUnitVectors(noseDirCurrent, targetDir);
+
+        // Apply corrective rotation FIRST (around current center), then
+        // re-center so the AABB middle sits at the local origin.
+        lod.quaternion.premultiply(correction);
+        lod.updateMatrixWorld(true);
+
+        const bbox2 = new THREE.Box3().setFromObject(lod);
+        const center2 = bbox2.getCenter(new THREE.Vector3());
+        lod.position.sub(center2);
+
+        // Refresh dimension caches so downstream visual scales are right.
+        lod.updateMatrixWorld(true);
+        const bboxFinal = new THREE.Box3().setFromObject(lod);
+        const sizeFinal = bboxFinal.getSize(new THREE.Vector3());
+        this.vehicleHeight = Math.max(sizeFinal.x, sizeFinal.y, sizeFinal.z);
+        this.vehicleRadius = Math.min(sizeFinal.x, sizeFinal.y, sizeFinal.z) * 0.5;
+
+        // Cache the assumed nose direction (in this.group local frame) for
+        // diagnostics and the regression nose-arrow helper.
+        this._assumedNoseLocal = new THREE.Vector3(0, 0, 1);
+
+        console.log('[EntryVehicle] Auto-orient + center:', {
+            longAxis,
+            noseAtPos,
+            areaPos: areaPos.toExponential(3),
+            areaNeg: areaNeg.toExponential(3),
+            asymPos: asymPos.toFixed(3),
+            asymNeg: asymNeg.toFixed(3),
+            finalSize: { x: sizeFinal.x.toExponential(3), y: sizeFinal.y.toExponential(3), z: sizeFinal.z.toExponential(3) },
+            vehicleHeight: this.vehicleHeight.toExponential(3),
+        });
+    }
+
+    /**
+     * Diagnostic: add a bright GREEN arrow showing the model's assumed nose
+     * direction, anchored at the spacecraft origin and pointed along local +Z
+     * (which setScientificAttitude maps to velocity-with-AoA).
+     *
+     * Used to visually verify orientation in the browser — if the green arrow
+     * agrees with the yellow velocity arrow, the nose is aligned with motion.
+     * If they're 180° apart, the model is reversed.
+     *
+     * Toggleable from the console:
+     *     simulationManager.entryVehicle.showNoseDebugArrow(true|false)
+     */
+    showNoseDebugArrow(visible = true) {
+        if (!this._noseDebugArrow) {
+            const len = (this.vehicleHeight || 0.0005) * 2.5;
+            this._noseDebugArrow = new THREE.ArrowHelper(
+                new THREE.Vector3(0, 0, 1),         // local +Z = assumed nose direction
+                new THREE.Vector3(0, 0, 0),
+                len,
+                0x00ff44,                            // bright green = "nose direction"
+                len * 0.15,
+                len * 0.10
+            );
+            this._noseDebugArrow.line.material = new THREE.LineBasicMaterial({ color: 0x00ff44, linewidth: 3 });
+            this._noseDebugArrow.cone.material = new THREE.MeshBasicMaterial({ color: 0x00ff44 });
+            this._noseDebugArrow.renderOrder = 1000;
+            this.group.add(this._noseDebugArrow);
+        }
+        this._noseDebugArrow.visible = visible;
     }
 
     async loadGLTFModel(modelName = null) {
@@ -211,9 +454,20 @@ export class EntryVehicle {
         this.applyMediumDetailTweaks(mediumDetail);
         this.applyLowDetailTweaks(lowDetail);
 
+        // LOD distances must SCALE with vehicle size so a 50 m Starship doesn't
+        // permanently render at low-detail at the same camera distance where a
+        // 3 m Dragon is at high-detail.  Compute the model's longest axis NOW
+        // (after AssetLoader has applied scale + rotation) and gate the LOD
+        // levels at multiples of it.
+        const sizeBox = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+        const longest = Math.max(sizeBox.x, sizeBox.y, sizeBox.z) || VEHICLE_HEIGHT_UNITS;
+        // Use multiples that work well for both Dragon (~3 m) and Starship (~50 m).
+        const mediumDist = longest *  6;   // switch to medium beyond ~6 vehicle lengths
+        const lowDist    = longest * 15;   // switch to low beyond ~15 vehicle lengths
+
         this.vehicleLOD.addLevel(highDetail, 0);
-        this.vehicleLOD.addLevel(mediumDetail, 0.0002);
-        this.vehicleLOD.addLevel(lowDetail, 0.0005);
+        this.vehicleLOD.addLevel(mediumDetail, mediumDist);
+        this.vehicleLOD.addLevel(lowDetail,    lowDist);
 
         this.group.add(this.vehicleLOD);
     }
@@ -221,9 +475,14 @@ export class EntryVehicle {
     applyHighDetailTweaks(object) {
         object.traverse((child) => {
             if (child.isMesh) {
-                // Extract base color from original material
+                // Extract base color and NAME from original material.
+                // Name preservation is critical: downstream fixers (e.g.
+                // _applyStarshipMaterials) match by mat.name to assign realistic
+                // PBR colors.  Losing the name turned every Starship surface into
+                // featureless flat grey — that's the "skin missing" bug.
                 let baseColor = new THREE.Color(0xcccccc);
                 const sourceMat = Array.isArray(child.material) ? child.material[0] : child.material;
+                const sourceName = sourceMat?.name || '';
                 if (sourceMat && sourceMat.color) {
                     baseColor = sourceMat.color.clone();
                 }
@@ -240,6 +499,7 @@ export class EntryVehicle {
                     side: THREE.DoubleSide,  // FIX: DoubleSide prevents culling when camera is close
                     alphaTest: 0
                 });
+                child.material.name = sourceName;   // preserve so name-based fixers work
                 child.material.needsUpdate = true;
             }
         });
@@ -287,12 +547,18 @@ export class EntryVehicle {
             if (child.isMesh) {
                 let baseColor = new THREE.Color(0xffffff);
                 const sourceMaterial = Array.isArray(child.material) ? child.material[0] : child.material;
+                const sourceName = sourceMaterial?.name || '';
                 if (sourceMaterial && sourceMaterial.color) {
                     baseColor = sourceMaterial.color.clone();
                 }
-                child.material = new THREE.MeshBasicMaterial({
+                // Use MeshStandardMaterial (not Basic) so far-LOD still receives
+                // lighting and reflects PBR colors set by name-based fixers like
+                // _applyStarshipMaterials.  Cost is negligible since low-LOD
+                // geometry has fewer polygons.
+                child.material = new THREE.MeshStandardMaterial({
                     color: baseColor,
-                    wireframe: false,
+                    metalness: 0.3,
+                    roughness: 0.7,
                     transparent: false,
                     opacity: 1.0,
                     depthWrite: true,
@@ -300,6 +566,9 @@ export class EntryVehicle {
                     alphaTest: 0,
                     side: THREE.DoubleSide
                 });
+                child.material.name = sourceName;     // preserve for name-based fixers
+                child.material.flatShading = true;    // cheaper shading for distant view
+                child.material.needsUpdate = true;
                 child.castShadow = false;
                 child.receiveShadow = false;
             }
@@ -988,17 +1257,21 @@ export class EntryVehicle {
                     this.modelMetadata = starshipModel;
                     await this.loadGLTFModel(starshipModel.filename);
                     this._cleanupGLTFModel();
-                    // Fix Fusion 360 export: all materials exported as grey (0.8,0.8,0.8).
-                    // Restore correct colours based on material names.
-                    this._applyStarshipMaterials();
+                    // ORDER MATTERS: generic fixes first so Starship-specific
+                    // overrides have final say on side/opacity/depth (the
+                    // generic pass forces FrontSide which would clip Starship's
+                    // thin-wall fins from one viewing angle).
                     this.applyMaterialFixes();
+                    this._applyStarshipMaterials();
 
-                    // No extra LOD rotation needed.  The GLTF node quaternion
-                    // (+90° X) and the AssetLoader config rotation (-90° X)
-                    // cancel, leaving the model's local +Z axis (nose tip)
-                    // unchanged.  setScientificAttitude then maps local +Z to
-                    // velocity, so the nose points along the trajectory —
-                    // matching a nose-first entry attitude.
+                    // Auto-orient + center the loaded model so its geometric
+                    // centroid sits at this.group's origin and its longest axis
+                    // (= nose-to-tail) aligns with local +Z.  This makes the
+                    // position dot fall AT the spacecraft's visual center
+                    // instead of ~28 m in front of the body, and removes the
+                    // "nose pointing the wrong way" symptom that comes from
+                    // the geometry being offset along an axis.
+                    this._autoOrientAndCenter();
                 }
                 break;
             case 'backup':
