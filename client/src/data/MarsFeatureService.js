@@ -281,6 +281,22 @@ export class MarsFeatureService {
             source: 'NASA/Official Space Agency'
         }));
 
+        // De-dup intra-USGS features. The upstream API can return identical
+        // entries (same name, lat, lon, type) for some features (e.g.
+        // "Bohar"). Keep the first occurrence by (name|lat|lon|type) key.
+        const seenUsgs = new Set();
+        const uniqueUsgsFeatures = [];
+        for (const f of this.features) {
+            const key = `${(f.name || '').toLowerCase()}|${Number(f.lat).toFixed(3)}|${Number(f.lon).toFixed(3)}|${f.type || ''}`;
+            if (seenUsgs.has(key)) continue;
+            seenUsgs.add(key);
+            uniqueUsgsFeatures.push(f);
+        }
+        if (uniqueUsgsFeatures.length !== this.features.length) {
+            console.log(`[MarsFeatureService] Deduped ${this.features.length - uniqueUsgsFeatures.length} ` +
+                        `intra-USGS duplicates (kept ${uniqueUsgsFeatures.length}/${this.features.length}).`);
+        }
+
         // De-duplicate against API features:
         //   (a) Normalised name (strip suffix "Crater", "Mons", "Vallis", etc.)
         //   (b) Proximity (<100 km) with same type
@@ -293,7 +309,7 @@ export class MarsFeatureService {
                 .replace(/\s+(crater|mons|vallis|valles|planum|planitia|mensa|mensae|tholus|fossa|catena|dorsum|rupes|sulcus|scopulus|labyrinthus|chasma|patera)$/g, '')
                 .trim();
 
-        const apiIndex = this.features.map(f => ({
+        const apiIndex = uniqueUsgsFeatures.map(f => ({
             name: normaliseName(f.name),
             lat: Number(f.lat),
             lon: Number(f.lon),
@@ -348,10 +364,10 @@ export class MarsFeatureService {
         }
 
         return {
-            features: this.features,
+            features: uniqueUsgsFeatures,
             landingSites: landingSiteFeatures,
             customFeatures,
-            all: [...this.features, ...landingSiteFeatures, ...customFeatures],
+            all: [...uniqueUsgsFeatures, ...landingSiteFeatures, ...customFeatures],
             source: this.dataSource,
             featureTypes: FEATURE_TYPES
         };
