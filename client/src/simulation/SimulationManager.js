@@ -198,7 +198,7 @@ export class SimulationManager {
             renderMode: 'tile', // now proxied via sim-server to avoid CORS
             tileBaseUrl: marsTileBaseUrl,
             tileExtension: 'jpg',
-            maxTileLevel: 7, // NASA Trek MDIM21 max served level (z=8 returns 404)
+            maxTileLevel: 6, // safe default — z=7 caused tile-tree explosion at low altitudes
             marsJSBaseUrl: '/assets/textures/MarsJS'
         });
         this.earth = new Earth();

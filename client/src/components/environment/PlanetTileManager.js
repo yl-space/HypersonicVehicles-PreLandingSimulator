@@ -78,12 +78,11 @@ export class PlanetTileManager {
      * Higher zoom = more segments for better detail
      */
     getSegmentsForLevel(z) {
-        // Higher segment count = smoother curvature, less polygonal silhouette.
-        // Bumped at all levels — curvature shows most at the horizon, where
-        // even the highest-LOD tiles' silhouettes were visibly faceted.
-        if (z <= 2) return 12;   // Coarse tiles (was 8)
-        if (z <= 4) return 20;   // Medium tiles (was 16)
-        return 32;               // Fine tiles: smooth curvature near spacecraft (was 24)
+        // Original safe segment counts — higher values multiply geometry
+        // by 16x at level 6 (32x32 = 1024 verts/tile) and overload GPU.
+        if (z <= 2) return 8;    // Coarse tiles
+        if (z <= 4) return 16;   // Medium tiles
+        return 24;               // Fine tiles: smooth curvature near spacecraft
     }
 
     init() {
@@ -665,11 +664,10 @@ export class PlanetTileManager {
         // Apparent angular size from camera's perspective
         const apparentAngularSize = 2 * Math.atan2(tileArcSize / 2, dist);
         const screenSize = apparentAngularSize * pixelsPerRad;
-        // Subdivision threshold 30 px — refines earlier than the original
-        // 40 px (sharper close-up tiles) but conservative enough to keep
-        // tile counts bounded at low altitude.  Going below 25 with
-        // maxLevel=7 produces tens of thousands of tile fetches.
-        const shouldSubdivide = screenSize > 30 && tile.z < this.maxLevel;
+        // Subdivision threshold 40 px — original safe value.  Lower
+        // values (25-30) plus maxLevel >= 7 caused renderer hangs from
+        // tens of thousands of tile fetches at low altitude.
+        const shouldSubdivide = screenSize > 40 && tile.z < this.maxLevel;
 
         if (shouldSubdivide) {
             if (!tile.children) {
