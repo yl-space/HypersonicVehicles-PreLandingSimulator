@@ -279,6 +279,19 @@ export class MarsTerrainMarkers {
 
                     const distanceRatio = surfaceDistance / this.maxSurfaceDistance;
                     opacity = THREE.MathUtils.clamp(1.0 - distanceRatio * 0.5, 0.4, 0.9);
+
+                    // Compensate for sprite sizeAttenuation: at very close
+                    // range, sprites with world-space size cover huge screen
+                    // angles. Shrink the marker proportionally to camera
+                    // distance so the on-screen label stays roughly constant.
+                    // Reference distance = marsRadius (3396 km), below which
+                    // we start scaling down. Floor at 0.15 to keep markers
+                    // legible at extreme low altitudes.
+                    const refDist = this.marsRadius * 0.15; // ~5 scene units (~500 km)
+                    if (distanceToMarker < refDist) {
+                        const proximityScale = Math.max(0.15, distanceToMarker / refDist);
+                        scale *= proximityScale;
+                    }
                 }
             } else {
                 isVisible = dotProduct > -0.1 && distanceToMarker < cameraDistance * 2;
