@@ -628,7 +628,10 @@ export class SimulationManager {
         this.createMarkerTooltip();
         const canvas = this.sceneManager.renderer.domElement;
         canvas.addEventListener('pointermove', (e) => this.handleMarkerHover(e));
-        canvas.addEventListener('pointerleave', () => this.hideMarkerTooltip());
+        canvas.addEventListener('pointerleave', () => {
+            this.hideMarkerTooltip();
+            this._hideCoordTooltip();
+        });
     }
     
     handleKeyPress(event) {
