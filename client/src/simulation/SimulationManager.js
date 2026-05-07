@@ -1256,8 +1256,44 @@ export class SimulationManager {
     }
 
     /**
-     * Raycast from the cursor into the Mars sphere and return the surface
-     * (lat, lon) hit, or null if the ray misses.
+     * Find the nearest snap target from a list, returning the snap value
+     * and the absolute angular distance to it (in degrees).
+     * For longitude, accounts for wraparound at 0°/360°.
+     */
+    _nearestSnap(value, targets, isLongitude = false) {
+        let bestVal = null;
+        let bestDist = Infinity;
+        for (const t of targets) {
+            let d = Math.abs(value - t);
+            if (isLongitude) {
+                // Wrap distance for longitude: e.g. 359° vs 1° → 2° not 358°
+                if (d > 180) d = 360 - d;
+            }
+            if (d < bestDist) {
+                bestDist = d;
+                bestVal = t;
+            }
+        }
+        return { value: bestVal, dist: bestDist };
+    }
+
+    /**
+     * Raycast the cursor into the Mars sphere and check whether it falls
+     * on (or very near) a drawn lat/lon grid line.
+     *
+     * @returns {object|null}  { latLine?: number, lonLine?: number,
+     *                          showLat: boolean, showLon: boolean,
+     *                          actualLat: number, actualLon: number }
+     *   or null if the ray misses Mars / no nearby grid line.
+     *
+     * Lat lines are drawn every 5° from -90° to +90° plus special:
+     *   ±25.19° (Mars tropics), ±64.81° (Mars arctic), 0° (equator)
+     * Lon lines are drawn every 5° from 0° to 355° plus 0°/180° meridian.
+     *
+     * The detection threshold is half a grid spacing — i.e. the cursor
+     * "hits" a 5° line whenever its surface position is within 0.25°
+     * of that line.  Tighter than ½ × spacing would make detection too
+     * finicky; looser would cause overlap between adjacent lines.
      */
     _getLatLonAtCursor(mouseClientX, mouseClientY) {
         if (!this.cameraController?.camera || !this.mars) return null;
@@ -1271,16 +1307,68 @@ export class SimulationManager {
 
         const hit = new THREE.Vector3();
         if (!this._coordRaycaster.ray.intersectSphere(this._coordSphere, hit)) return null;
-        return this._sceneToLatLon(hit);
+        const { lat, lon } = this._sceneToLatLon(hit);
+
+        // Build the list of drawn lat/lon lines once and cache it.
+        if (!this._gridLatTargets) {
+            const lats = [];
+            for (let v = -90; v <= 90; v += 5) lats.push(v);
+            // Mars-specific parallels (axial tilt 25.19°)
+            lats.push(25.19, -25.19, 64.81, -64.81);
+            this._gridLatTargets = lats;
+
+            const lons = [];
+            for (let v = 0; v < 360; v += 5) lons.push(v);
+            this._gridLonTargets = lons;
+        }
+
+        // Detection threshold: half the 5° grid spacing
+        const THRESH = 0.25;
+
+        const latSnap = this._nearestSnap(lat, this._gridLatTargets, false);
+        const lonSnap = this._nearestSnap(lon, this._gridLonTargets, true);
+        const showLat = latSnap.dist < THRESH;
+        const showLon = lonSnap.dist < THRESH;
+
+        if (!showLat && !showLon) return null;
+
+        return {
+            actualLat: lat,
+            actualLon: lon,
+            latLine: showLat ? latSnap.value : null,
+            lonLine: showLon ? lonSnap.value : null,
+            showLat,
+            showLon,
+        };
     }
 
-    _showCoordTooltip(latLon, mouseX, mouseY) {
+    /**
+     * Render the grid-line tooltip.  Shows ONLY the line value(s) the
+     * cursor is on — never an arbitrary surface point.  At an
+     * intersection both lat and lon values are shown stacked.
+     */
+    _showCoordTooltip(hit, mouseX, mouseY) {
         const el = this._coordTooltipEl;
-        if (!el || !latLon) return;
-        const { lat, lon } = latLon;
-        const latStr = lat >= 0 ? `${lat.toFixed(2)}°N` : `${Math.abs(lat).toFixed(2)}°S`;
-        const lonStr = `${lon.toFixed(2)}°E`;
-        el.textContent = `${latStr}   ${lonStr}`;
+        if (!el || !hit) return;
+
+        const lines = [];
+        if (hit.showLat) {
+            const v = hit.latLine;
+            const latStr = v > 0 ? `${v.toFixed(v % 1 ? 2 : 0)}°N`
+                          : v < 0 ? `${Math.abs(v).toFixed(v % 1 ? 2 : 0)}°S`
+                                  : 'Equator (0°)';
+            lines.push(`LAT  ${latStr}`);
+        }
+        if (hit.showLon) {
+            const v = hit.lonLine;
+            const lonStr = v === 0 ? 'Prime Meridian (0°)'
+                         : v === 180 ? 'Antimeridian (180°)'
+                         : `${v.toFixed(0)}°E`;
+            lines.push(`LON  ${lonStr}`);
+        }
+        if (!lines.length) { this._hideCoordTooltip(); return; }
+
+        el.innerHTML = lines.join('<br>');
         el.style.left = `${mouseX + 12}px`;
         el.style.top  = `${mouseY + 12}px`;
         el.style.display = 'block';
