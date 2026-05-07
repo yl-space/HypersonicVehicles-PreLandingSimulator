@@ -5,63 +5,59 @@
 
 export class PhaseController {
     constructor() {
+        // Five EDL phases.  Names + descriptions match the team's
+        // physics-driven scheme; transition times come from the
+        // backend's phases_entry (t12, t23, t34, t45) via
+        // setPhaseTimestamps().  Hardcoded times here are MSL nominal
+        // fallbacks used until the first backend trajectory loads.
         this.phases = [
             {
-                name: "Entry Interface Point",
+                name: "Gravity-dominated motion in a rarefied atmosphere",
                 time: 0,
-                altitude: 132, // km
-                velocity: 19300, // km/h
-                description: "The spacecraft enters the Martian atmosphere, drastically slowing it down while also heating it up.",
-                nextPhase: "Guidance Start",
-                nextPhaseTime: 26
+                altitude: 125,
+                velocity: 5845, // m/s
+                description: "The vehicle enters the Martian atmosphere, where the upper atmosphere is still too rarefied to generate significant aerodynamic forces and heating.",
+                nextPhase: "Aerothermal build-up",
+                nextPhaseTime: 26.1
             },
             {
-                name: "Guidance Start", 
-                time: 26,
+                name: "Aerothermal build-up",
+                time: 26.1,
                 altitude: 90,
-                velocity: 19200,
-                description: "As it begins to descend through the atmosphere, the spacecraft encounters pockets of air that are more or less dense, which can nudge it off course. To compensate, it fires small thrusters on its backshell that adjust its angle and direction of lift.",
-                nextPhase: "Heading Alignment",
-                nextPhaseTime: 87
+                velocity: 5500,
+                description: "As atmospheric density increases, aerodynamic drag and heating rise rapidly, marking the onset of significant aerothermal effects.",
+                nextPhase: "Peak heating and aerodynamic load",
+                nextPhaseTime: 53.7
             },
             {
-                name: "Heading Alignment",
-                time: 87,
-                altitude: 55,
-                velocity: 8500,
-                description: "The guided entry algorithm corrects any remaining cross-range error.",
-                nextPhase: "Begin SUFR",
-                nextPhaseTime: 174
+                name: "Peak heating and aerodynamic load",
+                time: 53.7,
+                altitude: 60,
+                velocity: 4500,
+                description: "The vehicle encounters its most severe thermal environment and largest aerodynamic loads as velocity remains high in denser layers of the atmosphere.",
+                nextPhase: "Hypersonic glide control phase",
+                nextPhaseTime: 84.0
             },
             {
-                name: "Begin SUFR",
-                time: 174,
-                altitude: 21,
-                velocity: 1900,
-                description: "The spacecraft executes the \"Straighten Up and Fly Right\" maneuver, ejecting six more balance masses and setting the angle of attack to zero.",
-                nextPhase: "Parachute Deploy",
-                nextPhaseTime: 240
+                name: "Hypersonic glide control phase",
+                time: 84.0,
+                altitude: 35,
+                velocity: 2500,
+                description: "The vehicle uses bank-angle control during hypersonic flight to shape its trajectory, manage energy, and maximize parachute deployment altitude.",
+                nextPhase: "SUFR: “Straighten Up and Fly Right”",
+                nextPhaseTime: 318.2
             },
             {
-                name: "Parachute Deploy",
-                time: 240,
-                altitude: 13.463,
-                velocity: 1450,
-                description: "The parachute is triggered by calculating the distance to the landing site, and opening at the optimum time to hit a smaller target area. This is called a \"Range Trigger.\"",
-                nextPhase: "Heat Shield Separation",
-                nextPhaseTime: 260
-            },
-            {
-                name: "Heat Shield Separation",
-                time: 260,
-                altitude: 10,
-                velocity: 580,
-                description: "The heat shield separates to expose the rover and landing system.",
+                name: "SUFR: “Straighten Up and Fly Right”",
+                time: 318.2,
+                altitude: 11,
+                velocity: 425,
+                description: "The vehicle ejects balance masses to achieve near-zero angle of attack and reorients for safe parachute deployment and onboard radar altimeter ground acquisition.",
                 nextPhase: null,
                 nextPhaseTime: null
             }
         ];
-        
+
         this.currentPhaseIndex = 0;
         this.phaseListeners = [];
     }
@@ -90,7 +86,11 @@ export class PhaseController {
         const t34 = phasesEntry['34_e'];
         const t45 = phasesEntry['45_e'];
 
-        // Apply to phases (indices: 0=EIP, 1=Guidance, 2=Heading, 3=SUFR, 4=Chute, 5=HS-Sep)
+        // Apply to phases.  Index 0 stays at t=0 (entry interface).
+        // 1 = Aerothermal build-up         (start time = t12)
+        // 2 = Peak heating / aero load     (start time = t23)
+        // 3 = Hypersonic glide control     (start time = t34)
+        // 4 = SUFR                         (start time = t45)
         if (isValid(t12) && this.phases[1]) {
             this.phases[1].time = t12;
             if (this.phases[0]) this.phases[0].nextPhaseTime = t12;
@@ -104,30 +104,8 @@ export class PhaseController {
             if (this.phases[2]) this.phases[2].nextPhaseTime = t34;
         }
         if (isValid(t45) && this.phases[4]) {
-            // Capture original t45 (parachute deploy) before override so we can
-            // shift downstream EDL phases (heat shield sep, backshell sep, sky
-            // crane) by the same delta. Without this, the legacy hardcoded times
-            // (e.g. 260s) fall BEFORE the backend-computed parachute deploy
-            // (e.g. 318s), producing non-monotonic phase ordering.
-            const oldT45 = this.phases[4].time;
-            const delta = t45 - oldT45;
             this.phases[4].time = t45;
             if (this.phases[3]) this.phases[3].nextPhaseTime = t45;
-            if (Number.isFinite(delta) && delta !== 0) {
-                for (let i = 5; i < this.phases.length; i++) {
-                    if (typeof this.phases[i].time === 'number') {
-                        this.phases[i].time += delta;
-                    }
-                    if (typeof this.phases[i].nextPhaseTime === 'number') {
-                        this.phases[i].nextPhaseTime += delta;
-                    }
-                }
-                // Phase 4's nextPhaseTime points at phase 5's time, refresh it.
-                if (this.phases[4] && this.phases[5] &&
-                    typeof this.phases[5].time === 'number') {
-                    this.phases[4].nextPhaseTime = this.phases[5].time;
-                }
-            }
         }
 
         console.log('[PhaseController] Backend phase timestamps applied:', {
@@ -222,48 +200,45 @@ export class PhaseController {
         });
     }
     
-    // Phase-specific configurations
+    // Phase-specific configurations keyed to the 5-phase scheme.
+    // SUFR's name uses typographic quotes; we match by prefix to be safe.
     getPhaseConfig(phaseName) {
         const configs = {
-            "Entry Interface Point": {
+            "Gravity-dominated motion in a rarefied atmosphere": {
                 cameraDistance: 200,
-                heatShieldGlow: 0.8,
-                atmosphericDrag: 0.1,
+                heatShieldGlow: 0.2,        // negligible heating still
+                atmosphericDrag: 0.05,
                 thrusterActivity: false
             },
-            "Guidance Start": {
+            "Aerothermal build-up": {
                 cameraDistance: 150,
-                heatShieldGlow: 1.0,
-                atmosphericDrag: 0.3,
+                heatShieldGlow: 0.7,        // heating ramping
+                atmosphericDrag: 0.4,
                 thrusterActivity: true
             },
-            "Heading Alignment": {
+            "Peak heating and aerodynamic load": {
+                cameraDistance: 130,
+                heatShieldGlow: 1.0,        // maximum
+                atmosphericDrag: 0.9,
+                thrusterActivity: true
+            },
+            "Hypersonic glide control phase": {
                 cameraDistance: 120,
-                heatShieldGlow: 0.7,
-                atmosphericDrag: 0.5,
-                thrusterActivity: true
-            },
-            "Begin SUFR": {
-                cameraDistance: 100,
-                heatShieldGlow: 0.4,
+                heatShieldGlow: 0.5,
                 atmosphericDrag: 0.7,
                 thrusterActivity: true
             },
-            "Parachute Deploy": {
-                cameraDistance: 150,
-                heatShieldGlow: 0.1,
-                atmosphericDrag: 0.9,
-                thrusterActivity: false
-            },
-            "Heat Shield Separation": {
-                cameraDistance: 100,
-                heatShieldGlow: 0,
-                atmosphericDrag: 0.95,
-                thrusterActivity: false
-            }
         };
-        
-        return configs[phaseName] || {};
+        if (configs[phaseName]) return configs[phaseName];
+        if (phaseName && phaseName.startsWith('SUFR')) {
+            return {
+                cameraDistance: 100,
+                heatShieldGlow: 0.2,
+                atmosphericDrag: 0.85,
+                thrusterActivity: false
+            };
+        }
+        return {};
     }
     
     // Telemetry calculations
@@ -296,15 +271,14 @@ export class PhaseController {
     
     getPhaseColor(phaseName) {
         const colors = {
-            "Entry Interface Point": "#ff6600",
-            "Guidance Start": "#ff8800",
-            "Heading Alignment": "#ffaa00",
-            "Begin SUFR": "#ffcc00",
-            "Parachute Deploy": "#00ccff",
-            "Heat Shield Separation": "#00ffcc"
+            "Gravity-dominated motion in a rarefied atmosphere": "#ff6600",
+            "Aerothermal build-up":                              "#ff8800",
+            "Peak heating and aerodynamic load":                 "#ffcc00",
+            "Hypersonic glide control phase":                    "#ffaa00",
         };
-        
-        return colors[phaseName] || "#ffffff";
+        if (colors[phaseName]) return colors[phaseName];
+        if (phaseName && phaseName.startsWith('SUFR')) return "#00ccff";
+        return "#ffffff";
     }
     
     // Reset controller

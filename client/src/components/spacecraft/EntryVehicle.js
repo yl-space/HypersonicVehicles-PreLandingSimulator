@@ -887,43 +887,40 @@ export class EntryVehicle {
     triggerPhaseTransition(phaseName) {
         console.log(`Phase transition: ${phaseName}`);
 
-        switch(phaseName) {
-            case 'Entry Interface Point':
-                // Set trim angle of attack for hypersonic entry
+        // Phase-keyed switch matches the team's 5-phase scheme.
+        // SUFR uses startsWith() because the canonical name has typographic
+        // quotes ("Straighten Up and Fly Right") which can render as plain
+        // ASCII in some places — guard with a prefix check.
+        switch (phaseName) {
+            case 'Gravity-dominated motion in a rarefied atmosphere':
+                // Trim AoA established at entry; no aerodynamic forces yet.
                 this.setAngleOfAttack(-16);
-                console.log('Entry phase: Trim AoA = -16° (MSL standard)');
+                console.log('Phase 1: Trim AoA = -16° (MSL standard) — rarefied atmosphere');
                 break;
 
-            case 'Guidance Start':
-                // Maintain trim AoA, activate thrusters for bank angle control
+            case 'Aerothermal build-up':
+                // Aero forces ramping; activate bank-angle control authority.
                 this.activateThrusters(true);
-                console.log('Guidance phase: Maintaining trim AoA, bank angle modulation active');
+                console.log('Phase 2: Aerothermal build-up — bank-angle control active');
                 break;
 
-            case 'Heading Alignment':
-                // Still maintaining trim AoA during alignment
-                console.log('Heading alignment: Final trajectory corrections with trim AoA');
+            case 'Peak heating and aerodynamic load':
+                // Maintain trim AoA through peak deceleration / heating.
+                console.log('Phase 3: Peak heating + load — holding trim AoA');
                 break;
 
-            case 'Begin SUFR':
-                // CRITICAL: "Straighten Up and Fly Right" maneuver
-                // Set angle of attack to ZERO for parachute deployment preparation
-                this.setAngleOfAttack(0);
-                this.setBankAngle(0);
-                console.log('SUFR maneuver: AoA = 0°, Bank = 0° (preparing for parachute)');
+            case 'Hypersonic glide control phase':
+                // Active bank-angle guidance for energy/range management.
+                console.log('Phase 4: Hypersonic glide — bank-angle modulation');
                 break;
 
-            case 'Parachute Deploy':
-                // Zero AoA, zero bank angle, stable descent
-                this.setAngleOfAttack(0);
-                this.setBankAngle(0);
-                this.deployParachute();
-                console.log('Parachute deployed: Stable descent configuration');
-                break;
-
-            case 'Heat Shield Separation':
-                this.ejectHeatShield();
-                console.log('Heat shield separated');
+            default:
+                if (phaseName && phaseName.startsWith('SUFR')) {
+                    // Straighten Up and Fly Right — zero AoA, zero bank for chute deploy.
+                    this.setAngleOfAttack(0);
+                    this.setBankAngle(0);
+                    console.log('Phase 5: SUFR — AoA = 0°, Bank = 0° (parachute prep)');
+                }
                 break;
         }
     }

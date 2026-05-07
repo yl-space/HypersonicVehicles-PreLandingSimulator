@@ -1,30 +1,51 @@
 {
-  "id": "jsl",
+  "id": "msl",
   "name": "Mars Science Laboratory",
   "phases": [
     {
-      "name": "Entry Interface",
-      "startTime": 0,
-      "altitude": 132000,
-      "description": "Atmospheric entry begins"
+      "name": "Gravity-dominated motion in a rarefied atmosphere",
+      "time": 0,
+      "altitude": 125,
+      "velocity": 5845,
+      "description": "The vehicle enters the Martian atmosphere, where the upper atmosphere is still too rarefied to generate significant aerodynamic forces and heating.",
+      "nextPhase": "Aerothermal build-up",
+      "nextPhaseTime": 26.1
     },
     {
-      "name": "Peak Heating",
-      "startTime": 80,
-      "altitude": 60000,
-      "description": "Maximum thermal stress"
+      "name": "Aerothermal build-up",
+      "time": 26.1,
+      "altitude": 90,
+      "velocity": 5500,
+      "description": "As atmospheric density increases, aerodynamic drag and heating rise rapidly, marking the onset of significant aerothermal effects.",
+      "nextPhase": "Peak heating and aerodynamic load",
+      "nextPhaseTime": 53.7
     },
     {
-      "name": "Peak Deceleration",
-      "startTime": 150,
-      "altitude": 25000,
-      "description": "Maximum g-forces"
+      "name": "Peak heating and aerodynamic load",
+      "time": 53.7,
+      "altitude": 60,
+      "velocity": 4500,
+      "description": "The vehicle encounters its most severe thermal environment and largest aerodynamic loads as velocity remains high in denser layers of the atmosphere.",
+      "nextPhase": "Hypersonic glide control phase",
+      "nextPhaseTime": 84.0
     },
     {
-      "name": "Parachute Deploy",
-      "startTime": 260.65,
-      "altitude": 13462.9,
-      "description": "Parachute deployment"
+      "name": "Hypersonic glide control phase",
+      "time": 84.0,
+      "altitude": 35,
+      "velocity": 2500,
+      "description": "The vehicle uses bank-angle control during hypersonic flight to shape its trajectory, manage energy, and maximize parachute deployment altitude.",
+      "nextPhase": "SUFR: “Straighten Up and Fly Right”",
+      "nextPhaseTime": 318.2
+    },
+    {
+      "name": "SUFR: “Straighten Up and Fly Right”",
+      "time": 318.2,
+      "altitude": 11,
+      "velocity": 425,
+      "description": "The vehicle ejects balance masses to achieve near-zero angle of attack and reorients for safe parachute deployment and onboard radar altimeter ground acquisition.",
+      "nextPhase": null,
+      "nextPhaseTime": null
     }
   ]
 }
