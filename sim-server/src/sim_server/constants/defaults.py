@@ -19,7 +19,7 @@ DEFAULT_VEHICLE = {
 }
 
 DEFAULT_CONTROL = {
-    "bank_angle": np.deg2rad(30.0), # [rad] Bank Angle 
+    "bank_angle": np.deg2rad(0), # [rad] Bank Angle (matches remote sim-server default)
 }
 def override_defaults(defaults: dict, overrides: dict) -> dict:
     """Override default parameters with user-specified values, ignoring None values in overrides."""
